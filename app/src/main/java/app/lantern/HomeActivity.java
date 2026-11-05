@@ -23,7 +23,9 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The home screen, laid out to the 1920 x 1080 mockup: three shelves switched with L1 and R1,
@@ -31,7 +33,8 @@ import java.util.List;
  */
 public class HomeActivity extends Activity {
     private static final int AMBER = 0xFFFFB454;
-    private static final String[] TABS = {"Recent", "Favourites", "All games"};
+    private static final String[] TABS = {"Recent", "Favourites", "Systems", "All games"};
+    private static final int TAB_SYSTEMS = 2, TAB_ALL = 3;
 
     private final List<Game> all = new ArrayList<>();
     private final List<Game> shown = new ArrayList<>();
@@ -45,6 +48,9 @@ public class HomeActivity extends Activity {
     private boolean pageOpen, infoOpen;
     private ArtFetcher fetcher;
     private boolean artOn;
+    /** When set, the shelf shows only this system's games (opened from the Systems shelf). */
+    private String filter;
+    private int loadGeneration;
     private int actIdx;
     private Glow glow;
     private Shelf shelf;
@@ -117,7 +123,17 @@ public class HomeActivity extends Activity {
         safe.addView(stage, new FrameLayout.LayoutParams(u(1920), u(1080), Gravity.CENTER));
 
         shelf = new Shelf(this, s);
-        shelf.setListener(this::onFocused);
+        shelf.setListener(new Shelf.Listener() {
+            @Override
+            public void onFocus(int index) {
+                onFocused(index);
+            }
+
+            @Override
+            public void onTap(int index) {
+                if (index == shelf.getIndex()) activateShelf(); else shelf.setIndex(index, true);
+            }
+        });
         stage.addView(shelf, new FrameLayout.LayoutParams(-1, -1));
         buildTopBar();
         buildInfo();
@@ -253,23 +269,35 @@ public class HomeActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        all.clear();
-        all.addAll(Library.load(this));
-        if (tab < 0) tab = hasRecent() ? 0 : 2;
         Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if (b != null) {
             int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
             batteryText = level >= 0 ? (level * 100 / scale) + "%" : "";
         }
-        loaded = true;
-        if (stage != null) buildUi(); // already sized: rebuild with the fresh library
         // When a cover finishes decoding, its colour may change the glow behind the focused game.
         ArtCache.setListener(g -> {
             int i = shelf == null ? -1 : shelf.getIndex();
             if (i >= 0 && i < shown.size() && shown.get(i) == g) onFocused(i);
         });
-        if (artOn) startArt();
 
+        // Reading the library touches the storage for every game, so it happens off the main thread;
+        // the screen stays responsive and fills in when the list is ready.
+        final int generation = ++loadGeneration;
+        final android.content.Context app = getApplicationContext();
+        new Thread(() -> {
+            long t0 = System.nanoTime();
+            final List<Game> fresh = Library.load(app);
+            android.util.Log.i("Lantern", "library: " + fresh.size() + " games in " + (System.nanoTime() - t0) / 1000000 + " ms");
+            runOnUiThread(() -> {
+                if (generation != loadGeneration || isDestroyed()) return; // a newer load took over
+                all.clear();
+                all.addAll(fresh);
+                if (tab < 0) tab = hasRecent() ? 0 : TAB_ALL;
+                loaded = true;
+                if (stage != null) buildUi(); // already sized: rebuild with the fresh library
+                if (artOn) startArt();
+            });
+        }, "library").start();
     }
 
     @Override
@@ -320,7 +348,7 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_BUTTON_A:
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                if (first) openPage();
+                if (first) activateShelf();
                 return true;
             case KeyEvent.KEYCODE_BUTTON_Y:
                 if (first) toggleFavourite();
@@ -332,6 +360,7 @@ public class HomeActivity extends Activity {
                 }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_B:
+                if (first) leaveSystem();
                 return true;
             default:
                 return super.onKeyDown(keyCode, event);
@@ -340,8 +369,29 @@ public class HomeActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // A launcher has nowhere to go back to, except out of a game page.
-        if (pageOpen) closePage();
+        // A launcher has nowhere to go back to, except out of a game page or a system.
+        if (pageOpen) closePage(); else leaveSystem();
+    }
+
+    /** A on the shelf: a system tile opens that system's games, a game tile opens its page. */
+    private void activateShelf() {
+        Game g = shelf.itemAt(shelf.getIndex());
+        if (g == null) return;
+        if (g.systemTile) {
+            filter = g.sysId;
+            lastId = null;
+            refresh(false);
+        } else {
+            openPage();
+        }
+    }
+
+    /** B inside a system goes back to the Systems shelf, with that system's tile selected. */
+    private void leaveSystem() {
+        if (filter == null) return;
+        lastId = "sys:" + filter;
+        filter = null;
+        refresh(true);
     }
 
     // ---- shelves ----
@@ -353,22 +403,32 @@ public class HomeActivity extends Activity {
 
     private void setTab(int t) {
         tab = (t + TABS.length) % TABS.length;
+        filter = null;
         lastId = null;
         refresh(false);
     }
 
     private void refresh(boolean keepFocus) {
         shown.clear();
-        for (Game g : all) {
-            if (tab == 0 && g.lastPlayed == 0) continue;
-            if (tab == 1 && !g.fav) continue;
-            shown.add(g);
+        boolean systemTiles = tab == TAB_SYSTEMS && filter == null;
+        if (systemTiles) {
+            shown.addAll(systemTiles());
+        } else {
+            for (Game g : all) {
+                if (filter != null && !filter.equals(g.sysId)) continue;
+                if (filter == null && tab == 0 && g.lastPlayed == 0) continue;
+                if (filter == null && tab == 1 && !g.fav) continue;
+                shown.add(g);
+            }
+            if (filter == null && tab == 0) Collections.sort(shown, (a, b) -> Long.compare(b.lastPlayed, a.lastPlayed));
         }
-        if (tab == 0) Collections.sort(shown, (a, b) -> Long.compare(b.lastPlayed, a.lastPlayed));
 
         for (int i = 0; i < tabViews.size(); i++) {
             TextView t = tabViews.get(i);
             boolean on = i == tab;
+            // Inside a system, its tab shows the system's name, so it is clear where you are.
+            if (on && i == TAB_SYSTEMS) t.setText(filter == null ? TABS[i] : Library.systemTitle(filter));
+            else t.setText(TABS[i]);
             t.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             t.setAlpha(on ? 1f : 0.55f);
             GradientDrawable pill = new GradientDrawable();
@@ -377,20 +437,15 @@ public class HomeActivity extends Activity {
             t.setBackground(pill);
         }
 
-        List<Cover> covers = new ArrayList<>();
+        // Work out which tile to come back to first: setItems announces item 0, which overwrites lastId.
+        final String want = keepFocus ? lastId : null;
         int restore = 0;
-        for (int i = 0; i < shown.size(); i++) {
-            Game g = shown.get(i);
-            Cover c = new Cover(this, g, s);
-            c.setOnClickListener(v -> {
-                int at = shelf.indexOfChild(v);
-                if (at == shelf.getIndex()) openPage(); else shelf.setIndex(at, true);
-            });
-            covers.add(c);
-            if (keepFocus && g.id.equals(lastId)) restore = i;
+        if (want != null) {
+            for (int i = 0; i < shown.size(); i++) if (shown.get(i).id.equals(want)) { restore = i; break; }
         }
-        shelf.setCovers(covers);
+        shelf.setItems(new ArrayList<>(shown), systemTiles);
         shelf.setIndex(restore, false);
+        setHints(pageOpen);
 
         empty.setText(shown.isEmpty() ? emptyMessage() : "");
         if (shown.isEmpty()) {
@@ -403,6 +458,7 @@ public class HomeActivity extends Activity {
     }
 
     private String emptyMessage() {
+        if (filter != null) return "No games here.";
         if (tab == 0) return "Nothing played yet.\nOpen a game and it will show up here.";
         if (tab == 1) return "No favourites yet.\nPress Y on a game to add one.";
         return Library.hasFileAccess()
@@ -410,10 +466,46 @@ public class HomeActivity extends Activity {
                 : "No games found yet.";
     }
 
+    /** One tile per system that has games, in a fixed order: consoles by name, Android last. */
+    private List<Game> systemTiles() {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (Game g : all) counts.put(g.sysId, counts.containsKey(g.sysId) ? counts.get(g.sysId) + 1 : 1);
+        List<String> ids = new ArrayList<>(counts.keySet());
+        Collections.sort(ids, (a, b) -> {
+            if (a.equals(Library.APPS)) return b.equals(Library.APPS) ? 0 : 1;
+            if (b.equals(Library.APPS)) return -1;
+            return Library.systemTitle(a).compareToIgnoreCase(Library.systemTitle(b));
+        });
+        List<Game> out = new ArrayList<>();
+        for (String id : ids) {
+            Game t = new Game();
+            t.id = "sys:" + id;
+            t.systemTile = true;
+            t.sysId = id;
+            t.title = Library.systemTitle(id);
+            t.system = Library.systemName(id);
+            t.count = counts.get(id);
+            t.hue = (id.hashCode() & 0x7fffffff) % 360;
+            out.add(t);
+        }
+        return out;
+    }
+
     private void onFocused(int index) {
         if (index < 0 || index >= shown.size()) return;
         Game g = shown.get(index);
         lastId = g.id;
+        if (g.systemTile) {
+            title.setText(g.title);
+            chipView.setVisibility(View.VISIBLE);
+            chipView.setText(g.count + (g.count == 1 ? " GAME" : " GAMES"));
+            when.setText("");
+            sub.setText(g.sysId.equals(Library.APPS) ? "Installed Android apps"
+                    : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
+                    : "No emulator core for this system yet");
+            glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
+            return;
+        }
         title.setText(g.title);
         chipView.setVisibility(View.VISIBLE);
         chipView.setText(g.system.toUpperCase());
@@ -456,13 +548,14 @@ public class HomeActivity extends Activity {
     private void toggleFavourite() {
         int i = shelf.getIndex();
         if (i < 0 || i >= shown.size()) return;
+        if (shown.get(i).systemTile) return; // systems cannot be favourites
         Library.toggleFav(this, shown.get(i));
-        if (tab == 1) {
+        if (tab == 1 && filter == null) {
             lastId = null;
             refresh(false);
             shelf.setIndex(Math.min(i, shown.size() - 1), false);
         } else {
-            shelf.getChildAt(i).invalidate();
+            shelf.redraw();
         }
     }
 
@@ -478,8 +571,7 @@ public class HomeActivity extends Activity {
 
     private void startArt() {
         fetcher.fetch(all, g -> {
-            if (shelf == null) return;
-            for (int i = 0; i < shelf.getChildCount(); i++) shelf.getChildAt(i).invalidate();
+            if (shelf != null) shelf.redraw();
         });
     }
 
@@ -509,6 +601,7 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("R1", Color.WHITE, false), "Shelf");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Open");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
+            if (filter != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
             hint(hintsRow, glyph("Start", Color.WHITE, false), artOn ? "Cover art: on" : "Cover art: off");
         }
     }
@@ -560,13 +653,13 @@ public class HomeActivity extends Activity {
         infoBlock.setVisibility(View.VISIBLE);
         setHints(false);
         int i = shelf.getIndex();
-        if (tab == 1) {
+        if (tab == 1 && filter == null) {
             // A game un-favourited on its page leaves the Favourites shelf now.
             lastId = null;
             refresh(false);
             shelf.setIndex(Math.min(i, shown.size() - 1), false);
-        } else if (i < shelf.getChildCount()) {
-            shelf.getChildAt(i).invalidate();
+        } else {
+            shelf.redraw();
         }
     }
 
@@ -574,7 +667,8 @@ public class HomeActivity extends Activity {
         Game g = shown.get(shelf.getIndex());
         pageView.removeAllViews();
 
-        Cover big = new Cover(this, g, s);
+        Cover big = new Cover(this, s);
+        big.setGame(g);
         big.setWeight(1f);
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(430), u(620), Gravity.TOP | Gravity.START);
         cp.leftMargin = u(140);

@@ -19,6 +19,22 @@ it in the game's colours, the title block, and the button hints.
 - A opens the game's page: Play, add or remove favourite, Details (file or package facts), and for apps
   Android's App settings. L1/R1 move to the previous or next game, Y favourites, B goes back.
 
+### Shelf speed and the Systems shelf
+
+`Shelf` keeps views only for the tiles on or near the screen (about 10) and reuses them as the row slides, so the
+cost no longer grows with the library. The library is read on a background thread (one directory listing per
+system and per art folder, not a file check per game) and the screen fills in when it is ready.
+
+Measured on the emulator with 1,095 games (about 1,000 empty fake files, since removed), before and after:
+cold start 588 to 599 ms became 126 to 158 ms; views alive 1,146 became 66 to 69; scrolling 30 tiles had a median
+frame of 18 ms and 3.8% janky frames, now 17 ms and 1.9%; scrolling 400 tiles deep had 0.4% janky frames; memory
+(PSS) 140 MB became 59 to 110 MB. The library load itself takes about 110 to 125 ms for those games. These are
+emulator numbers, on a laptop's CPU, not the Retroid's.
+
+The Systems shelf (third tab) has one tile per system that has games, with its game count; A opens that system's
+games, the tab shows the system's name, and B goes back to the same tile. Two bugs found and fixed on the way:
+going back landed on the first tile, and fresh tiles were drawn at full brightness instead of dimmed.
+
 ### Screen fit
 
 The layout is the mockup's 1920 x 1080 scaled to the window, from the very top. The window draws behind a camera
@@ -116,8 +132,7 @@ Limits: software-rendered cores only (hardware rendering is refused), no core op
 draws through the system compositor (no shaders), and only GBA has a real core. The rest need downloads and a
 licence check each. Sound was measured by underrun count only; the emulator says nothing about latency.
 
-Not done yet: art fetching, the Systems shelf, cheats, button remapping, a BIOS check, disc swapping, and the
-shelf creates one view per game, so a library of hundreds needs recycling.
+Not done yet: cheats, button remapping, a BIOS check, disc swapping, more cores.
 Not verified: anything on the real device. Only checked on the `retroid-sim` emulator, which keeps system bars
 on screen (the layout fits what the window leaves). The D-pad is handled as key events only; stick or hat
 motion events are not handled yet.

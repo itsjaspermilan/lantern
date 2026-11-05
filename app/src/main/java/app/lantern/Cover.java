@@ -16,16 +16,16 @@ import android.text.TextUtils;
 import android.view.View;
 
 /**
- * A game's tile, drawn to fit whatever size the shelf gives it (small when idle, large when focused).
- * Art is generated from the game's colours until real covers are fetched.
+ * A tile, drawn to fit whatever size the shelf gives it (small when idle, large when focused). It shows
+ * one game or one system, and is reused for another when it scrolls out of sight. Without a real cover
+ * the art is generated from the game's colours.
  */
 final class Cover extends View {
     private static final int AMBER = 0xFFFFB454;
 
-    final Game g;
+    private Game g;
     private final float s;
-    private int c1, c2, lastHue;
-    private final int motif;
+    private int c1, c2, lastHue, motif;
     private final RectF artBox = new RectF();
     private final Paint artPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -35,14 +35,24 @@ final class Cover extends View {
     private final RectF rect = new RectF();
     private float weight;
 
-    Cover(Context c, Game g, float s) {
+    Cover(Context c, float s) {
         super(c);
-        this.g = g;
         this.s = s;
-        setColours();
-        motif = (g.id.hashCode() & 0x7fffffff) % 6;
         tp.setTypeface(Typeface.DEFAULT_BOLD);
         tp.setColor(Color.WHITE);
+        setAlpha(.6f); // an idle tile is dimmed; setWeight skips work when the weight is unchanged
+    }
+
+    Game game() {
+        return g;
+    }
+
+    /** Points this tile at another game or system. */
+    void setGame(Game game) {
+        g = game;
+        motif = (game.id.hashCode() & 0x7fffffff) % 6;
+        setColours();
+        invalidate();
     }
 
     /** The tile's two colours come from the game's hue, which changes once its cover has been read. */
@@ -63,7 +73,7 @@ final class Cover extends View {
     @Override
     protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight();
-        if (w <= 0 || h <= 0) return;
+        if (g == null || w <= 0 || h <= 0) return;
         float r = 18 * s;
         if (g.hue != lastHue) setColours();
         clip.reset();
@@ -76,6 +86,13 @@ final class Cover extends View {
         p.setShader(new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, h, p);
         p.setShader(null);
+
+        if (g.systemTile) {
+            drawSystem(c, w, h);
+            c.restore();
+            ring(c, w, h, r);
+            return;
+        }
 
         c.save();
         c.scale(w / 300f, h / 400f);
@@ -130,13 +147,42 @@ final class Cover extends View {
             tp.setColor(Color.WHITE);
         }
         c.restore();
+        ring(c, w, h, r);
+    }
 
-        if (weight > .02f) {
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(6 * s);
-            p.setColor(Color.argb((int) (255 * weight), 255, 255, 255));
-            c.drawRoundRect(3 * s, 3 * s, w - 3 * s, h - 3 * s, r, r, p);
-        }
+    /** A system's tile: soft rings, how many games it holds, and its name. */
+    private void drawSystem(Canvas c, float w, float h) {
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(2f, w * .018f));
+        p.setColor(0x38FFFFFF);
+        float cx = w / 2f, cy = h * .42f;
+        for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
+        p.setStyle(Paint.Style.FILL);
+
+        String count = g.count + (g.count == 1 ? " game" : " games");
+        tp.setTextSize(24 * s);
+        tp.setColor(0xD9FFFFFF);
+        c.drawText(count, 20 * s, 18 * s + 24 * s, tp);
+        tp.setColor(Color.WHITE);
+
+        tp.setTextSize((40 + 22 * weight) * s);
+        tp.setShadowLayer(8 * s, 0, 2 * s, 0x73000000);
+        StaticLayout sl = StaticLayout.Builder.obtain(g.title, 0, g.title.length(), tp, Math.max(1, Math.round(w - 40 * s)))
+                .setMaxLines(3).setEllipsize(TextUtils.TruncateAt.END).build();
+        c.save();
+        c.translate(20 * s, h - 18 * s - sl.getHeight());
+        sl.draw(c);
+        c.restore();
+        tp.clearShadowLayer();
+    }
+
+    /** The white ring around the focused tile. */
+    private void ring(Canvas c, float w, float h, float r) {
+        if (weight <= .02f) return;
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(6 * s);
+        p.setColor(Color.argb((int) (255 * weight), 255, 255, 255));
+        c.drawRoundRect(3 * s, 3 * s, w - 3 * s, h - 3 * s, r, r, p);
     }
 
     /** Six simple shapes, one per game, drawn on a 300 x 400 sheet. */

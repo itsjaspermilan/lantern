@@ -29,6 +29,11 @@ final class Game {
     long lastPlayed;
     boolean fav;
 
+    /** True for a tile that stands for a whole system on the Systems shelf, not for a game. */
+    boolean systemTile;
+    /** How many games a system tile holds. */
+    int count;
+
     boolean isRom() {
         return file != null;
     }

@@ -12,9 +12,11 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /** Finds the games (ROM folders and installed apps) and remembers favourites and play history. */
@@ -24,32 +26,51 @@ final class Library {
     private static final class Sys {
         final String folder;
         final String name;
+        final String title;
         final List<String> exts;
 
-        Sys(String folder, String name, String... exts) {
+        Sys(String folder, String name, String title, String... exts) {
             this.folder = folder;
             this.name = name;
+            this.title = title;
             this.exts = Arrays.asList(exts);
         }
     }
 
-    /** Folder name under Lantern/roms, short name, file types. */
+    /** Folder name under Lantern/roms, short name (the chip on a tile), full name (the Systems shelf), file types. */
     private static final Sys[] SYSTEMS = {
-        new Sys("nes", "NES", "nes"),
-        new Sys("snes", "SNES", "sfc", "smc"),
-        new Sys("gb", "Game Boy", "gb", "gbc"),
-        new Sys("gba", "GBA", "gba"),
-        new Sys("md", "Mega Drive", "md", "gen", "smd"),
-        new Sys("n64", "N64", "z64", "n64", "v64"),
-        new Sys("nds", "DS", "nds"),
-        new Sys("psx", "PlayStation", "cue", "chd", "pbp"),
-        new Sys("psp", "PSP", "iso", "cso"),
-        new Sys("saturn", "Saturn", "cue", "chd"),
-        new Sys("dc", "Dreamcast", "cdi", "gdi", "chd"),
-        new Sys("ps2", "PS2", "iso", "chd"),
+        new Sys("nes", "NES", "Nintendo Entertainment System", "nes"),
+        new Sys("snes", "SNES", "Super Nintendo", "sfc", "smc"),
+        new Sys("gb", "Game Boy", "Game Boy and Color", "gb", "gbc"),
+        new Sys("gba", "GBA", "Game Boy Advance", "gba"),
+        new Sys("md", "Mega Drive", "Mega Drive and Genesis", "md", "gen", "smd"),
+        new Sys("n64", "N64", "Nintendo 64", "z64", "n64", "v64"),
+        new Sys("nds", "DS", "Nintendo DS", "nds"),
+        new Sys("psx", "PlayStation", "PlayStation", "cue", "chd", "pbp"),
+        new Sys("psp", "PSP", "PlayStation Portable", "iso", "cso"),
+        new Sys("saturn", "Saturn", "Sega Saturn", "cue", "chd"),
+        new Sys("dc", "Dreamcast", "Sega Dreamcast", "cdi", "gdi", "chd"),
+        new Sys("ps2", "PS2", "PlayStation 2", "iso", "chd"),
         // Development only: an empty "something.test" file plays Lantern's own test core.
-        new Sys("test", "Test core", "test"),
+        new Sys("test", "Test core", "Test core", "test"),
     };
+
+    /** Id used for the Android apps on the Systems shelf. */
+    static final String APPS = "android";
+
+    /** The full name of a system, for its tile on the Systems shelf. */
+    static String systemTitle(String sysId) {
+        if (APPS.equals(sysId)) return "Android";
+        for (Sys s : SYSTEMS) if (s.folder.equals(sysId)) return s.title;
+        return sysId;
+    }
+
+    /** The short name of a system, as shown on a game's chip. */
+    static String systemName(String sysId) {
+        if (APPS.equals(sysId)) return "Android";
+        for (Sys s : SYSTEMS) if (s.folder.equals(sysId)) return s.name;
+        return sysId;
+    }
 
     static File romRoot() {
         return new File(Environment.getExternalStorageDirectory(), "Lantern/roms");
@@ -73,16 +94,33 @@ final class Library {
      * Cover art for a ROM: a picture in Lantern/art/&lt;system&gt;/&lt;game&gt;.png (or .jpg) wins, then one already
      * fetched. Null if there is none. Apps have no art here: they use their own icon.
      */
-    static File findArt(Context c, Game g) {
+    static File findArt(Context c, Game g, Map<String, Map<String, String>> own, Map<String, Map<String, String>> cached) {
         if (!g.isRom()) return null;
         String base = baseName(g.file);
-        File dir = new File(Environment.getExternalStorageDirectory(), "Lantern/art/" + g.sysId);
-        for (String ext : new String[]{".png", ".jpg", ".jpeg"}) {
-            File f = new File(dir, base + ext);
-            if (f.isFile()) return f;
+        Map<String, String> mine = own.get(g.sysId);
+        if (mine == null) {
+            mine = names(new File(Environment.getExternalStorageDirectory(), "Lantern/art/" + g.sysId));
+            own.put(g.sysId, mine);
         }
-        File cached = ArtFetcher.cacheFile(c, g);
-        return cached.isFile() ? cached : null;
+        for (String ext : new String[]{".png", ".jpg", ".jpeg"}) {
+            String actual = mine.get((base + ext).toLowerCase(Locale.ROOT));
+            if (actual != null) return new File(new File(Environment.getExternalStorageDirectory(), "Lantern/art/" + g.sysId), actual);
+        }
+        Map<String, String> fetched = cached.get(g.sysId);
+        if (fetched == null) {
+            fetched = names(ArtFetcher.cacheFile(c, g).getParentFile());
+            cached.put(g.sysId, fetched);
+        }
+        String actual = fetched.get((base + ".png").toLowerCase(Locale.ROOT));
+        return actual == null ? null : new File(ArtFetcher.cacheFile(c, g).getParentFile(), actual);
+    }
+
+    /** The file names in a folder, keyed by lower case, from one listing instead of one check per game. */
+    private static Map<String, String> names(File dir) {
+        Map<String, String> m = new HashMap<>();
+        String[] list = dir.list();
+        if (list != null) for (String n : list) m.put(n.toLowerCase(Locale.ROOT), n);
+        return m;
     }
 
     /** "Advance Wars (USA).gba" becomes "Advance Wars (USA)": the name RetroArch uses for save files. */
@@ -118,8 +156,9 @@ final class Library {
         List<Game> out = new ArrayList<>();
         out.addAll(scanRoms());
         out.addAll(listApps(c));
+        Map<String, Map<String, String>> ownArt = new HashMap<>(), fetchedArt = new HashMap<>();
         for (Game g : out) {
-            g.art = findArt(c, g);
+            g.art = findArt(c, g, ownArt, fetchedArt);
             g.fav = fav.contains(g.id);
             g.lastPlayed = sp.getLong("last:" + g.id, 0);
         }
@@ -148,18 +187,18 @@ final class Library {
         List<Game> out = new ArrayList<>();
         if (!hasFileAccess()) return out;
         for (Sys s : SYSTEMS) {
-            File[] files = new File(romRoot(), s.folder).listFiles();
-            if (files == null) continue;
-            for (File f : files) {
-                String n = f.getName();
+            File dir = new File(romRoot(), s.folder);
+            String[] list = dir.list(); // one listing; no per-file check, which is slow for hundreds of games
+            if (list == null) continue;
+            for (String n : list) {
                 int dot = n.lastIndexOf('.');
-                if (!f.isFile() || n.startsWith(".") || dot < 0) continue;
+                if (n.startsWith(".") || dot < 0) continue;
                 if (!s.exts.contains(n.substring(dot + 1).toLowerCase(Locale.ROOT))) continue;
                 Game g = new Game();
                 g.id = "rom:" + s.folder + "/" + n;
                 g.title = cleanTitle(n);
                 g.system = s.name;
-                g.file = f;
+                g.file = new File(dir, n);
                 g.sysId = s.folder;
                 g.hue = hue(g.title);
                 out.add(g);
@@ -180,6 +219,7 @@ final class Library {
             g.pkg = pkg;
             g.title = String.valueOf(ri.loadLabel(pm));
             g.system = "Android";
+            g.sysId = APPS;
             g.icon = ri.loadIcon(pm);
             g.hue = hue(pkg);
             g.launch = new Intent(Intent.ACTION_MAIN)

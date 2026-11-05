@@ -13,6 +13,8 @@ final class Cores {
         switch (systemFolder) {
             case "test":
                 return "testcore";
+            case "gba":
+                return "mgba";
             default:
                 return null;
         }

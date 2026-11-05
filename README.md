@@ -32,10 +32,28 @@ D-pad and face buttons reach the core (Android A arrives as RetroPad B, by posit
 and loading restores the picture, and `am crash` on the player process leaves Lantern running.
 `native/third_party/libretro/libretro.h` is the official MIT header, copied from GameStudio (see its NOTICE.md).
 
+### First real core: mGBA
+
+Put libretro cores in `native/cores/` (git-ignored, never committed). `build.sh` packages every
+`<name>_libretro_android.so` there as `lib<name>.so`, and `Cores.java` maps a system folder to a core name.
+Right now only `mgba_libretro_android.so` is present, from libretro's nightly Android build server
+(`buildbot.libretro.com/nightly/android/latest/arm64-v8a/`, 419,371 byte zip, sha256 starting 3edd6395,
+mGBA 0.11-212-7a12d6d, MPL-2.0). It is a nightly build with no signature. I checked it is a 64-bit ARM ELF that
+exports the libretro functions and needs only libc, libm and libdl.
+
+Checked on the emulator with one commercial GBA game from the owner's own collection (copied to the emulator
+only): it boots, the title screen runs at 59.8 to 60.3 fps with sound, a single Start tap moves from "Press
+Start" to the game's intro, a 462,912-byte save state is written, and `Advance Wars (USA).srm` (131,072 bytes) is
+created. The host writes battery saves every 5 seconds when they change and on exit, through a temp file and a
+rename. File names follow RetroArch's (`<game>.srm`, `<game>.state`); that is untested with real RetroArch files.
+Button presses are latched so a tap shorter than one frame still reaches the game.
+Not verified: that a saved game survives a restart (the `.srm` exists, a second run was not compared), loading a
+state with the real core, long play sessions, and anything about speed or heat on the Retroid.
+
 Spike limits: software-rendered cores only (hardware rendering is refused), no core options, one controller,
 the system scales the picture (no integer scaling, shaders or exact aspect), leaving the game ends it with no
-resume point, and there is no in-game menu yet. No real core (GBA, SNES and so on) is bundled. Getting those
-means downloading prebuilt cores or building them from source, and checking each one's licence.
+resume point, and there is no in-game menu yet. Only GBA has a real core. The rest need downloads and a licence
+check each.
 Sound was measured by underrun count only. Nobody has listened to it, and the emulator says nothing about
 latency on the Retroid.
 

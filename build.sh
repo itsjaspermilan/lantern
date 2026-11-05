@@ -33,6 +33,13 @@ rm -rf "$OUT/lib" && mkdir -p "$LIBDIR"
 CFLAGS="-shared -fPIC -O2 -Wall -Wextra -Inative/third_party/libretro"
 "$CC" $CFLAGS -o "$LIBDIR/liblanternplayer.so" native/player/player.c -llog -landroid -laaudio -ldl -lm
 "$CC" $CFLAGS -o "$LIBDIR/libtestcore.so" native/testcore/testcore.c -lm
+# Real cores the person has downloaded into native/cores/ (git-ignored, never committed):
+# mgba_libretro_android.so is packaged as libmgba.so, because Android only unpacks lib*.so files.
+for core in native/cores/*_libretro_android.so; do
+    [ -f "$core" ] || continue
+    name=$(basename "$core" _libretro_android.so)
+    cp "$core" "$LIBDIR/lib$name.so"
+done
 # Stored, not compressed, so zipalign can page-align them.
 (cd "$OUT" && zip -q -0 -r base.apk lib)
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"

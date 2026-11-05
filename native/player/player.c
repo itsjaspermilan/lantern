@@ -49,14 +49,18 @@ static struct {
     size_t (*serialize_size)(void);
     bool (*serialize)(void *, size_t);
     bool (*unserialize)(const void *, size_t);
+    void *(*get_memory_data)(unsigned);
+    size_t (*get_memory_size)(unsigned);
 } C;
 
 /* ---- shared state ---- */
-static char g_core_path[512], g_rom_path[512], g_sys_dir[512], g_save_dir[512], g_state_path[600];
+static char g_core_path[512], g_rom_path[512], g_sys_dir[512], g_save_dir[512], g_state_path[600], g_sram_path[600];
 static ANativeWindow *g_win;
 static int g_win_w, g_win_h;
 static unsigned g_pixel_format = RETRO_PIXEL_FORMAT_0RGB1555; /* the libretro default */
-static atomic_uint g_buttons;
+static atomic_uint g_buttons;  /* buttons held right now */
+static atomic_uint g_pressed;  /* buttons pressed since the last frame, even if already let go */
+static unsigned g_latched;     /* the presses the core sees this frame */
 static atomic_bool g_run;
 static atomic_int g_request; /* 0 none, 1 save state, 2 load state */
 static pthread_t g_thread;
@@ -202,7 +206,7 @@ static void input_poll_cb(void) {}
 static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id) {
     (void)index;
     if (port != 0 || device != RETRO_DEVICE_JOYPAD) return 0;
-    unsigned mask = atomic_load(&g_buttons);
+    unsigned mask = atomic_load(&g_buttons) | g_latched;
     if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)(mask & 0xFFFF);
     return id < 16 ? (int16_t)((mask >> id) & 1) : 0;
 }
@@ -291,6 +295,8 @@ static bool load_core(void) {
     SYM(serialize_size, "retro_serialize_size");
     SYM(serialize, "retro_serialize");
     SYM(unserialize, "retro_unserialize");
+    SYM(get_memory_data, "retro_get_memory_data");
+    SYM(get_memory_size, "retro_get_memory_size");
     if (C.api_version() != RETRO_API_VERSION) { set_status("ERROR: core speaks libretro API %u", C.api_version()); return false; }
     return true;
 }
@@ -317,6 +323,42 @@ static void do_state_request(int req) {
         }
     }
     free(buf);
+}
+
+/* ---- in-game saves (battery RAM): the core owns the memory, we keep it in <saves>/<game>.srm ---- */
+static unsigned char *g_sram_shadow; /* what is on disk, to notice changes */
+static size_t g_sram_size;
+
+static void sram_load(void) {
+    g_sram_size = C.get_memory_size(RETRO_MEMORY_SAVE_RAM);
+    unsigned char *mem = C.get_memory_data(RETRO_MEMORY_SAVE_RAM);
+    if (!g_sram_size || !mem) { g_sram_size = 0; return; }
+    g_sram_shadow = malloc(g_sram_size);
+    if (!g_sram_shadow) { g_sram_size = 0; return; }
+    FILE *f = fopen(g_sram_path, "rb");
+    if (f) {
+        size_t got = fread(mem, 1, g_sram_size, f);
+        fclose(f);
+        LOGI("loaded %zu bytes of save RAM from %s", got, g_sram_path);
+    }
+    memcpy(g_sram_shadow, mem, g_sram_size);
+}
+
+/* Writes the save RAM if it changed (or always when forced). Writes a temp file, then renames, so a
+ * crash or a full disk cannot leave half a save behind. */
+static void sram_flush(bool force) {
+    if (!g_sram_shadow) return;
+    unsigned char *mem = C.get_memory_data(RETRO_MEMORY_SAVE_RAM);
+    if (!mem) return;
+    if (!force && memcmp(g_sram_shadow, mem, g_sram_size) == 0) return;
+    char tmp[620];
+    snprintf(tmp, sizeof tmp, "%s.tmp", g_sram_path);
+    FILE *f = fopen(tmp, "wb");
+    if (!f) { LOGE("cannot write %s", tmp); return; }
+    bool ok = fwrite(mem, 1, g_sram_size, f) == g_sram_size;
+    ok = (fclose(f) == 0) && ok;
+    if (ok && rename(tmp, g_sram_path) == 0) memcpy(g_sram_shadow, mem, g_sram_size);
+    else LOGE("saving %s failed", g_sram_path);
 }
 
 static double now_s(void) {
@@ -361,6 +403,7 @@ static void *emulation_thread(void *arg) {
     }
     if (!C.load_game(&gi)) { set_status("ERROR: the core would not load this game"); goto done; }
     loaded = true;
+    sram_load();
 
     struct retro_system_av_info av;
     memset(&av, 0, sizeof av);
@@ -377,7 +420,7 @@ static void *emulation_thread(void *arg) {
     const unsigned target = (unsigned)(g_rate / g_fps * 3.0); /* keep about three frames of sound queued */
     bool audio_on = false;
     unsigned frames = 0, shown = 0;
-    double t_start = now_s(), t_report = t_start, t_next = t_start;
+    double t_start = now_s(), t_report = t_start, t_next = t_start, t_sram = t_start;
 
     while (atomic_load(&g_run)) {
         int req = atomic_exchange(&g_request, 0);
@@ -391,11 +434,14 @@ static void *emulation_thread(void *arg) {
             if (t < t_next) { usleep(1000); continue; }
             t_next = (t - t_next > 0.25 ? t : t_next) + 1.0 / g_fps;
         }
+        /* A tap shorter than one frame must still reach the game once. */
+        g_latched = atomic_exchange(&g_pressed, 0);
         C.run();
         frames++;
         shown++;
         if (!audio_on && !g_stream && frames == 3) audio_on = audio_open((int32_t)g_rate);
         double t = now_s();
+        if (t - t_sram >= 5.0) { sram_flush(false); t_sram = t; }
         if (t - t_report >= 1.0) {
             char note[96];
             pthread_mutex_lock(&g_status_lock);
@@ -410,7 +456,13 @@ static void *emulation_thread(void *arg) {
 
 done:
     audio_close();
-    if (loaded) C.unload_game();
+    if (loaded) {
+        sram_flush(false); /* before unloading: the core frees this memory */
+        C.unload_game();
+    }
+    free(g_sram_shadow);
+    g_sram_shadow = NULL;
+    g_sram_size = 0;
     if (C.lib) {
         if (C.deinit) C.deinit();
         dlclose(C.lib);
@@ -435,14 +487,22 @@ JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeStart(JNIEnv *env, jcla
     copy_jstring(env, rom, g_rom_path, sizeof g_rom_path);
     copy_jstring(env, sys_dir, g_sys_dir, sizeof g_sys_dir);
     copy_jstring(env, save_dir, g_save_dir, sizeof g_save_dir);
+    /* RetroArch's file names: the game's name without its extension, plus .srm or .state. */
+    char name[256];
     const char *base = strrchr(g_rom_path, '/');
-    snprintf(g_state_path, sizeof g_state_path, "%s/%s.state0", g_save_dir, base ? base + 1 : "game");
+    snprintf(name, sizeof name, "%s", base ? base + 1 : "game");
+    char *dot = strrchr(name, '.');
+    if (dot && dot != name) *dot = 0;
+    snprintf(g_state_path, sizeof g_state_path, "%s/%s.state", g_save_dir, name);
+    snprintf(g_sram_path, sizeof g_sram_path, "%s/%s.srm", g_save_dir, name);
 
     g_win = ANativeWindow_fromSurface(env, surface);
     if (!g_win) return JNI_FALSE;
     g_win_w = g_win_h = 0;
     g_pixel_format = RETRO_PIXEL_FORMAT_0RGB1555;
     atomic_store(&g_buttons, 0);
+    atomic_store(&g_pressed, 0);
+    g_latched = 0;
     atomic_store(&g_wr, 0);
     atomic_store(&g_rd, 0);
     atomic_store(&g_underruns, 0);
@@ -472,8 +532,12 @@ JNIEXPORT void JNICALL Java_app_lantern_Player_nativeStop(JNIEnv *env, jclass cl
 JNIEXPORT void JNICALL Java_app_lantern_Player_nativeButton(JNIEnv *env, jclass cls, jint id, jboolean down) {
     (void)env; (void)cls;
     if (id < 0 || id > 15) return;
-    if (down) atomic_fetch_or(&g_buttons, 1u << id);
-    else atomic_fetch_and(&g_buttons, ~(1u << id));
+    if (down) {
+        atomic_fetch_or(&g_buttons, 1u << id);
+        atomic_fetch_or(&g_pressed, 1u << id);
+    } else {
+        atomic_fetch_and(&g_buttons, ~(1u << id));
+    }
 }
 
 JNIEXPORT void JNICALL Java_app_lantern_Player_nativeStateRequest(JNIEnv *env, jclass cls, jint what) {

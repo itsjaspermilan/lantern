@@ -403,7 +403,7 @@ public class HomeActivity extends Activity {
         chipView.setVisibility(View.VISIBLE);
         chipView.setText(g.system.toUpperCase());
         when.setText(g.lastPlayed == 0 ? "Never played" : "Played " + ago(g.lastPlayed));
-        sub.setText(g.isRom() ? "Opens in the built-in player (not built yet)" : "Ready to play");
+        sub.setText(g.isRom() && !Cores.has(this, g.sysId) ? "No emulator core for " + g.system + " yet" : "Ready to play");
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
     }
 
@@ -411,7 +411,17 @@ public class HomeActivity extends Activity {
 
     private void open(Game g) {
         if (g.isRom()) {
-            Toast.makeText(this, "No player yet. " + g.title + " will open here in M2.", Toast.LENGTH_SHORT).show();
+            java.io.File core = Cores.file(this, g.sysId);
+            if (core == null) {
+                Toast.makeText(this, "No emulator core for " + g.system + " yet.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Library.markPlayed(this, g);
+            startActivity(new Intent(this, PlayerActivity.class)
+                    .putExtra(PlayerActivity.EXTRA_CORE, core.getAbsolutePath())
+                    .putExtra(PlayerActivity.EXTRA_ROM, g.file.getAbsolutePath())
+                    .putExtra(PlayerActivity.EXTRA_SYS, Library.biosDir().getAbsolutePath())
+                    .putExtra(PlayerActivity.EXTRA_SAVE, Library.saveDir(g.sysId).getAbsolutePath()));
             return;
         }
         try {
@@ -479,7 +489,7 @@ public class HomeActivity extends Activity {
 
     private List<Act> actionsFor(Game g) {
         List<Act> a = new ArrayList<>();
-        a.add(new Act("▶", "Play", g.isRom() ? "Built-in player (not built yet)" : "Android app"));
+        a.add(new Act("▶", "Play", g.isRom() ? (Cores.has(this, g.sysId) ? "Built-in player" : "No core yet") : "Android app"));
         a.add(new Act("★", g.fav ? "Remove from favourites" : "Add to favourites", ""));
         a.add(new Act("i", infoOpen ? "Hide details" : "Details", ""));
         if (!g.isRom()) a.add(new Act("⚙", "App settings", "Android settings"));
@@ -659,8 +669,9 @@ public class HomeActivity extends Activity {
 
     private String summary(Game g) {
         if (g.isRom()) {
-            return "A " + g.system + " game from your ROM folder. It will run in Lantern's own player, "
-                    + "with saves, states and cheats in one menu, once that is built.";
+            return "A " + g.system + " game from your ROM folder. "
+                    + (Cores.has(this, g.sysId) ? "It opens in Lantern's own player."
+                    : "No emulator core is bundled for this system yet.");
         }
         return "An installed Android app. It opens as it normally does, and Home brings you back here.";
     }

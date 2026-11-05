@@ -47,10 +47,26 @@ final class Library {
         new Sys("saturn", "Saturn", "cue", "chd"),
         new Sys("dc", "Dreamcast", "cdi", "gdi", "chd"),
         new Sys("ps2", "PS2", "iso", "chd"),
+        // Development only: an empty "something.test" file plays Lantern's own test core.
+        new Sys("test", "Test core", "test"),
     };
 
     static File romRoot() {
         return new File(Environment.getExternalStorageDirectory(), "Lantern/roms");
+    }
+
+    /** Where the person puts BIOS files. Lantern checks them and never supplies them. */
+    static File biosDir() {
+        File d = new File(Environment.getExternalStorageDirectory(), "Lantern/bios");
+        d.mkdirs();
+        return d;
+    }
+
+    /** In-game saves and save states for one system. */
+    static File saveDir(String sysId) {
+        File d = new File(Environment.getExternalStorageDirectory(), "Lantern/saves/" + sysId);
+        d.mkdirs();
+        return d;
     }
 
     /** Reading the shared storage folder needs "all files access" on Android 11 and later. */
@@ -105,6 +121,7 @@ final class Library {
                 g.title = cleanTitle(n);
                 g.system = s.name;
                 g.file = f;
+                g.sysId = s.folder;
                 g.hue = hue(g.title);
                 out.add(g);
             }

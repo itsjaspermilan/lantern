@@ -18,16 +18,37 @@ it in the game's colours, the title block, and the button hints.
 - A opens the game's page: Play, add or remove favourite, Details (file or package facts), and for apps
   Android's App settings. L1/R1 move to the previous or next game, Y favourites, B goes back.
 
-Not done yet: art fetching, the Systems shelf, the built-in libretro player and its menu. The page has no
-Resume, Save states or Game settings rows because there is nothing behind them yet.
-Play on a ROM only shows a message. The shelf creates one view per game, so a library of hundreds needs recycling.
+### Player spike (M2)
+
+`native/player/player.c` is a libretro host: it loads a core (`dlopen`), runs it on its own thread, copies each
+frame to a surface, plays the audio through AAudio (the audio clock sets the speed), and feeds it the buttons.
+It runs in a separate Android process (`:player`), so a crashing core leaves the home screen alone.
+`native/testcore/testcore.c` is a small core of our own (a moving square, a 440/880 Hz tone, 16 button lights,
+save states) so the player can be checked without ROMs or downloads. An empty `Something.test` file in
+`Lantern/roms/test/` plays it. F5 and F7 save and load one state (dev keys), Back leaves.
+
+Checked on the emulator: 320x240 at 59.9 to 60.1 fps, audio stream running (a handful of start-up underruns),
+D-pad and face buttons reach the core (Android A arrives as RetroPad B, by position), save state writes 16 bytes
+and loading restores the picture, and `am crash` on the player process leaves Lantern running.
+`native/third_party/libretro/libretro.h` is the official MIT header, copied from GameStudio (see its NOTICE.md).
+
+Spike limits: software-rendered cores only (hardware rendering is refused), no core options, one controller,
+the system scales the picture (no integer scaling, shaders or exact aspect), leaving the game ends it with no
+resume point, and there is no in-game menu yet. No real core (GBA, SNES and so on) is bundled. Getting those
+means downloading prebuilt cores or building them from source, and checking each one's licence.
+Sound was measured by underrun count only. Nobody has listened to it, and the emulator says nothing about
+latency on the Retroid.
+
+Not done yet: art fetching, the Systems shelf, the in-game menu, resume points, SRAM saves, real cores.
+The game page has no Resume, Save states or Game settings rows because the menu they belong to is not built. The shelf creates one view per game, so a library of hundreds needs recycling.
 Not verified: anything on the real device. Only checked on the `retroid-sim` emulator, which keeps system bars
 on screen (the layout fits what the window leaves). The D-pad is handled as key events only; stick or hat
 motion events are not handled yet.
 
 ## Build
 
-No Gradle. `build.sh` runs javac, d8, aapt2, zipalign and apksigner from the Android SDK.
+No Gradle. `build.sh` runs javac, d8, aapt2, zipalign and apksigner from the Android SDK, and builds the
+native code with the NDK's clang (arm64 only).
 
     ./build.sh            # build/lantern-debug.apk
     ./build.sh install    # and install on the connected device or emulator

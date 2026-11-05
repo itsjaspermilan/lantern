@@ -12,6 +12,8 @@ final class Game {
     String title;
     /** Short system name shown on the tile, for example "GBA" or "Android". */
     String system;
+    /** Folder name of the system under Lantern/roms, such as "gba". Null for apps. */
+    String sysId;
     /** Present for ROMs. Null for apps. */
     File file;
     /** Present for apps. Null for ROMs, which will open in the built-in player. */

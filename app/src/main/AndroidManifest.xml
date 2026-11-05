@@ -32,5 +32,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Games run in their own process: a core that crashes must not take the home screen with it. -->
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:process=":player"
+            android:taskAffinity="app.lantern.player"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode" />
     </application>
 </manifest>

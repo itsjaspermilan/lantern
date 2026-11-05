@@ -24,6 +24,17 @@ javac -source 11 -target 11 -Xlint:-options -classpath "$JAR" -d "$OUT/classes" 
 "$BT/aapt2" link -o "$OUT/base.apk" --manifest app/src/main/AndroidManifest.xml "$OUT/res.zip" \
     -I "$JAR" --min-sdk-version 26 --target-sdk-version 34 --version-code 1 --version-name 0.0.1
 (cd "$OUT/dex" && zip -q "$OUT/base.apk" classes.dex)
+
+# Native code: the player host and the test core, built with the NDK for 64-bit ARM.
+NDK=${ANDROID_NDK_HOME:-$(ls -d "$SDK"/ndk/* | sort -V | tail -1)}
+CC=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android26-clang | head -1)
+LIBDIR="$OUT/lib/arm64-v8a"
+rm -rf "$OUT/lib" && mkdir -p "$LIBDIR"
+CFLAGS="-shared -fPIC -O2 -Wall -Wextra -Inative/third_party/libretro"
+"$CC" $CFLAGS -o "$LIBDIR/liblanternplayer.so" native/player/player.c -llog -landroid -laaudio -ldl -lm
+"$CC" $CFLAGS -o "$LIBDIR/libtestcore.so" native/testcore/testcore.c -lm
+# Stored, not compressed, so zipalign can page-align them.
+(cd "$OUT" && zip -q -0 -r base.apk lib)
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
 
 # A throwaway debug key, generated here and never committed (build/ is ignored).

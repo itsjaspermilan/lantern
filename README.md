@@ -43,9 +43,15 @@ allowed only for `localhost` (`res/xml/network_security_config.xml`).
 Checked on the emulator against a local test server with two made-up pictures, not real covers: the fetch built the
 right URLs (system folder names, `(USA)` kept, spaces encoded), got a 200 for the game it had, 404s for six others,
 did not ask for the game that had your own picture, made no repeat requests after a relaunch, and the glow followed
-the cover's colours. NOT checked: the real server. The system folder names and the file-name matching are from
-memory of how libretro-thumbnails is laid out and have not been tried against it. Games it does not know stay
-generated; there is no hash lookup yet, so a renamed ROM will miss.
+the cover's colours.
+
+Real server, one request made by hand with curl (not by the app), with the owner's OK: the address built for
+"Advance Wars (USA).gba" on GBA, `.../Nintendo - Game Boy Advance/Named_Boxarts/Advance Wars (USA).png`, returned
+200, `image/png`, 430,864 bytes, a 512 x 510 PNG. So the GBA folder name and the file-name rule are confirmed for
+that one game, and the picture looks right in the tile and on the game page. NOT checked: the app's own HTTPS fetch
+against the real server (TLS, redirects, timing), the other 11 system folder names (from memory), or any game
+other than that one. Games it does not know stay generated; there is no hash lookup yet, so a renamed ROM will
+miss.
 
 ### Player spike (M2)
 

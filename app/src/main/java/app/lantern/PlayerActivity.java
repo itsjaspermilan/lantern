@@ -98,7 +98,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 android.graphics.Insets i = ins.getInsets(
                         android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
                 int nav = ins.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.navigationBars()).bottom;
-                menu.setInsets(i.left, i.top, i.right, Math.max(i.bottom, nav));
+                menu.setInsets(0, 0, 0, Math.max(i.bottom, nav)); // same rule as the home screen
                 return ins;
             });
         }

@@ -1,6 +1,7 @@
 package app.lantern;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
@@ -23,7 +24,10 @@ final class Cover extends View {
 
     final Game g;
     private final float s;
-    private final int c1, c2, motif;
+    private int c1, c2, lastHue;
+    private final int motif;
+    private final RectF artBox = new RectF();
+    private final Paint artPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Path clip = new Path();
@@ -35,11 +39,17 @@ final class Cover extends View {
         super(c);
         this.g = g;
         this.s = s;
-        c1 = Color.HSVToColor(new float[]{g.hue, .55f, .62f});
-        c2 = Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .26f});
+        setColours();
         motif = (g.id.hashCode() & 0x7fffffff) % 6;
         tp.setTypeface(Typeface.DEFAULT_BOLD);
         tp.setColor(Color.WHITE);
+    }
+
+    /** The tile's two colours come from the game's hue, which changes once its cover has been read. */
+    private void setColours() {
+        lastHue = g.hue;
+        c1 = Color.HSVToColor(new float[]{g.hue, .55f, .62f});
+        c2 = Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .26f});
     }
 
     /** 0 when idle, 1 when focused. */
@@ -55,12 +65,14 @@ final class Cover extends View {
         float w = getWidth(), h = getHeight();
         if (w <= 0 || h <= 0) return;
         float r = 18 * s;
+        if (g.hue != lastHue) setColours();
         clip.reset();
         clip.addRoundRect(0, 0, w, h, r, r, Path.Direction.CW);
         c.save();
         c.clipPath(clip);
 
         p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.WHITE); // the paint is shared: an old translucent colour would fade the gradient
         p.setShader(new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, h, p);
         p.setShader(null);
@@ -87,6 +99,20 @@ final class Cover extends View {
         sl.draw(c);
         c.restore();
         tp.clearShadowLayer();
+
+        // A real cover replaces the generated art and the title: fitted inside the tile, never cropped.
+        Bitmap art = ArtCache.get(g, this);
+        if (art != null) {
+            p.setColor(Color.WHITE);
+            p.setShader(new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, h, p);
+            p.setShader(null);
+            float pad = 8 * s;
+            float k = Math.min((w - 2 * pad) / art.getWidth(), (h - 2 * pad) / art.getHeight());
+            float dw = art.getWidth() * k, dh = art.getHeight() * k;
+            artBox.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);
+            c.drawBitmap(art, null, artBox, artPaint);
+        }
 
         // System chip, top left.
         String chip = g.system.toUpperCase();

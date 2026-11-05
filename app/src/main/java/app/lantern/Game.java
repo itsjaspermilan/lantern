@@ -22,6 +22,9 @@ final class Game {
     String pkg;
     /** The app's own icon. Null for ROMs, which get art later. */
     Drawable icon;
+    /** Cover picture: the person's own, a fetched one, or null. */
+    File art;
+    /** Colour for the tile and the glow; taken from the cover once it is known. */
     int hue;
     long lastPlayed;
     boolean fav;

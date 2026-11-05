@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 11 and later: a launcher owns the whole screen, so it may draw behind a camera
+         cut-out on every edge, not only the short ones. Content still keeps clear of it (see the
+         insets code in HomeActivity and PlayerMenu); only the picture and the glow go behind. -->
+    <style name="Lantern" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <!-- If a system bar is showing, let the picture show through it instead of a black slab. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+</resources>

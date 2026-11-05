@@ -69,6 +69,22 @@ final class Library {
         return d;
     }
 
+    /**
+     * Cover art for a ROM: a picture in Lantern/art/&lt;system&gt;/&lt;game&gt;.png (or .jpg) wins, then one already
+     * fetched. Null if there is none. Apps have no art here: they use their own icon.
+     */
+    static File findArt(Context c, Game g) {
+        if (!g.isRom()) return null;
+        String base = baseName(g.file);
+        File dir = new File(Environment.getExternalStorageDirectory(), "Lantern/art/" + g.sysId);
+        for (String ext : new String[]{".png", ".jpg", ".jpeg"}) {
+            File f = new File(dir, base + ext);
+            if (f.isFile()) return f;
+        }
+        File cached = ArtFetcher.cacheFile(c, g);
+        return cached.isFile() ? cached : null;
+    }
+
     /** "Advance Wars (USA).gba" becomes "Advance Wars (USA)": the name RetroArch uses for save files. */
     static String baseName(File rom) {
         String n = rom.getName();
@@ -103,6 +119,7 @@ final class Library {
         out.addAll(scanRoms());
         out.addAll(listApps(c));
         for (Game g : out) {
+            g.art = findArt(c, g);
             g.fav = fav.contains(g.id);
             g.lastPlayed = sp.getLong("last:" + g.id, 0);
         }

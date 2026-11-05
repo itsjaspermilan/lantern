@@ -12,11 +12,40 @@ The home screen follows the mockup (1920x1080 layout numbers, scaled to the wind
 it in the game's colours, the title block, and the button hints.
 
 - Games come from ROM folders (`/sdcard/Lantern/roms/<system>/`, needs "all files access") and from installed Android apps.
-- D-pad browses, A opens an Android app, Y favourites, Start opens the file-access setting if needed.
+- D-pad browses, A opens a game's page, Y favourites, Start turns cover art fetching on or off (or opens the
+  file-access setting first if that is missing).
 - Favourites and play history are kept in the app's preferences.
-- Covers are generated from the game's colours. Real art fetching is not built.
+- Covers: your own picture, a fetched one, or a generated one (see Cover art below).
 - A opens the game's page: Play, add or remove favourite, Details (file or package facts), and for apps
   Android's App settings. L1/R1 move to the previous or next game, Y favourites, B goes back.
+
+### Screen fit
+
+The layout is the mockup's 1920 x 1080 scaled to the window, from the very top. The window draws behind a camera
+cut-out on every edge (`values-v30/styles.xml`, `windowLayoutInDisplayCutoutMode=always`) and the glow fills the
+whole screen. Only the bottom is kept clear, for a navigation bar. The emulator wears a "Pixel 5" profile that adds
+a camera hole and a tall status bar; the Retroid has neither. An earlier version shrank the layout to fit the safe
+area and came out about 18% too small. The emulator still draws a black 60 px navigation strip at the bottom that
+the app cannot make transparent or hide; not checked on a real device.
+
+### Cover art
+
+Order of preference for a ROM: a picture you put in `Lantern/art/<system>/<game>.png` (or `.jpg`), a cover already
+fetched, then (only if switched on with Start) a fetch from libretro's thumbnail server,
+`https://thumbnails.libretro.com/<System>/Named_Boxarts/<Game>.png`, by file name, so No-Intro style names work
+best. It is off by default and is the only use of the network. One request at a time, it stops after three
+failures in a row, refuses anything over 4 MB or that is not a PNG, and remembers a "not found" for a week.
+Covers are fitted inside the tile, never cropped, decoded off the main thread and kept in a 24 MB cache, and the
+glow and tile colour take their hue from the cover. Android apps still use their own icon (banners are not read).
+A first line in `Lantern/art-source.txt` replaces the server address, for a mirror or for testing; plain HTTP is
+allowed only for `localhost` (`res/xml/network_security_config.xml`).
+
+Checked on the emulator against a local test server with two made-up pictures, not real covers: the fetch built the
+right URLs (system folder names, `(USA)` kept, spaces encoded), got a 200 for the game it had, 404s for six others,
+did not ask for the game that had your own picture, made no repeat requests after a relaunch, and the glow followed
+the cover's colours. NOT checked: the real server. The system folder names and the file-name matching are from
+memory of how libretro-thumbnails is laid out and have not been tried against it. Games it does not know stay
+generated; there is no hash lookup yet, so a renamed ROM will miss.
 
 ### Player spike (M2)
 

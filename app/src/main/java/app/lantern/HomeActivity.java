@@ -43,6 +43,8 @@ public class HomeActivity extends Activity {
     private FrameLayout root, safe, stage, pageView;
     private LinearLayout infoBlock, hintsRow;
     private boolean pageOpen, infoOpen;
+    private ArtFetcher fetcher;
+    private boolean artOn;
     private int actIdx;
     private Glow glow;
     private Shelf shelf;
@@ -56,6 +58,8 @@ public class HomeActivity extends Activity {
         // The screen is built once the window's real size is known: some devices keep space for
         // system bars even in full screen, and the 16:9 layout then has to fit what is left.
         if (android.os.Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
+        fetcher = new ArtFetcher(this);
+        artOn = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("art", false); // off until asked
         root = new FrameLayout(this) {
             @Override
             protected void onSizeChanged(int w, int h, int ow, int oh) {
@@ -79,7 +83,9 @@ public class HomeActivity extends Activity {
                 // Keep the bottom clear of the navigation bar even while it is hidden: a swipe or a
                 // system that never hides it would otherwise cover the button hints.
                 int navBottom = ins.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.navigationBars()).bottom;
-                safe.setPadding(i.left, i.top, i.right, Math.max(i.bottom, navBottom));
+                // Only the bottom is kept clear. Top and sides are not: the mockup's own margins already
+                // sit beside a camera hole, and shrinking the layout to dodge one made it too small.
+                safe.setPadding(0, 0, 0, Math.max(i.bottom, navBottom));
             } else {
                 safe.setPadding(ins.getSystemWindowInsetLeft(), ins.getSystemWindowInsetTop(),
                         ins.getSystemWindowInsetRight(), ins.getSystemWindowInsetBottom());
@@ -257,6 +263,12 @@ public class HomeActivity extends Activity {
         }
         loaded = true;
         if (stage != null) buildUi(); // already sized: rebuild with the fresh library
+        // When a cover finishes decoding, its colour may change the glow behind the focused game.
+        ArtCache.setListener(g -> {
+            int i = shelf == null ? -1 : shelf.getIndex();
+            if (i >= 0 && i < shown.size() && shown.get(i) == g) onFocused(i);
+        });
+        if (artOn) startArt();
 
     }
 
@@ -314,7 +326,10 @@ public class HomeActivity extends Activity {
                 if (first) toggleFavourite();
                 return true;
             case KeyEvent.KEYCODE_BUTTON_START:
-                if (first && !Library.hasFileAccess()) askForFileAccess();
+                if (first) {
+                    if (!Library.hasFileAccess()) askForFileAccess();
+                    else toggleArt();
+                }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_B:
                 return true;
@@ -451,6 +466,23 @@ public class HomeActivity extends Activity {
         }
     }
 
+    /** Start turns cover art fetching on or off. Off by default: it is the only thing here that uses the network. */
+    private void toggleArt() {
+        artOn = !artOn;
+        getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("art", artOn).apply();
+        Toast.makeText(this, artOn ? "Fetching cover art from " + ArtFetcher.baseUrl() : "Cover art fetching is off",
+                Toast.LENGTH_LONG).show();
+        setHints(pageOpen);
+        if (artOn) startArt(); else fetcher.cancel();
+    }
+
+    private void startArt() {
+        fetcher.fetch(all, g -> {
+            if (shelf == null) return;
+            for (int i = 0; i < shelf.getChildCount(); i++) shelf.getChildAt(i).invalidate();
+        });
+    }
+
     private void askForFileAccess() {
         try {
             startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
@@ -477,6 +509,7 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("R1", Color.WHITE, false), "Shelf");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Open");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
+            hint(hintsRow, glyph("Start", Color.WHITE, false), artOn ? "Cover art: on" : "Cover art: off");
         }
     }
 

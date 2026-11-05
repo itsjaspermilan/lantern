@@ -5,6 +5,9 @@
     <!-- To read ROM folders in shared storage. Granted by the person in Settings; this build is sideloaded. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
+    <!-- Cover art fetching, which is off until the person turns it on. Nothing else uses the network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Android 11+ hides other apps unless we ask to see launchable ones. -->
     <queries>
         <intent>
@@ -15,6 +18,7 @@
 
     <application
         android:label="Lantern"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Lantern">
 
         <!-- HOME makes Lantern selectable as the device's home screen. -->

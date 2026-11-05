@@ -121,6 +121,7 @@ final class Library {
             if (pkg.equals(c.getPackageName())) continue;
             Game g = new Game();
             g.id = "app:" + pkg;
+            g.pkg = pkg;
             g.title = String.valueOf(ri.loadLabel(pm));
             g.system = "Android";
             g.icon = ri.loadIcon(pm);

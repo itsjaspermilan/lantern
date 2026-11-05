@@ -16,6 +16,8 @@ final class Game {
     File file;
     /** Present for apps. Null for ROMs, which will open in the built-in player. */
     Intent launch;
+    /** Package name for apps. Null for ROMs. */
+    String pkg;
     /** The app's own icon. Null for ROMs, which get art later. */
     Drawable icon;
     int hue;

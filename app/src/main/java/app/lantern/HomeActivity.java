@@ -40,7 +40,10 @@ public class HomeActivity extends Activity {
     private float s = 1f;
     private boolean loaded;
     private String batteryText = "";
-    private FrameLayout root, safe, stage;
+    private FrameLayout root, safe, stage, pageView;
+    private LinearLayout infoBlock, hintsRow;
+    private boolean pageOpen, infoOpen;
+    private int actIdx;
     private Glow glow;
     private Shelf shelf;
     private TextView title, when, chipView, sub, empty, banner, battery;
@@ -116,6 +119,10 @@ public class HomeActivity extends Activity {
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(140), 0, u(140), 0);
         stage.addView(empty, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        pageOpen = false;
+        pageView = new FrameLayout(this);
+        pageView.setVisibility(View.GONE);
+        stage.addView(pageView, new FrameLayout.LayoutParams(-1, -1));
         buildHints();
 
         battery.setText(batteryText);
@@ -174,8 +181,9 @@ public class HomeActivity extends Activity {
 
     private void buildInfo() {
         LinearLayout info = new LinearLayout(this);
+        infoBlock = info;
         info.setOrientation(LinearLayout.VERTICAL);
-        title = label("", 76, Color.WHITE, true);
+        title =label("", 76, Color.WHITE, true);
         title.setSingleLine(true);
         info.addView(title);
 
@@ -215,14 +223,10 @@ public class HomeActivity extends Activity {
         banner.setPadding(0, 0, 0, u(8));
         bottom.addView(banner);
 
-        LinearLayout hints = new LinearLayout(this);
-        hints.setGravity(Gravity.CENTER_VERTICAL);
-        hint(hints, glyph("◀ ▶", Color.WHITE, true), "Browse");
-        hint(hints, glyph("L1", Color.WHITE, false), "Shelf");
-        hint(hints, glyph("R1", Color.WHITE, false), "Shelf");
-        hint(hints, glyph("A", 0xFF8BE28F, true), "Open");
-        hint(hints, glyph("Y", 0xFFFFD36E, true), "Favourite");
-        bottom.addView(hints, new LinearLayout.LayoutParams(-2, u(96)));
+        hintsRow = new LinearLayout(this);
+        hintsRow.setGravity(Gravity.CENTER_VERTICAL);
+        setHints(false);
+        bottom.addView(hintsRow, new LinearLayout.LayoutParams(-2, u(96)));
         stage.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
     }
 
@@ -284,6 +288,7 @@ public class HomeActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         boolean first = event.getRepeatCount() == 0;
         if (shelf == null) return super.onKeyDown(keyCode, event); // not built yet
+        if (pageOpen) return pageKey(keyCode, first);
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 shelf.move(-1);
@@ -303,7 +308,7 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_BUTTON_A:
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
-                if (first && shelf.getIndex() < shown.size()) open(shown.get(shelf.getIndex()));
+                if (first) openPage();
                 return true;
             case KeyEvent.KEYCODE_BUTTON_Y:
                 if (first) toggleFavourite();
@@ -320,7 +325,8 @@ public class HomeActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // A launcher has nowhere to go back to.
+        // A launcher has nowhere to go back to, except out of a game page.
+        if (pageOpen) closePage();
     }
 
     // ---- shelves ----
@@ -363,7 +369,7 @@ public class HomeActivity extends Activity {
             Cover c = new Cover(this, g, s);
             c.setOnClickListener(v -> {
                 int at = shelf.indexOfChild(v);
-                if (at == shelf.getIndex()) open(g); else shelf.setIndex(at, true);
+                if (at == shelf.getIndex()) openPage(); else shelf.setIndex(at, true);
             });
             covers.add(c);
             if (keepFocus && g.id.equals(lastId)) restore = i;
@@ -436,6 +442,251 @@ public class HomeActivity extends Activity {
         } catch (RuntimeException e) {
             startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
         }
+    }
+
+    // ---- hints ----
+
+    private void setHints(boolean page) {
+        hintsRow.removeAllViews();
+        if (page) {
+            hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
+            hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Confirm");
+            hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
+            hint(hintsRow, glyph("L1", Color.WHITE, false), "Previous");
+            hint(hintsRow, glyph("R1", Color.WHITE, false), "Next");
+            hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
+        } else {
+            hint(hintsRow, glyph("◀ ▶", Color.WHITE, true), "Browse");
+            hint(hintsRow, glyph("L1", Color.WHITE, false), "Shelf");
+            hint(hintsRow, glyph("R1", Color.WHITE, false), "Shelf");
+            hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Open");
+            hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
+        }
+    }
+
+    // ---- game page ----
+
+    /** One row in the page's action list. */
+    private static final class Act {
+        final String icon, label, hint;
+
+        Act(String icon, String label, String hint) {
+            this.icon = icon;
+            this.label = label;
+            this.hint = hint;
+        }
+    }
+
+    private List<Act> actionsFor(Game g) {
+        List<Act> a = new ArrayList<>();
+        a.add(new Act("▶", "Play", g.isRom() ? "Built-in player (not built yet)" : "Android app"));
+        a.add(new Act("★", g.fav ? "Remove from favourites" : "Add to favourites", ""));
+        a.add(new Act("i", infoOpen ? "Hide details" : "Details", ""));
+        if (!g.isRom()) a.add(new Act("⚙", "App settings", "Android settings"));
+        return a;
+    }
+
+    private void openPage() {
+        int i = shelf.getIndex();
+        if (i < 0 || i >= shown.size()) return;
+        pageOpen = true;
+        infoOpen = false;
+        actIdx = 0;
+        renderPage();
+        pageView.setVisibility(View.VISIBLE);
+        pageView.setAlpha(0f);
+        pageView.animate().alpha(1f).setDuration(200).start();
+        shelf.setVisibility(View.INVISIBLE);
+        infoBlock.setVisibility(View.INVISIBLE);
+        setHints(true);
+    }
+
+    private void closePage() {
+        pageOpen = false;
+        pageView.setVisibility(View.GONE);
+        pageView.removeAllViews();
+        shelf.setVisibility(View.VISIBLE);
+        infoBlock.setVisibility(View.VISIBLE);
+        setHints(false);
+        int i = shelf.getIndex();
+        if (tab == 1) {
+            // A game un-favourited on its page leaves the Favourites shelf now.
+            lastId = null;
+            refresh(false);
+            shelf.setIndex(Math.min(i, shown.size() - 1), false);
+        } else if (i < shelf.getChildCount()) {
+            shelf.getChildAt(i).invalidate();
+        }
+    }
+
+    private void renderPage() {
+        Game g = shown.get(shelf.getIndex());
+        pageView.removeAllViews();
+
+        Cover big = new Cover(this, g, s);
+        big.setWeight(1f);
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(430), u(620), Gravity.TOP | Gravity.START);
+        cp.leftMargin = u(140);
+        cp.topMargin = u(170);
+        pageView.addView(big, cp);
+
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        TextView t = label(g.title, 96, Color.WHITE, true);
+        t.setMaxLines(2);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        col.addView(t);
+
+        LinearLayout meta = new LinearLayout(this);
+        meta.setGravity(Gravity.CENTER_VERTICAL);
+        TextView chip = label(g.system.toUpperCase(), 26, Color.WHITE, true);
+        GradientDrawable cd = new GradientDrawable();
+        cd.setCornerRadius(u(99));
+        cd.setColor(0x29FFFFFF);
+        chip.setBackground(cd);
+        chip.setPadding(u(18), u(4), u(18), u(4));
+        meta.addView(chip);
+        TextView when = label(g.lastPlayed == 0 ? "Never played" : "Played " + ago(g.lastPlayed), 30, 0xC7FFFFFF, false);
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-2, -2);
+        wp.leftMargin = u(22);
+        meta.addView(when, wp);
+        if (g.fav) {
+            TextView star = label("★ Favourite", 30, AMBER, false);
+            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
+            sp.leftMargin = u(22);
+            meta.addView(star, sp);
+        }
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
+        mp.topMargin = u(14);
+        col.addView(meta, mp);
+
+        TextView blurb = label(infoOpen ? details(g) : summary(g), infoOpen ? 26 : 30, 0xBFFFFFFF, false);
+        blurb.setLineSpacing(0, 1.25f);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(u(900), -2);
+        bp.topMargin = u(22);
+        bp.bottomMargin = u(30);
+        col.addView(blurb, bp);
+
+        List<Act> acts = actionsFor(g);
+        actIdx = Math.max(0, Math.min(actIdx, acts.size() - 1));
+        for (int i = 0; i < acts.size(); i++) {
+            Act a = acts.get(i);
+            boolean on = i == actIdx;
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(u(30), 0, u(30), 0);
+            GradientDrawable rd = new GradientDrawable();
+            rd.setCornerRadius(u(16));
+            rd.setColor(on ? Color.WHITE : 0x14FFFFFF);
+            row.setBackground(rd);
+            if (on) row.setTranslationX(u(14));
+            int ink = on ? 0xFF17131F : Color.WHITE;
+            TextView ic = label(a.icon, 30, ink, true);
+            ic.setGravity(Gravity.CENTER);
+            row.addView(ic, new LinearLayout.LayoutParams(u(46), -2));
+            row.addView(label(a.label, 34, ink, true));
+            row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+            row.addView(label(a.hint, 24, on ? 0xBF17131F : 0xB3FFFFFF, false));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(760), u(82));
+            rp.bottomMargin = u(14);
+            col.addView(row, rp);
+        }
+
+        FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(u(1120), -2, Gravity.TOP | Gravity.START);
+        colp.leftMargin = u(660);
+        colp.topMargin = u(170);
+        pageView.addView(col, colp);
+    }
+
+    private boolean pageKey(int keyCode, boolean first) {
+        List<Act> acts = actionsFor(shown.get(shelf.getIndex()));
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                if (actIdx > 0) { actIdx--; renderPage(); }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                if (actIdx < acts.size() - 1) { actIdx++; renderPage(); }
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_B:
+                if (first) closePage();
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_L1:
+            case KeyEvent.KEYCODE_BUTTON_R1:
+                if (first) {
+                    shelf.setIndex(shelf.getIndex() + (keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1), false);
+                    actIdx = 0;
+                    infoOpen = false;
+                    renderPage();
+                }
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_Y:
+                if (first) {
+                    Library.toggleFav(this, shown.get(shelf.getIndex()));
+                    renderPage();
+                }
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (first) activate(shown.get(shelf.getIndex()), acts.get(actIdx));
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_BUTTON_START:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void activate(Game g, Act a) {
+        if (a.label.equals("Play")) {
+            open(g);
+        } else if (a.label.startsWith("Add to") || a.label.startsWith("Remove from")) {
+            Library.toggleFav(this, g);
+            renderPage();
+        } else if (a.label.endsWith("details")  || a.label.equals("Details")) {
+            infoOpen = !infoOpen;
+            renderPage();
+        } else if (a.label.equals("App settings")) {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + g.pkg)));
+            } catch (RuntimeException e) {
+                Toast.makeText(this, "Settings could not be opened.", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private String summary(Game g) {
+        if (g.isRom()) {
+            return "A " + g.system + " game from your ROM folder. It will run in Lantern's own player, "
+                    + "with saves, states and cheats in one menu, once that is built.";
+        }
+        return "An installed Android app. It opens as it normally does, and Home brings you back here.";
+    }
+
+    private String details(Game g) {
+        StringBuilder b = new StringBuilder();
+        if (g.isRom()) {
+            b.append("File    ").append(g.file.getName()).append('\n');
+            b.append("Folder  ").append(g.file.getParent()).append('\n');
+            b.append("Size    ").append(size(g.file.length())).append('\n');
+            b.append("Added   ").append(java.text.DateFormat.getDateInstance().format(new java.util.Date(g.file.lastModified())));
+        } else {
+            b.append("Package  ").append(g.pkg).append('\n');
+            try {
+                b.append("Version  ").append(getPackageManager().getPackageInfo(g.pkg, 0).versionName);
+            } catch (Exception e) {
+                b.append("Version  unknown");
+            }
+        }
+        return b.toString();
+    }
+
+    private static String size(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";
+        return String.format(java.util.Locale.US, "%.1f MB", bytes / 1048576.0);
     }
 
     // ---- helpers ----

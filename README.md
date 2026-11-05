@@ -15,9 +15,12 @@ it in the game's colours, the title block, and the button hints.
 - D-pad browses, A opens an Android app, Y favourites, Start opens the file-access setting if needed.
 - Favourites and play history are kept in the app's preferences.
 - Covers are generated from the game's colours. Real art fetching is not built.
+- A opens the game's page: Play, add or remove favourite, Details (file or package facts), and for apps
+  Android's App settings. L1/R1 move to the previous or next game, Y favourites, B goes back.
 
-Not done yet: art fetching, game pages, the Systems shelf, the built-in libretro player and its menu.
-A on a ROM only shows a message. The shelf creates one view per game, so a library of hundreds needs recycling.
+Not done yet: art fetching, the Systems shelf, the built-in libretro player and its menu. The page has no
+Resume, Save states or Game settings rows because there is nothing behind them yet.
+Play on a ROM only shows a message. The shelf creates one view per game, so a library of hundreds needs recycling.
 Not verified: anything on the real device. Only checked on the `retroid-sim` emulator, which keeps system bars
 on screen (the layout fits what the window leaves). The D-pad is handled as key events only; stick or hat
 motion events are not handled yet.

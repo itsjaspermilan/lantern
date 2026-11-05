@@ -20,7 +20,8 @@ mkdir -p "$OUT/classes" "$OUT/dex"
 javac -source 11 -target 11 -Xlint:-options -classpath "$JAR" -d "$OUT/classes" \
     $(find app/src/main/java -name '*.java')
 "$BT/d8" --lib "$JAR" --min-api 26 --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
-"$BT/aapt2" link -o "$OUT/base.apk" --manifest app/src/main/AndroidManifest.xml \
+"$BT/aapt2" compile --dir app/src/main/res -o "$OUT/res.zip"
+"$BT/aapt2" link -o "$OUT/base.apk" --manifest app/src/main/AndroidManifest.xml "$OUT/res.zip" \
     -I "$JAR" --min-sdk-version 26 --target-sdk-version 34 --version-code 1 --version-name 0.0.1
 (cd "$OUT/dex" && zip -q "$OUT/base.apk" classes.dex)
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"

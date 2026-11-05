@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="app.lantern">
 
+    <!-- To read ROM folders in shared storage. Granted by the person in Settings; this build is sideloaded. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
     <!-- Android 11+ hides other apps unless we ask to see launchable ones. -->
     <queries>
         <intent>
@@ -12,7 +15,7 @@
 
     <application
         android:label="Lantern"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/Lantern">
 
         <!-- HOME makes Lantern selectable as the device's home screen. -->
         <activity

@@ -25,7 +25,7 @@ frame to a surface, plays the audio through AAudio (the audio clock sets the spe
 It runs in a separate Android process (`:player`), so a crashing core leaves the home screen alone.
 `native/testcore/testcore.c` is a small core of our own (a moving square, a 440/880 Hz tone, 16 button lights,
 save states) so the player can be checked without ROMs or downloads. An empty `Something.test` file in
-`Lantern/roms/test/` plays it. F5 and F7 save and load one state (dev keys), Back leaves.
+`Lantern/roms/test/` plays it.
 
 Checked on the emulator: 320x240 at 59.9 to 60.1 fps, audio stream running (a handful of start-up underruns),
 D-pad and face buttons reach the core (Android A arrives as RetroPad B, by position), save state writes 16 bytes
@@ -47,18 +47,42 @@ Start" to the game's intro, a 462,912-byte save state is written, and `Advance W
 created. The host writes battery saves every 5 seconds when they change and on exit, through a temp file and a
 rename. File names follow RetroArch's (`<game>.srm`, `<game>.state`); that is untested with real RetroArch files.
 Button presses are latched so a tap shorter than one frame still reaches the game.
-Not verified: that a saved game survives a restart (the `.srm` exists, a second run was not compared), loading a
-state with the real core, long play sessions, and anything about speed or heat on the Retroid.
+Not verified: that a saved game survives a restart (the `.srm` exists, a second run was not compared), long play
+sessions, and anything about speed or heat on the Retroid.
 
-Spike limits: software-rendered cores only (hardware rendering is refused), no core options, one controller,
-the system scales the picture (no integer scaling, shaders or exact aspect), leaving the game ends it with no
-resume point, and there is no in-game menu yet. Only GBA has a real core. The rest need downloads and a licence
-check each.
-Sound was measured by underrun count only. Nobody has listened to it, and the emulator says nothing about
-latency on the Retroid.
+### In-game menu (M3)
 
-Not done yet: art fetching, the Systems shelf, the in-game menu, resume points, SRAM saves, real cores.
-The game page has no Resume, Save states or Game settings rows because the menu they belong to is not built. The shelf creates one view per game, so a library of hundreds needs recycling.
+Opens with the Guide button (`BUTTON_MODE`), Select and Start together, or Back. Which physical button the
+Retroid Pocket 6 reports for its menu or home key is not known yet; the choice is in
+`PlayerActivity.dispatchKeyEvent`. The menu is MinUI-style: Continue, Save, Load (left and right pick one of nine
+slots, with that slot's screenshot and age), Options, Quit. A confirms, B goes back (and Continue closes it).
+Options are Scaling (Aspect, Integer, Fill), Screen effect (Off, Scanlines) and Fast-forward speed (2x, 3x, 4x,
+Max), kept per system. Hold R2 to fast-forward; sound is muted while it runs, and R2 is not passed to the game.
+Cheats, Controls and the core's own settings are not built, so they are not in the menu.
+
+Leaving a game by Quit, Home or anything that takes the screen saves a resume point (`<game>.state.auto` plus a
+screenshot). The game page shows Resume (highlighted) above Play from the start, and the shelf says
+"Resume available". Slots are `<game>.state1` to `.state9`, each with `<file>.png`; the resume point is slot 0.
+
+Checked on the emulator with Advance Wars: the menu opens over the frozen game with a "Current game" preview;
+Save to slot 1 writes a 462,912-byte state and a PNG and the slot then previews it; Load restored an earlier
+scene and closed the menu; Quit and Home both wrote a fresh resume point; Resume continued the game;
+Integer scaling drew the picture exactly 5x (1200 px wide) and scanlines drew one line per source row, and both
+choices were still set after relaunching; holding R2 changed the host speed to 2 and back (the log shows it).
+Not verified: fast-forward speed beyond that log line (the held key was only about 0.4 s), Max speed, 9 slots,
+audio after pause and resume (nobody listened), and the menu with a real controller.
+
+Known quirk, unexplained: with keys sent by `adb input`, the first key press after the first menu open of a launch
+arrives without its "down" half, so one press is lost. It did not depend on the delay, on which key it was, on the
+keyboard app (tried `FLAG_ALT_FOCUSABLE_IM`) or on window focus changes, and it does not happen again until the
+game is relaunched. It may be an emulator or `adb` effect; it has not been tested with a real controller.
+
+Limits: software-rendered cores only (hardware rendering is refused), no core options, one controller, the player
+draws through the system compositor (no shaders), and only GBA has a real core. The rest need downloads and a
+licence check each. Sound was measured by underrun count only; the emulator says nothing about latency.
+
+Not done yet: art fetching, the Systems shelf, cheats, button remapping, a BIOS check, disc swapping, and the
+shelf creates one view per game, so a library of hundreds needs recycling.
 Not verified: anything on the real device. Only checked on the `retroid-sim` emulator, which keeps system bars
 on screen (the layout fits what the window leaves). The D-pad is handled as key events only; stick or hat
 motion events are not handled yet.

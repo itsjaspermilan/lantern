@@ -1,7 +1,12 @@
 package app.lantern;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -14,26 +19,41 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Runs one game in a libretro core. Lives in its own process (see the manifest), so a core that
  * crashes takes down this screen and not the launcher.
  *
- * Spike: Back leaves, Home leaves, there is no in-game menu yet. F5 and F7 save and load one state.
+ * The menu opens with the Guide button (BUTTON_MODE), Select and Start together, or Back. Leaving the
+ * game any other way (Home, the menu's Quit) saves a resume point first. Hold R2 to fast-forward.
+ * The Retroid's own buttons may report differently; the key choices are in dispatchKeyEvent.
  */
-public class PlayerActivity extends Activity implements SurfaceHolder.Callback {
-    static final String EXTRA_CORE = "core", EXTRA_ROM = "rom", EXTRA_SYS = "sys", EXTRA_SAVE = "save";
+public class PlayerActivity extends Activity implements SurfaceHolder.Callback, PlayerMenu.Host {
+    static final String EXTRA_CORE = "core", EXTRA_ROM = "rom", EXTRA_SYS = "sys", EXTRA_SAVE = "save",
+            EXTRA_START = "start", EXTRA_TITLE = "title", EXTRA_SYSID = "sysid";
 
-    private FrameLayout root;
+    private FrameLayout root, picture;
     private SurfaceView surface;
+    private ScanlineView scan;
     private TextView hud;
+    private PlayerMenu menu;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private boolean running;
+    private final Map<Integer, Bitmap> slotCache = new HashMap<>();
+    private SharedPreferences prefs;
+    private File romFile;
+    private String sysId, title;
+    private boolean running, resumeSaved, selectDown, startDown;
 
     private final Runnable poll = new Runnable() {
         @Override
         public void run() {
             hud.setText(Player.nativeStatus());
             fitPicture();
+            scan.invalidate();
             handler.postDelayed(this, 500);
         }
     };
@@ -41,41 +61,117 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        romFile = new File(getIntent().getStringExtra(EXTRA_ROM));
+        sysId = getIntent().getStringExtra(EXTRA_SYSID);
+        title = getIntent().getStringExtra(EXTRA_TITLE);
+        prefs = getSharedPreferences("player_opts", MODE_PRIVATE); // this process only
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
+        picture = new FrameLayout(this);
         surface = new SurfaceView(this);
-        root.addView(surface, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-        hud = new TextView(this);
+        picture.addView(surface, new FrameLayout.LayoutParams(-1, -1));
+        scan = new ScanlineView(this);
+        picture.addView(scan, new FrameLayout.LayoutParams(-1, -1));
+        root.addView(picture, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+
+        hud = new TextView(this); // debugging line, toggled with F3
         hud.setTextColor(Color.WHITE);
         hud.setShadowLayer(4, 0, 1, Color.BLACK);
         hud.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        hud.setVisibility(View.GONE);
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
         hp.setMargins(24, 16, 24, 0);
         root.addView(hud, hp);
+
+        menu = new PlayerMenu(this, this);
+        menu.scaling = prefs.getInt(sysId + ":scaling", 0);
+        menu.effect = prefs.getInt(sysId + ":effect", 0);
+        menu.fast = prefs.getInt(sysId + ":fast", 0);
+        root.addView(menu, new FrameLayout.LayoutParams(-1, -1));
+
         root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitPicture());
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            // The game fills the whole screen; only the menu keeps clear of system bars (and of a
+            // navigation bar that stays visible), so its hints are never covered.
+            getWindow().setDecorFitsSystemWindows(false);
+            root.setOnApplyWindowInsetsListener((v, ins) -> {
+                android.graphics.Insets i = ins.getInsets(
+                        android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+                int nav = ins.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.navigationBars()).bottom;
+                menu.setInsets(i.left, i.top, i.right, Math.max(i.bottom, nav));
+                return ins;
+            });
+        }
         setContentView(root);
         surface.getHolder().addCallback(this);
+        applyOptions();
     }
 
-    /** Shows the picture at the core's aspect ratio, as large as fits, with black bars around it. */
+    // ---- picture ----
+
+    /** Sizes the picture by the chosen scaling: Aspect fits with bars, Integer uses whole multiples, Fill stretches. */
     private void fitPicture() {
         int w = root.getWidth(), h = root.getHeight();
         if (w <= 0 || h <= 0) return;
         float aspect = Player.nativeAspect();
-        int pw = Math.min(w, Math.round(h * aspect)), ph = Math.round(pw / aspect);
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) surface.getLayoutParams();
+        int size = Player.nativeFrameSize(), bw = size >>> 16, bh = size & 0xFFFF;
+        int pw, ph;
+        if (menu.scaling == 2) {
+            pw = w;
+            ph = h;
+        } else {
+            pw = Math.min(w, Math.round(h * aspect));
+            ph = Math.round(pw / aspect);
+            if (menu.scaling == 1 && bw > 0 && bh > 0) {
+                int n = Math.min(w / bw, h / bh);
+                if (n >= 1) {
+                    int iw = bw * n, ih = Math.round(iw / aspect);
+                    if (ih <= h) { pw = iw; ph = ih; }
+                }
+            }
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) picture.getLayoutParams();
         if (lp.width != pw || lp.height != ph) {
             lp.width = pw;
             lp.height = ph;
-            surface.setLayoutParams(lp);
+            picture.setLayoutParams(lp);
         }
     }
+
+    private void applyOptions() {
+        scan.setVisibility(menu.effect == 1 ? View.VISIBLE : View.GONE);
+        fitPicture();
+    }
+
+    /** Dark lines between the game's pixel rows, one per source row, so the look holds at any size. */
+    private static final class ScanlineView extends View {
+        private final Paint p = new Paint();
+
+        ScanlineView(android.content.Context c) {
+            super(c);
+            p.setColor(0x55000000);
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            int rows = Player.nativeFrameSize() & 0xFFFF;
+            if (rows <= 0) return;
+            float rowH = getHeight() / (float) rows;
+            for (int i = 0; i < rows; i++) {
+                float y = i * rowH;
+                c.drawRect(0, y + rowH * 0.62f, getWidth(), y + rowH, p);
+            }
+        }
+    }
+
+    // ---- game lifetime ----
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         running = Player.nativeStart(
                 getIntent().getStringExtra(EXTRA_CORE), getIntent().getStringExtra(EXTRA_ROM),
-                getIntent().getStringExtra(EXTRA_SYS), getIntent().getStringExtra(EXTRA_SAVE), holder.getSurface());
+                getIntent().getStringExtra(EXTRA_SYS), getIntent().getStringExtra(EXTRA_SAVE), holder.getSurface(),
+                getIntent().getIntExtra(EXTRA_START, -1));
         handler.post(poll);
     }
 
@@ -95,13 +191,116 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback {
         }
     }
 
+    /** Saves the resume point (a state plus a screenshot) once, before the game stops. */
+    private void saveResume() {
+        if (!running || resumeSaved) return;
+        resumeSaved = true;
+        Bitmap frame = grabFrame();
+        if (Player.nativeSaveState(0) > 0 && frame != null) writePng(Library.stateFile(sysId, romFile, ".auto"), frame);
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
-        // Spike: leaving the screen ends the game. Saving a resume point comes with the menu.
+        // Home, a call, or anything else that takes the screen: keep the place, then end the game.
+        saveResume();
         stopGame();
         finish();
     }
+
+    // ---- menu host ----
+
+    @Override
+    public String gameTitle() {
+        return title != null ? title : romFile.getName();
+    }
+
+    @Override
+    public Bitmap currentFrame() {
+        return grabFrame();
+    }
+
+    @Override
+    public Bitmap slotPicture(int slot) {
+        Bitmap b = slotCache.get(slot);
+        if (b == null) {
+            File png = new File(Library.stateFile(sysId, romFile, String.valueOf(slot)).getPath() + ".png");
+            if (png.exists()) {
+                b = BitmapFactory.decodeFile(png.getPath());
+                if (b != null) slotCache.put(slot, b);
+            }
+        }
+        return b;
+    }
+
+    @Override
+    public long slotTime(int slot) {
+        File f = Library.stateFile(sysId, romFile, String.valueOf(slot));
+        return f.exists() ? f.lastModified() : 0;
+    }
+
+    @Override
+    public boolean saveSlot(int slot) {
+        Bitmap frame = grabFrame();
+        if (Player.nativeSaveState(slot) <= 0) return false;
+        if (frame != null) writePng(Library.stateFile(sysId, romFile, String.valueOf(slot)), frame);
+        slotCache.remove(slot);
+        return true;
+    }
+
+    @Override
+    public boolean loadSlot(int slot) {
+        return Player.nativeLoadState(slot);
+    }
+
+    @Override
+    public void continueGame() {
+        menu.close();
+        Player.nativePause(false);
+    }
+
+    @Override
+    public void quit() {
+        saveResume();
+        stopGame();
+        finish();
+    }
+
+    @Override
+    public void optionsChanged() {
+        prefs.edit().putInt(sysId + ":scaling", menu.scaling).putInt(sysId + ":effect", menu.effect)
+                .putInt(sysId + ":fast", menu.fast).apply();
+        applyOptions();
+    }
+
+    private void openMenu() {
+        Player.nativePause(true);
+        selectDown = startDown = false;
+        menu.open();
+    }
+
+    /** The latest frame as a bitmap, or null before the first one. */
+    private Bitmap grabFrame() {
+        int size = Player.nativeFrameSize(), w = size >>> 16, h = size & 0xFFFF;
+        if (w <= 0 || h <= 0) return null;
+        int[] px = new int[w * h];
+        if (!Player.nativeSnapshot(px)) return null;
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888);
+    }
+
+    /** Writes "<state file>.png" next to a state, through a temp file. */
+    private void writePng(File state, Bitmap b) {
+        File out = new File(state.getPath() + ".png"), tmp = new File(out.getPath() + ".tmp");
+        try (FileOutputStream f = new FileOutputStream(tmp)) {
+            b.compress(Bitmap.CompressFormat.PNG, 100, f);
+        } catch (java.io.IOException e) {
+            tmp.delete();
+            return;
+        }
+        if (!tmp.renameTo(out)) tmp.delete();
+    }
+
+    // ---- keys ----
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
@@ -118,18 +317,46 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback {
     public boolean dispatchKeyEvent(KeyEvent e) {
         int code = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
-        if (code == KeyEvent.KEYCODE_BACK) {
-            if (!down) finish();
+
+        if (menu.isOpen()) {
+            // Everything goes to the menu. Held direction keys repeat; other keys act once.
+            boolean direction = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
+                    || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT;
+            if (down && (e.getRepeatCount() == 0 || direction)) menu.key(code);
             return true;
         }
-        if (down && e.getRepeatCount() == 0) {
-            if (code == KeyEvent.KEYCODE_F5) { Player.nativeStateRequest(1); return true; }
-            if (code == KeyEvent.KEYCODE_F7) { Player.nativeStateRequest(2); return true; }
+
+        if (code == KeyEvent.KEYCODE_BUTTON_MODE || code == KeyEvent.KEYCODE_BACK) {
+            if (down && e.getRepeatCount() == 0) openMenu();
+            return true;
+        }
+        if (code == KeyEvent.KEYCODE_BUTTON_SELECT) selectDown = down;
+        if (code == KeyEvent.KEYCODE_BUTTON_START) startDown = down;
+        if (down && selectDown && startDown) { // Select and Start together
+            openMenu();
+            return true;
+        }
+        if (code == KeyEvent.KEYCODE_BUTTON_R2) { // hold to fast-forward; not passed to the game
+            Player.nativeSpeed(down ? fastSpeed() : 1);
+            return true;
+        }
+        if (down && e.getRepeatCount() == 0 && code == KeyEvent.KEYCODE_F3) {
+            hud.setVisibility(hud.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+            return true;
         }
         int id = retroButton(code);
         if (id < 0) return super.dispatchKeyEvent(e);
         if (e.getRepeatCount() == 0) Player.nativeButton(id, down);
         return true;
+    }
+
+    private int fastSpeed() {
+        switch (menu.fast) {
+            case 0: return 2;
+            case 1: return 3;
+            case 2: return 4;
+            default: return 0; // as fast as it will go
+        }
     }
 
     /**
@@ -152,7 +379,6 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback {
             case KeyEvent.KEYCODE_BUTTON_L1: return 10;
             case KeyEvent.KEYCODE_BUTTON_R1: return 11;
             case KeyEvent.KEYCODE_BUTTON_L2: return 12;
-            case KeyEvent.KEYCODE_BUTTON_R2: return 13;
             case KeyEvent.KEYCODE_BUTTON_THUMBL: return 14;
             case KeyEvent.KEYCODE_BUTTON_THUMBR: return 15;
             default: return -1;

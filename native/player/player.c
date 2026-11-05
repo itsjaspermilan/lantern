@@ -2,9 +2,11 @@
  * Lantern player host: loads a libretro core (a shared library), runs it on its own thread, shows
  * its video on an Android surface, plays its audio through AAudio, and feeds it the buttons.
  *
- * Spike limits: software-rendered cores only (no hardware rendering), no core options, one
- * controller on port 0, the video is scaled by the system compositor (no aspect or integer
- * scaling here), and the emulation speed follows the audio clock.
+ * Also owns what a menu needs: pause, numbered save-state slots plus a resume point, a copy of the
+ * latest frame (for screenshots), battery saves, and fast-forward.
+ *
+ * Limits: software-rendered cores only (no hardware rendering), no core options, one controller on
+ * port 0, the video is scaled by the system compositor, and speed follows the audio clock.
  */
 #include <aaudio/AAudio.h>
 #include <android/log.h>
@@ -54,7 +56,7 @@ static struct {
 } C;
 
 /* ---- shared state ---- */
-static char g_core_path[512], g_rom_path[512], g_sys_dir[512], g_save_dir[512], g_state_path[600], g_sram_path[600];
+static char g_core_path[512], g_rom_path[512], g_sys_dir[512], g_save_dir[512], g_name[256], g_sram_path[600];
 static ANativeWindow *g_win;
 static int g_win_w, g_win_h;
 static unsigned g_pixel_format = RETRO_PIXEL_FORMAT_0RGB1555; /* the libretro default */
@@ -62,7 +64,9 @@ static atomic_uint g_buttons;  /* buttons held right now */
 static atomic_uint g_pressed;  /* buttons pressed since the last frame, even if already let go */
 static unsigned g_latched;     /* the presses the core sees this frame */
 static atomic_bool g_run;
-static atomic_int g_request; /* 0 none, 1 save state, 2 load state */
+static atomic_bool g_paused;
+static atomic_int g_speed = 1; /* 1 normal, 2 to 4 faster, 0 as fast as possible */
+static int g_start_slot = -1;  /* state to load right after the game loads; -1 none, 0 resume point */
 static pthread_t g_thread;
 static bool g_started;
 static volatile float g_aspect = 4.0f / 3.0f;
@@ -94,12 +98,19 @@ static void set_note(const char *fmt, ...) {
     pthread_mutex_unlock(&g_status_lock);
 }
 
+/* ---- the latest frame, kept as ARGB for screenshots ---- */
+static pthread_mutex_t g_snap_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t *g_snap;
+static size_t g_snap_cap;
+static unsigned g_snap_w, g_snap_h;
+
 /* ---- audio: the emulator writes, the AAudio callback reads ---- */
 static int16_t g_ring[RING_FRAMES * 2];
 static atomic_uint g_wr, g_rd, g_underruns;
 static AAudioStream *g_stream;
 
 static size_t audio_batch_cb(const int16_t *data, size_t frames) {
+    if (atomic_load(&g_speed) != 1) return frames; /* silent while fast-forwarding */
     unsigned wr = atomic_load(&g_wr), rd = atomic_load(&g_rd);
     size_t room = RING_FRAMES - (wr - rd);
     size_t n = frames > room ? room : frames;
@@ -160,7 +171,7 @@ static void audio_close(void) {
     g_stream = NULL;
 }
 
-/* ---- video: copy the core's frame into the window, converting to RGBX 8888 ---- */
+/* ---- video: copy the core's frame into the window (RGBX 8888) and keep an ARGB copy ---- */
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
     if (!data || !g_win) return; /* NULL means "repeat the last frame" */
     if ((int)w != g_win_w || (int)h != g_win_h) {
@@ -172,6 +183,17 @@ static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
     if (ANativeWindow_lock(g_win, &buf, NULL) != 0) return;
     unsigned rows = h < (unsigned)buf.height ? h : (unsigned)buf.height;
     unsigned cols = w < (unsigned)buf.width ? w : (unsigned)buf.width;
+
+    pthread_mutex_lock(&g_snap_lock);
+    size_t need = (size_t)cols * rows;
+    if (need > g_snap_cap) {
+        free(g_snap);
+        g_snap = malloc(need * sizeof *g_snap);
+        g_snap_cap = g_snap ? need : 0;
+    }
+    uint32_t *snap = g_snap_cap >= need ? g_snap : NULL;
+    if (snap) { g_snap_w = cols; g_snap_h = rows; }
+
     for (unsigned y = 0; y < rows; y++) {
         uint32_t *dst = (uint32_t *)buf.bits + (size_t)y * buf.stride;
         const uint8_t *row = (const uint8_t *)data + y * pitch;
@@ -196,7 +218,15 @@ static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
                 dst[x] = 0xFF000000u | (b << 16) | (g << 8) | r;
             }
         }
+        if (snap) { /* window pixels are 0xFFBBGGRR; Android bitmaps want 0xFFRRGGBB */
+            uint32_t *out = snap + (size_t)y * cols;
+            for (unsigned x = 0; x < cols; x++) {
+                uint32_t p = dst[x];
+                out[x] = (p & 0xFF00FF00u) | ((p & 0xFF) << 16) | ((p >> 16) & 0xFF);
+            }
+        }
     }
+    pthread_mutex_unlock(&g_snap_lock);
     ANativeWindow_unlockAndPost(g_win);
 }
 
@@ -301,28 +331,85 @@ static bool load_core(void) {
     return true;
 }
 
-static void do_state_request(int req) {
+/* ---- save states: slot 0 is the resume point, 1 to 9 are the person's slots ---- */
+static void state_path(int slot, char *out, size_t cap) {
+    if (slot == 0) snprintf(out, cap, "%s/%s.state.auto", g_save_dir, g_name);
+    else snprintf(out, cap, "%s/%s.state%d", g_save_dir, g_name, slot);
+}
+
+/* Returns the size written, or 0. Writes a temp file and renames it so a failure keeps the old state. */
+static int write_state(int slot) {
     size_t size = C.serialize_size();
-    if (size == 0) { set_note("no save state support"); return; }
+    if (size == 0) { set_note("this core has no save states"); return 0; }
     void *buf = malloc(size);
-    if (!buf) return;
-    if (req == 1) {
-        if (C.serialize(buf, size)) {
-            FILE *f = fopen(g_state_path, "wb");
-            if (f && fwrite(buf, 1, size, f) == size) set_note("state saved (%zu bytes)", size);
-            else set_note("could not write %s", g_state_path);
-            if (f) fclose(f);
-        } else set_note("core refused to save");
-    } else {
-        FILE *f = fopen(g_state_path, "rb");
-        if (!f) set_note("no saved state yet");
-        else {
-            size_t got = fread(buf, 1, size, f);
-            fclose(f);
-            set_note(got == size && C.unserialize(buf, size) ? "state loaded" : "state did not load");
-        }
-    }
+    if (!buf) return 0;
+    int result = 0;
+    char path[640], tmp[660];
+    state_path(slot, path, sizeof path);
+    snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    if (C.serialize(buf, size)) {
+        FILE *f = fopen(tmp, "wb");
+        bool ok = f && fwrite(buf, 1, size, f) == size;
+        if (f) ok = (fclose(f) == 0) && ok;
+        if (ok && rename(tmp, path) == 0) { result = (int)size; set_note("state saved (%zu bytes)", size); }
+        else set_note("could not write the state");
+    } else set_note("the core refused to save");
     free(buf);
+    return result;
+}
+
+static bool read_state(int slot) {
+    size_t size = C.serialize_size();
+    if (size == 0) return false;
+    char path[640];
+    state_path(slot, path, sizeof path);
+    FILE *f = fopen(path, "rb");
+    if (!f) { set_note("no saved state"); return false; }
+    void *buf = malloc(size);
+    size_t got = buf ? fread(buf, 1, size, f) : 0;
+    fclose(f);
+    bool ok = got == size && C.unserialize(buf, size);
+    free(buf);
+    set_note(ok ? "state loaded" : "state did not load");
+    return ok;
+}
+
+/* The menu thread asks, the emulation thread answers between frames (also while paused). */
+static pthread_mutex_t g_req_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_req_cv = PTHREAD_COND_INITIALIZER;
+static int g_req_kind, g_req_slot, g_req_done, g_req_result; /* kind: 0 none, 1 save, 2 load */
+
+static void service_request(void) {
+    pthread_mutex_lock(&g_req_lock);
+    int kind = g_req_kind, slot = g_req_slot;
+    pthread_mutex_unlock(&g_req_lock);
+    if (!kind) return;
+    int result = kind == 1 ? write_state(slot) : (read_state(slot) ? 1 : 0);
+    pthread_mutex_lock(&g_req_lock);
+    g_req_result = result;
+    g_req_kind = 0;
+    g_req_done = 1;
+    pthread_cond_broadcast(&g_req_cv);
+    pthread_mutex_unlock(&g_req_lock);
+}
+
+static int request_blocking(int kind, int slot) {
+    if (!g_started || !atomic_load(&g_run)) return 0;
+    struct timespec dl;
+    clock_gettime(CLOCK_REALTIME, &dl);
+    dl.tv_sec += 3;
+    pthread_mutex_lock(&g_req_lock);
+    g_req_kind = kind;
+    g_req_slot = slot;
+    g_req_done = 0;
+    g_req_result = 0;
+    while (!g_req_done) {
+        if (pthread_cond_timedwait(&g_req_cv, &g_req_lock, &dl) != 0) break;
+    }
+    int r = g_req_done ? g_req_result : 0;
+    g_req_kind = 0;
+    pthread_mutex_unlock(&g_req_lock);
+    return r;
 }
 
 /* ---- in-game saves (battery RAM): the core owns the memory, we keep it in <saves>/<game>.srm ---- */
@@ -344,8 +431,7 @@ static void sram_load(void) {
     memcpy(g_sram_shadow, mem, g_sram_size);
 }
 
-/* Writes the save RAM if it changed (or always when forced). Writes a temp file, then renames, so a
- * crash or a full disk cannot leave half a save behind. */
+/* Writes the save RAM if it changed (or always when forced), through a temp file and a rename. */
 static void sram_flush(bool force) {
     if (!g_sram_shadow) return;
     unsigned char *mem = C.get_memory_data(RETRO_MEMORY_SAVE_RAM);
@@ -417,22 +503,43 @@ static void *emulation_thread(void *arg) {
     g_win_h = (int)av.geometry.base_height;
     LOGI("av: %ux%u aspect %.3f, %.2f fps, %.0f Hz", av.geometry.base_width, av.geometry.base_height, g_aspect, g_fps, g_rate);
 
+    if (g_start_slot >= 0) set_note(read_state(g_start_slot) ? "resumed" : "no resume point");
+
     const unsigned target = (unsigned)(g_rate / g_fps * 3.0); /* keep about three frames of sound queued */
-    bool audio_on = false;
+    bool audio_on = false, audio_paused = false;
+    int last_speed = 1;
     unsigned frames = 0, shown = 0;
     double t_start = now_s(), t_report = t_start, t_next = t_start, t_sram = t_start;
 
     while (atomic_load(&g_run)) {
-        int req = atomic_exchange(&g_request, 0);
-        if (req) do_state_request(req);
+        service_request();
 
-        if (audio_on) {
+        if (atomic_load(&g_paused)) {
+            if (audio_on && !audio_paused) { AAudioStream_requestPause(g_stream); audio_paused = true; }
+            usleep(4000);
+            t_next = now_s();
+            continue;
+        }
+        if (audio_paused) {
+            atomic_store(&g_rd, atomic_load(&g_wr)); /* drop stale sound */
+            AAudioStream_requestStart(g_stream);
+            audio_paused = false;
+        }
+        int speed = atomic_load(&g_speed);
+        if (speed != last_speed) {
+            LOGI("speed %d (0 means unlimited)", speed);
+            if (speed == 1) atomic_store(&g_rd, atomic_load(&g_wr));
+            last_speed = speed;
+            t_next = now_s();
+        }
+
+        if (audio_on && speed == 1) {
             if (atomic_load(&g_wr) - atomic_load(&g_rd) > target) { usleep(1000); continue; }
-        } else {
-            /* No audio yet (first frames) or no audio device: follow the clock instead. */
+        } else if (speed != 0) {
+            /* No audio yet, no audio device, or fast-forward: follow the clock instead. */
             double t = now_s();
-            if (t < t_next) { usleep(1000); continue; }
-            t_next = (t - t_next > 0.25 ? t : t_next) + 1.0 / g_fps;
+            if (t < t_next) { usleep(500); continue; }
+            t_next = (t - t_next > 0.25 ? t : t_next) + 1.0 / (g_fps * speed);
         }
         /* A tap shorter than one frame must still reach the game once. */
         g_latched = atomic_exchange(&g_pressed, 0);
@@ -480,7 +587,8 @@ static void copy_jstring(JNIEnv *env, jstring s, char *dst, size_t cap) {
 }
 
 JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeStart(JNIEnv *env, jclass cls, jstring core, jstring rom,
-                                                                jstring sys_dir, jstring save_dir, jobject surface) {
+                                                                jstring sys_dir, jstring save_dir, jobject surface,
+                                                                jint start_slot) {
     (void)cls;
     if (g_started) return JNI_FALSE;
     copy_jstring(env, core, g_core_path, sizeof g_core_path);
@@ -488,25 +596,28 @@ JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeStart(JNIEnv *env, jcla
     copy_jstring(env, sys_dir, g_sys_dir, sizeof g_sys_dir);
     copy_jstring(env, save_dir, g_save_dir, sizeof g_save_dir);
     /* RetroArch's file names: the game's name without its extension, plus .srm or .state. */
-    char name[256];
     const char *base = strrchr(g_rom_path, '/');
-    snprintf(name, sizeof name, "%s", base ? base + 1 : "game");
-    char *dot = strrchr(name, '.');
-    if (dot && dot != name) *dot = 0;
-    snprintf(g_state_path, sizeof g_state_path, "%s/%s.state", g_save_dir, name);
-    snprintf(g_sram_path, sizeof g_sram_path, "%s/%s.srm", g_save_dir, name);
+    snprintf(g_name, sizeof g_name, "%s", base ? base + 1 : "game");
+    char *dot = strrchr(g_name, '.');
+    if (dot && dot != g_name) *dot = 0;
+    snprintf(g_sram_path, sizeof g_sram_path, "%s/%s.srm", g_save_dir, g_name);
 
     g_win = ANativeWindow_fromSurface(env, surface);
     if (!g_win) return JNI_FALSE;
     g_win_w = g_win_h = 0;
     g_pixel_format = RETRO_PIXEL_FORMAT_0RGB1555;
+    g_start_slot = start_slot;
     atomic_store(&g_buttons, 0);
     atomic_store(&g_pressed, 0);
     g_latched = 0;
     atomic_store(&g_wr, 0);
     atomic_store(&g_rd, 0);
     atomic_store(&g_underruns, 0);
-    atomic_store(&g_request, 0);
+    atomic_store(&g_paused, false);
+    atomic_store(&g_speed, 1);
+    pthread_mutex_lock(&g_snap_lock);
+    g_snap_w = g_snap_h = 0;
+    pthread_mutex_unlock(&g_snap_lock);
     atomic_store(&g_run, true);
     set_status("loading core");
     set_note("%s", "");
@@ -540,9 +651,50 @@ JNIEXPORT void JNICALL Java_app_lantern_Player_nativeButton(JNIEnv *env, jclass 
     }
 }
 
-JNIEXPORT void JNICALL Java_app_lantern_Player_nativeStateRequest(JNIEnv *env, jclass cls, jint what) {
+JNIEXPORT void JNICALL Java_app_lantern_Player_nativePause(JNIEnv *env, jclass cls, jboolean paused) {
     (void)env; (void)cls;
-    atomic_store(&g_request, what);
+    atomic_store(&g_paused, paused == JNI_TRUE);
+    if (paused) atomic_store(&g_buttons, 0); /* a button held when the menu opened must not stay down */
+}
+
+JNIEXPORT void JNICALL Java_app_lantern_Player_nativeSpeed(JNIEnv *env, jclass cls, jint speed) {
+    (void)env; (void)cls;
+    atomic_store(&g_speed, speed < 0 || speed > 8 ? 1 : speed);
+}
+
+/* Slot 0 is the resume point, 1 to 9 the person's slots. Returns bytes written, or 0. */
+JNIEXPORT jint JNICALL Java_app_lantern_Player_nativeSaveState(JNIEnv *env, jclass cls, jint slot) {
+    (void)env; (void)cls;
+    return slot < 0 || slot > 9 ? 0 : request_blocking(1, slot);
+}
+
+JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeLoadState(JNIEnv *env, jclass cls, jint slot) {
+    (void)env; (void)cls;
+    return slot < 0 || slot > 9 ? JNI_FALSE : request_blocking(2, slot) ? JNI_TRUE : JNI_FALSE;
+}
+
+/* Width in the high 16 bits, height in the low 16, or 0 before the first frame. */
+JNIEXPORT jint JNICALL Java_app_lantern_Player_nativeFrameSize(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    pthread_mutex_lock(&g_snap_lock);
+    jint r = (jint)((g_snap_w << 16) | g_snap_h);
+    pthread_mutex_unlock(&g_snap_lock);
+    return r;
+}
+
+/* Copies the latest frame as ARGB pixels. Returns true if the array was big enough. */
+JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeSnapshot(JNIEnv *env, jclass cls, jintArray out) {
+    (void)cls;
+    jboolean ok = JNI_FALSE;
+    pthread_mutex_lock(&g_snap_lock);
+    jsize len = (*env)->GetArrayLength(env, out);
+    size_t need = (size_t)g_snap_w * g_snap_h;
+    if (g_snap && need > 0 && (size_t)len >= need) {
+        (*env)->SetIntArrayRegion(env, out, 0, (jsize)need, (const jint *)g_snap);
+        ok = JNI_TRUE;
+    }
+    pthread_mutex_unlock(&g_snap_lock);
+    return ok;
 }
 
 JNIEXPORT jstring JNICALL Java_app_lantern_Player_nativeStatus(JNIEnv *env, jclass cls) {

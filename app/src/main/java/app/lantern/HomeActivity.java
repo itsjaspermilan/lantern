@@ -403,13 +403,16 @@ public class HomeActivity extends Activity {
         chipView.setVisibility(View.VISIBLE);
         chipView.setText(g.system.toUpperCase());
         when.setText(g.lastPlayed == 0 ? "Never played" : "Played " + ago(g.lastPlayed));
-        sub.setText(g.isRom() && !Cores.has(this, g.sysId) ? "No emulator core for " + g.system + " yet" : "Ready to play");
+        long saved = Library.resumeTime(g);
+        sub.setText(g.isRom() && !Cores.has(this, g.sysId) ? "No emulator core for " + g.system + " yet"
+                : saved > 0 ? "Resume available · saved " + ago(saved) : "Ready to play");
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
     }
 
     // ---- actions ----
 
-    private void open(Game g) {
+    /** Opens a game. For a ROM, resume picks up the saved resume point instead of starting fresh. */
+    private void open(Game g, boolean resume) {
         if (g.isRom()) {
             java.io.File core = Cores.file(this, g.sysId);
             if (core == null) {
@@ -421,7 +424,10 @@ public class HomeActivity extends Activity {
                     .putExtra(PlayerActivity.EXTRA_CORE, core.getAbsolutePath())
                     .putExtra(PlayerActivity.EXTRA_ROM, g.file.getAbsolutePath())
                     .putExtra(PlayerActivity.EXTRA_SYS, Library.biosDir().getAbsolutePath())
-                    .putExtra(PlayerActivity.EXTRA_SAVE, Library.saveDir(g.sysId).getAbsolutePath()));
+                    .putExtra(PlayerActivity.EXTRA_SAVE, Library.saveDir(g.sysId).getAbsolutePath())
+                    .putExtra(PlayerActivity.EXTRA_START, resume ? 0 : -1)
+                    .putExtra(PlayerActivity.EXTRA_TITLE, g.title)
+                    .putExtra(PlayerActivity.EXTRA_SYSID, g.sysId));
             return;
         }
         try {
@@ -489,7 +495,9 @@ public class HomeActivity extends Activity {
 
     private List<Act> actionsFor(Game g) {
         List<Act> a = new ArrayList<>();
-        a.add(new Act("▶", "Play", g.isRom() ? (Cores.has(this, g.sysId) ? "Built-in player" : "No core yet") : "Android app"));
+        long saved = Library.resumeTime(g);
+        if (saved > 0) a.add(new Act("⟲", "Resume", "Saved " + ago(saved)));
+        a.add(new Act("▶", saved > 0 ? "Play from the start" : "Play", g.isRom() ? (Cores.has(this, g.sysId) ? "Built-in player" : "No core yet") : "Android app"));
         a.add(new Act("★", g.fav ? "Remove from favourites" : "Add to favourites", ""));
         a.add(new Act("i", infoOpen ? "Hide details" : "Details", ""));
         if (!g.isRom()) a.add(new Act("⚙", "App settings", "Android settings"));
@@ -650,8 +658,10 @@ public class HomeActivity extends Activity {
     }
 
     private void activate(Game g, Act a) {
-        if (a.label.equals("Play")) {
-            open(g);
+        if (a.label.equals("Resume")) {
+            open(g, true);
+        } else if (a.label.equals("Play") || a.label.equals("Play from the start")) {
+            open(g, false);
         } else if (a.label.startsWith("Add to") || a.label.startsWith("Remove from")) {
             Library.toggleFav(this, g);
             renderPage();

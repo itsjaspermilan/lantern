@@ -69,6 +69,28 @@ final class Library {
         return d;
     }
 
+    /** "Advance Wars (USA).gba" becomes "Advance Wars (USA)": the name RetroArch uses for save files. */
+    static String baseName(File rom) {
+        String n = rom.getName();
+        int dot = n.lastIndexOf('.');
+        return dot > 0 ? n.substring(0, dot) : n;
+    }
+
+    /**
+     * A save state file. suffix ".auto" is the resume point, "3" is slot 3. Same names as the native
+     * player writes: "<game>.state.auto", "<game>.state3". A screenshot sits next to it as "<file>.png".
+     */
+    static File stateFile(String sysId, File rom, String suffix) {
+        return new File(saveDir(sysId), baseName(rom) + ".state" + suffix);
+    }
+
+    /** When the resume point was saved (milliseconds), or 0 if there is none. */
+    static long resumeTime(Game g) {
+        if (!g.isRom()) return 0;
+        File f = stateFile(g.sysId, g.file, ".auto");
+        return f.exists() ? f.lastModified() : 0;
+    }
+
     /** Reading the shared storage folder needs "all files access" on Android 11 and later. */
     static boolean hasFileAccess() {
         return Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();

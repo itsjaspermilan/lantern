@@ -57,6 +57,9 @@ final class ArtFetcher {
             case "snes": return "Nintendo - Super Nintendo Entertainment System";
             case "gb": return g.file.getName().toLowerCase().endsWith(".gbc") ? "Nintendo - Game Boy Color" : "Nintendo - Game Boy";
             case "gba": return "Nintendo - Game Boy Advance";
+            case "gbc": return "Nintendo - Game Boy Color";
+            case "mastersystem": return "Sega - Master System - Mark III";
+            case "gamegear": return "Sega - Game Gear";
             case "md": return "Sega - Mega Drive - Genesis";
             case "n64": return "Nintendo - Nintendo 64";
             case "nds": return "Nintendo - Nintendo DS";

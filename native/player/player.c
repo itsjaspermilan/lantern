@@ -98,6 +98,12 @@ static void set_note(const char *fmt, ...) {
     pthread_mutex_unlock(&g_status_lock);
 }
 
+static double now_s(void);
+static double g_lock_s, g_run_s; /* seconds in the last stretch spent waiting for a window buffer / inside the core */
+static unsigned g_video_calls, g_dupe_calls; /* video callbacks with a picture / with "repeat the last frame" */
+static int g_lit_percent = -1;               /* share of the last sampled picture that is not black */
+static unsigned g_raw_first;                 /* first two bytes of the last sampled picture, as the core sent them */
+
 /* ---- the latest frame, kept as ARGB for screenshots ---- */
 static pthread_mutex_t g_snap_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t *g_snap;
@@ -173,14 +179,17 @@ static void audio_close(void) {
 
 /* ---- video: copy the core's frame into the window (RGBX 8888) and keep an ARGB copy ---- */
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
-    if (!data || !g_win) return; /* NULL means "repeat the last frame" */
+    if (!data || !g_win) { g_dupe_calls++; return; } /* NULL means "repeat the last frame" */
+    g_video_calls++;
     if ((int)w != g_win_w || (int)h != g_win_h) {
         ANativeWindow_setBuffersGeometry(g_win, (int32_t)w, (int32_t)h, WINDOW_FORMAT_RGBX_8888);
         g_win_w = (int)w;
         g_win_h = (int)h;
     }
     ANativeWindow_Buffer buf;
+    double t_lock = now_s();
     if (ANativeWindow_lock(g_win, &buf, NULL) != 0) return;
+    g_lock_s += now_s() - t_lock; /* time spent waiting for a free buffer */
     unsigned rows = h < (unsigned)buf.height ? h : (unsigned)buf.height;
     unsigned cols = w < (unsigned)buf.width ? w : (unsigned)buf.width;
 
@@ -225,6 +234,13 @@ static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
                 out[x] = (p & 0xFF00FF00u) | ((p & 0xFF) << 16) | ((p >> 16) & 0xFF);
             }
         }
+    }
+    /* For diagnosis: what share of the last picture is not black (checked on one frame in 30). */
+    if (snap && (g_video_calls % 30) == 0) {
+        size_t lit = 0, total = (size_t)cols * rows;
+        for (size_t i = 0; i < total; i += 7) if (snap[i] & 0x00FFFFFF) lit++;
+        g_lit_percent = (int)(lit * 7 * 100 / (total ? total : 1));
+        g_raw_first = ((const uint8_t *)data)[0] | (((const uint8_t *)data)[1] << 8);
     }
     pthread_mutex_unlock(&g_snap_lock);
     ANativeWindow_unlockAndPost(g_win);
@@ -482,6 +498,7 @@ static void *emulation_thread(void *arg) {
         long n = ftell(f);
         fseek(f, 0, SEEK_SET);
         rom_data = malloc(n > 0 ? (size_t)n : 1);
+        if (n <= 0) { fclose(f); set_status("ERROR: the game file is empty"); goto done; }
         if (!rom_data || fread(rom_data, 1, (size_t)n, f) != (size_t)n) { fclose(f); set_status("ERROR: cannot read the game file"); goto done; }
         fclose(f);
         gi.data = rom_data;
@@ -543,7 +560,9 @@ static void *emulation_thread(void *arg) {
         }
         /* A tap shorter than one frame must still reach the game once. */
         g_latched = atomic_exchange(&g_pressed, 0);
+        double t_run = now_s();
         C.run();
+        g_run_s += now_s() - t_run;
         frames++;
         shown++;
         if (!audio_on && !g_stream && frames == 3) audio_on = audio_open((int32_t)g_rate);
@@ -554,8 +573,13 @@ static void *emulation_thread(void *arg) {
             pthread_mutex_lock(&g_status_lock);
             snprintf(note, sizeof note, "%s", g_note);
             pthread_mutex_unlock(&g_status_lock);
-            set_status("%s  %dx%d  %.1f fps  audio %s, underruns %u  %s", si.library_name, g_win_w, g_win_h,
-                       shown / (t - t_report), audio_on ? "on" : "OFF", atomic_load(&g_underruns), note);
+            set_status("%s  %dx%d fmt %u  %.1f fps  core %.1f ms, video wait %.1f ms, %.1f pictures + %.1f repeats  lit %d%% raw %04x  audio %s, underruns %u  %s",
+                       si.library_name, g_win_w, g_win_h, g_pixel_format, shown / (t - t_report),
+                       shown ? g_run_s * 1000.0 / shown : 0.0, shown ? g_lock_s * 1000.0 / shown : 0.0,
+                       shown ? (double)g_video_calls / shown : 0.0, shown ? (double)g_dupe_calls / shown : 0.0,
+                       g_lit_percent, g_raw_first, audio_on ? "on" : "OFF", atomic_load(&g_underruns), note);
+            g_run_s = g_lock_s = 0;
+            g_video_calls = g_dupe_calls = 0;
             shown = 0;
             t_report = t;
         }

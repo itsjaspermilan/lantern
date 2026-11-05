@@ -83,14 +83,44 @@ D-pad and face buttons reach the core (Android A arrives as RetroPad B, by posit
 and loading restores the picture, and `am crash` on the player process leaves Lantern running.
 `native/third_party/libretro/libretro.h` is the official MIT header, copied from GameStudio (see its NOTICE.md).
 
-### First real core: mGBA
+### Cores
 
 Put libretro cores in `native/cores/` (git-ignored, never committed). `build.sh` packages every
 `<name>_libretro_android.so` there as `lib<name>.so`, and `Cores.java` maps a system folder to a core name.
-Right now only `mgba_libretro_android.so` is present, from libretro's nightly Android build server
-(`buildbot.libretro.com/nightly/android/latest/arm64-v8a/`, 419,371 byte zip, sha256 starting 3edd6395,
-mGBA 0.11-212-7a12d6d, MPL-2.0). It is a nightly build with no signature. I checked it is a 64-bit ARM ELF that
-exports the libretro functions and needs only libc, libm and libdl.
+Present now: mGBA (GBA), Gambatte (Game Boy, Game Boy Color), FCEUmm (NES), Snes9x (SNES) and Genesis Plus GX
+(Mega Drive, Master System, Game Gear), all from libretro's nightly Android build server, each downloaded with the
+owner's approval. Versions, sizes, checksums and licences are in `native/CORES.md`. Short version: Gambatte and
+FCEUmm are GPL-2.0; **Snes9x and Genesis Plus GX are non-commercial only**, so an APK containing them must not be
+sold or bundled commercially. Nightly builds are unsigned; each file was checked for size, checksum, 64-bit ARM
+and the libretro entry points only.
+
+Test games, one per system, copied from the owner's own collection to the emulator only (never to this repository):
+a GBA game, `Tesserae (USA).gb`, `Klustar (USA).gbc`, `Urban Champion (World).nes`, `Space Invaders - The Original
+Game (USA).sfc` and `Teddy Boy (USA, Europe).sms`. No Mega Drive game was tested: the collection has no Mega Drive
+folder, so Genesis Plus GX was exercised only through its Master System support.
+
+Checked on the emulator, each launched from the shelf with its own core (the status line names the core): Gambatte
+ran Tesserae (grey Game Boy palette) and Klustar (colour) at 59.7 fps; FCEUmm ran Urban Champion's attract mode at
+60.9 fps; Genesis Plus GX ran Teddy Boy at 60.0 fps; Snes9x ran Space Invaders (`Checksum OK`, the Taito logo) at
+60 fps. Snes9x saved an 823,407-byte state with a screenshot and loaded it back ("state loaded"). Not checked:
+save states, resume, the menu and fast-forward on the other four new cores; the Mega Drive, Game Gear and
+"headered" ROM variants; sound by ear; anything on the Retroid.
+
+Two things that looked like core bugs and were not: a black SNES screen was an empty placeholder file I had
+created earlier (the core logged `Corrupt ... CRC32: 00000000`), and 30 to 40 fps with many underruns on the first
+Gambatte runs happened within minutes of installing the app. It did not recur once the emulator was idle, which
+fits Android compiling the new app in the background, but that was not proven.
+
+Sound: every core shows a steady trickle of underruns on the emulator (roughly one every one to two seconds). The
+player has no dynamic rate control and keeps about three frames queued. Whether it is audible is unknown; raising
+the queue is the easy knob and costs a frame or two of delay per step.
+
+Diagnostics: F3 shows a status line (core, size, pixel format, fps, ms inside the core, ms waiting in the video
+call, pictures per run, share of the picture that is not black, sound state, underruns). The "core ms" figure
+includes the video wait, which is the display pacing the game to 60 fps; the core's own work is much smaller. A
+game that cannot start (for example an empty file) now says so on screen and Back leaves it.
+
+The first core, mGBA (0.11-212-7a12d6d, MPL-2.0):
 
 Checked on the emulator with one commercial GBA game from the owner's own collection (copied to the emulator
 only): it boots, the title screen runs at 59.8 to 60.3 fps with sound, a single Start tap moves from "Press
@@ -129,8 +159,8 @@ keyboard app (tried `FLAG_ALT_FOCUSABLE_IM`) or on window focus changes, and it 
 game is relaunched. It may be an emulator or `adb` effect; it has not been tested with a real controller.
 
 Limits: software-rendered cores only (hardware rendering is refused), no core options, one controller, the player
-draws through the system compositor (no shaders), and only GBA has a real core. The rest need downloads and a
-licence check each. Sound was measured by underrun count only; the emulator says nothing about latency.
+draws through the system compositor (no shaders), and N64, PlayStation, PSP, Saturn, Dreamcast and DS have no core.
+Sound was measured by underrun count only; the emulator says nothing about latency.
 
 Not done yet: cheats, button remapping, a BIOS check, disc swapping, more cores.
 Not verified: anything on the real device. Only checked on the `retroid-sim` emulator, which keeps system bars

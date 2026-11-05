@@ -46,12 +46,21 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private SharedPreferences prefs;
     private File romFile;
     private String sysId, title;
-    private boolean running, resumeSaved, selectDown, startDown;
+    private boolean running, resumeSaved, selectDown, startDown, failed;
 
     private final Runnable poll = new Runnable() {
         @Override
         public void run() {
-            hud.setText(Player.nativeStatus());
+            String status = Player.nativeStatus();
+            hud.setText(status);
+            // A game that could not start must say so, not sit on a black screen.
+            if (status.startsWith("ERROR")) {
+                failed = true;
+                resumeSaved = true; // nothing ran, so there is nothing to save
+                hud.setVisibility(View.VISIBLE);
+                hud.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+                hud.setText(status + "\nPress Back to return.");
+            }
             fitPicture();
             scan.invalidate();
             handler.postDelayed(this, 500);
@@ -317,6 +326,15 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     public boolean dispatchKeyEvent(KeyEvent e) {
         int code = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+
+        if (failed) { // the game never started: any "back" key leaves, with no menu and no save
+            if (down && (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_BUTTON_B
+                    || code == KeyEvent.KEYCODE_BUTTON_MODE)) {
+                stopGame();
+                finish();
+            }
+            return true;
+        }
 
         if (menu.isOpen()) {
             // Everything goes to the menu. Held direction keys repeat; other keys act once.

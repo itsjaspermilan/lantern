@@ -15,6 +15,17 @@ final class Cores {
                 return "testcore";
             case "gba":
                 return "mgba";
+            case "gb":
+            case "gbc":
+                return "gambatte";
+            case "snes":
+                return "snes9x";
+            case "nes":
+                return "fceumm";
+            case "md":
+            case "mastersystem":
+            case "gamegear":
+                return "genesis_plus_gx";
             default:
                 return null;
         }

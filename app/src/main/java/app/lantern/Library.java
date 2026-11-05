@@ -41,7 +41,10 @@ final class Library {
     private static final Sys[] SYSTEMS = {
         new Sys("nes", "NES", "Nintendo Entertainment System", "nes"),
         new Sys("snes", "SNES", "Super Nintendo", "sfc", "smc"),
-        new Sys("gb", "Game Boy", "Game Boy and Color", "gb", "gbc"),
+        new Sys("gb", "Game Boy", "Game Boy", "gb", "gbc"),
+        new Sys("gbc", "Game Boy Color", "Game Boy Color", "gbc", "gb"),
+        new Sys("mastersystem", "Master System", "Sega Master System", "sms"),
+        new Sys("gamegear", "Game Gear", "Sega Game Gear", "gg"),
         new Sys("gba", "GBA", "Game Boy Advance", "gba"),
         new Sys("md", "Mega Drive", "Mega Drive and Genesis", "md", "gen", "smd"),
         new Sys("n64", "N64", "Nintendo 64", "z64", "n64", "v64"),

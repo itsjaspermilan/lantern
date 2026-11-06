@@ -12,7 +12,7 @@ import android.graphics.Shader;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 
-/** Lantern's mark: a small lantern with a glowing flame that breathes slowly. Drawn in code on a 76 x 76 sheet. */
+/** Lantern's mark: an app-icon tile with a lantern whose flame breathes slowly. Drawn in code on a 76 x 76 sheet. */
 final class LanternLogo extends View {
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF r = new RectF();
@@ -52,12 +52,25 @@ final class LanternLogo extends View {
         c.save();
         c.scale(k, k);
 
-        // The glow on the room around it.
+        // The app-icon tile: dark warm glass with the lantern's light pooling inside it.
+        r.set(4f, 4f, 72f, 72f);
         p.setStyle(Paint.Style.FILL);
-        p.setShader(new RadialGradient(38, 38, 38, new int[]{(int) (0x66 * breath) << 24 | 0xFFB454, 0x00FFB454},
+        p.setShader(new LinearGradient(0, 4, 0, 72, 0xFF2B2018, 0xFF120E16, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, 17f, 17f, p);
+        c.save();
+        c.clipRect(4f, 4f, 72f, 72f);
+        p.setShader(new RadialGradient(38, 40, 40, new int[]{(int) (0x80 * breath) << 24 | 0xFFA040, 0x00FFA040},
                 new float[]{0f, 1f}, Shader.TileMode.CLAMP));
-        c.drawCircle(38, 38, 38, p);
+        c.drawCircle(38, 40, 40, p);
+        c.restore();
         p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(1.6f);
+        p.setColor(0x55FFC878);
+        r.set(4.8f, 4.8f, 71.2f, 71.2f);
+        c.drawRoundRect(r, 16.5f, 16.5f, p);
+        c.save();
+        c.scale(1.22f, 1.22f, 38f, 40f); // the lantern fills most of the tile
 
         // Handle.
         p.setStyle(Paint.Style.STROKE);
@@ -98,6 +111,7 @@ final class LanternLogo extends View {
         c.drawLine(34.7f, 22.5f, 34.7f, 53.5f, p);
         c.drawLine(41.3f, 22.5f, 41.3f, 53.5f, p);
         p.setStyle(Paint.Style.FILL);
+        c.restore();
         c.restore();
     }
 }

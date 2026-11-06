@@ -217,15 +217,16 @@ public class HomeActivity extends Activity {
         top.setPadding(u(EDGE_L), 0, u(EDGE_R), 0);
 
         LanternLogo logo = new LanternLogo(this);
-        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(u(116), u(116));
-        fp.leftMargin = -u(26); // the glow around the lantern reaches past the margin
-        fp.rightMargin = -u(12);
+        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(u(80), u(80));
+        fp.rightMargin = u(22);
         top.addView(logo, fp);
-        TextView word = label("Lantern", 38, Color.WHITE, true);
-        word.setLetterSpacing(0.04f);
-        word.setShadowLayer(u(14), 0, 0, 0x66FFB454); // a faint glow, as if lit by the lantern
+        // Spaced capitals with a lantern-lit gradient; the first letter is the warmest.
+        TextView word = label("LANTERN", 30, Color.WHITE, true);
+        word.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        word.setLetterSpacing(0.3f);
+        word.setShadowLayer(u(12), 0, 0, 0x55FFB454);
         word.post(() -> word.getPaint().setShader(new android.graphics.LinearGradient(0, 0, word.getWidth(), 0,
-                new int[]{0xFFFFFFFF, 0xFFFFE2B0}, null, android.graphics.Shader.TileMode.CLAMP)));
+                new int[]{0xFFFFC46B, 0xFFFFFFFF, 0xFFFFE9C4}, new float[]{0f, .35f, 1f}, android.graphics.Shader.TileMode.CLAMP)));
         top.addView(word);
 
         LinearLayout tabs = new LinearLayout(this);

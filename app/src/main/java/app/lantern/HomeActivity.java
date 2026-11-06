@@ -64,6 +64,7 @@ public class HomeActivity extends Activity {
         // The screen is built once the window's real size is known: some devices keep space for
         // system bars even in full screen, and the 16:9 layout then has to fit what is left.
         if (android.os.Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
+        fullScreenWindow(this);
         fetcher = new ArtFetcher(this);
         artOn = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("art", false); // off until asked
         root = new FrameLayout(this) {
@@ -86,12 +87,9 @@ public class HomeActivity extends Activity {
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 android.graphics.Insets i = ins.getInsets(
                         android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
-                // Keep the bottom clear of the navigation bar even while it is hidden: a swipe or a
-                // system that never hides it would otherwise cover the button hints.
-                int navBottom = ins.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.navigationBars()).bottom;
-                // Only the bottom is kept clear. Top and sides are not: the mockup's own margins already
-                // sit beside a camera hole, and shrinking the layout to dodge one made it too small.
-                safe.setPadding(0, 0, 0, Math.max(i.bottom, navBottom));
+                // Full screen: nothing is reserved. The window draws behind the (hidden, transparent)
+                // navigation bar, see fullScreenWindow; the mockup's own margins sit beside a camera hole.
+                safe.setPadding(0, 0, 0, 0);
             } else {
                 safe.setPadding(ins.getSystemWindowInsetLeft(), ins.getSystemWindowInsetTop(),
                         ins.getSystemWindowInsetRight(), ins.getSystemWindowInsetBottom());
@@ -111,6 +109,18 @@ public class HomeActivity extends Activity {
         if (stage == null || Math.abs(ns - s) > 0.001f) {
             s = ns;
             buildUi();
+        }
+    }
+
+    /** Lets the window draw over the whole screen, including the strip where the navigation bar sits. */
+    static void fullScreenWindow(android.app.Activity a) {
+        android.view.Window w = a.getWindow();
+        w.addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        w.setNavigationBarColor(Color.TRANSPARENT);
+        w.setStatusBarColor(Color.TRANSPARENT);
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            w.setNavigationBarContrastEnforced(false);
+            w.setStatusBarContrastEnforced(false);
         }
     }
 

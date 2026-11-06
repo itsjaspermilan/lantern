@@ -105,12 +105,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             // The game fills the whole screen; only the menu keeps clear of system bars (and of a
             // navigation bar that stays visible), so its hints are never covered.
             getWindow().setDecorFitsSystemWindows(false);
+            HomeActivity.fullScreenWindow(this);
             root.setOnApplyWindowInsetsListener((v, ins) -> {
-                android.graphics.Insets i = ins.getInsets(
-                        android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
-                int nav = ins.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.navigationBars()).bottom;
-                navReserve = Math.max(i.bottom, nav); // same rule as the home screen
-                menu.setInsets(0, 0, 0, navReserve);
+                navReserve = 0; // full screen, same as the home screen
+                menu.setInsets(0, 0, 0, 0);
                 fitPicture();
                 return ins;
             });

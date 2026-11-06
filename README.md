@@ -54,8 +54,7 @@ no Switch core. Systems with no core yet (N64, Atari 2600/7800/Lynx, Famicom Dis
 Reported by the owner after playing a GBA game on the Pocket 6: buttons right, picture clipped. Cause: the game
 picture was sized for the full 1080 px height while the 55 px navigation bar is drawn over the bottom of the screen,
 so the last rows were lost (it had also been visible on the emulator's screenshots and not chased). Fix: the player
-sizes and centres the picture in the space above the bar, as the home screen and the menu already did. Checked on
-the Pocket 6 with the same game: the whole picture shows, 1538 x 1025 px, 3:2. The picture is scaled smoothly by
+first fitted the picture above the bar (1538 x 1025 px); the owner then asked for true full screen, see below. The picture is scaled smoothly by
 Android, so it looks soft; Options, Scaling, Integer gives sharp pixels at whole multiples (not judged on the device).
 
 ### Shelf speed and the Systems shelf
@@ -78,7 +77,11 @@ going back landed on the first tile, and fresh tiles were drawn at full brightne
 
 The layout is the mockup's 1920 x 1080 scaled to the window, from the very top. The window draws behind a camera
 cut-out on every edge (`values-v30/styles.xml`, `windowLayoutInDisplayCutoutMode=always`) and the glow fills the
-whole screen. Only the bottom is kept clear, for a navigation bar. The emulator wears a "Pixel 5" profile that adds
+whole screen. Nothing is reserved at the bottom: the Pocket 6's 55 px strip was black inside Lantern's own buffer, because
+Android clips an app's drawing to the system-bar area unless the window asks otherwise. `HomeActivity.fullScreenWindow`
+(`FLAG_LAYOUT_NO_LIMITS`, transparent bars, contrast enforcement off) lets Lantern draw there, for the home screen, game
+pages, the player (picture 1080 px tall) and the menu. Checked by screenshot on the Pocket 6. The bar stays hidden;
+the gesture swipe to reveal it is not yet tested. The emulator wears a "Pixel 5" profile that adds
 a camera hole and a tall status bar; the Retroid has neither. An earlier version shrank the layout to fit the safe
 area and came out about 18% too small. The emulator still draws a black 60 px navigation strip at the bottom that
 the app cannot make transparent or hide; not checked on a real device.

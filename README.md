@@ -186,6 +186,9 @@ Controls and the core's own settings are not built, so they are not in the menu.
 Leaving a game by Quit, Home or anything that takes the screen saves a resume point (`<game>.state.auto` plus a
 screenshot). The game page shows Resume (highlighted) above Play from the start, and the shelf says
 "Resume available". Slots are `<game>.state1` to `.state9`, each with `<file>.png`; the resume point is slot 0.
+Sleep is different from Home: when the screen turns off mid-game the resume point is saved and the game is put away, but the
+player stays open, so waking carries on from that point (even if Android ended the process meanwhile). If the in-game menu was
+open it is open again. Tested on the Pocket 6 with the power key (sleep, wake: same screen, game running); Home still ends the game.
 
 Checked on the emulator with Advance Wars: the menu opens over the frozen game with a "Current game" preview;
 Save to slot 1 writes a 462,912-byte state and a PNG and the slot then previews it; Load restored an earlier

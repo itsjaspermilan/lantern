@@ -47,6 +47,14 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private File romFile, cheatFile;
     private String sysId, title;
     private boolean running, resumeSaved, selectDown, startDown, failed;
+    /** The screen went off while playing: the game was put away at its resume point and comes back on waking. */
+    private boolean asleep, screenOff, menuWasOpen;
+    private final android.content.BroadcastReceiver screenReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context c, android.content.Intent i) {
+            screenOff = true;
+        }
+    };
     /** Height of the navigation bar that covers the bottom of the screen, in pixels. */
     private int navReserve;
 
@@ -72,6 +80,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        asleep = state != null; // the system ended this process while it slept: come back from the resume point
+        registerReceiver(screenReceiver, new android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF));
         romFile = new File(getIntent().getStringExtra(EXTRA_ROM));
         sysId = getIntent().getStringExtra(EXTRA_SYSID);
         title = getIntent().getStringExtra(EXTRA_TITLE);
@@ -188,7 +198,9 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         running = Player.nativeStart(
                 getIntent().getStringExtra(EXTRA_CORE), getIntent().getStringExtra(EXTRA_ROM),
                 getIntent().getStringExtra(EXTRA_SYS), getIntent().getStringExtra(EXTRA_SAVE), holder.getSurface(),
-                getIntent().getIntExtra(EXTRA_START, -1));
+                asleep ? 0 : getIntent().getIntExtra(EXTRA_START, -1));
+        if (asleep && menuWasOpen && running) handler.postDelayed(() -> Player.nativePause(true), 300);
+        asleep = false;
         handler.post(poll);
     }
 
@@ -219,10 +231,32 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     @Override
     protected void onPause() {
         super.onPause();
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        if ((screenOff || !pm.isInteractive()) && running && !failed && !isFinishing()) {
+            // Sleep: keep the place and put the game away, but stay here so waking carries on playing.
+            menuWasOpen = menu.isOpen();
+            saveResume();
+            stopGame();
+            asleep = true;
+            return;
+        }
         // Home, a call, or anything else that takes the screen: keep the place, then end the game.
         saveResume();
         stopGame();
         finish();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        screenOff = false;
+        resumeSaved = failed; // a new run, so it can be saved again
+    }
+
+    @Override
+    protected void onDestroy() {
+        unregisterReceiver(screenReceiver);
+        super.onDestroy();
     }
 
     // ---- menu host ----

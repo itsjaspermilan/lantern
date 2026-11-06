@@ -38,7 +38,18 @@ the d-pad and the sticks, so the menu button is still undecided (Back, Mode or S
 
 Seen on the device for the first time: Lantern runs and looks as on the emulator, with the real battery and
 clock. It showed one bug the emulator could not (the "needs file access" line overlapped the status line), fixed by
-dropping that line and letting the Start hint say "Allow file access to find your games". Nothing was played.
+dropping that line and letting the Start hint say "Allow file access to find your games".
+
+The owner's collection was then copied to `/sdcard/Lantern/roms/` (17 system folders, 8,217 files, 12 GB; the
+Mac's `.git` folder and `.DS_Store` files were left out). File counts matched for every folder and five files,
+including the largest GBA game, were byte-identical by MD5; the rest were not compared. File access was granted by
+the owner on the device. Measured on the Pocket 6 with 6,841 games (after adding `.unf` to NES and `.sms` to Game
+Gear, which recovered 52 files): the library loads in 294 ms in the background, Lantern is on screen in 89 to
+100 ms, and scrolling 300 tiles deep in All games gave 211 frames with a median 5 ms, 99th percentile 8 ms
+(the 120 Hz budget is 8.3 ms) and 0.5% janky, with 66 views and 88 MB. Non-game files in those folders (`.xml`,
+`.ini`, `.srm`, `.bat`) are ignored. A `Dispatch` Switch package in `/sdcard/Games` was left untouched: Lantern has
+no Switch core. Systems with no core yet (N64, Atari 2600/7800/Lynx, Famicom Disk, Neo Geo Pocket, PC Engine,
+32X, SG-1000) were copied but only N64 is known to Lantern; the rest do not appear until they are added.
 
 ### Shelf speed and the Systems shelf
 

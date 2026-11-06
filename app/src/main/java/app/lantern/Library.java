@@ -39,12 +39,13 @@ final class Library {
 
     /** Folder name under Lantern/roms, short name (the chip on a tile), full name (the Systems shelf), file types. */
     private static final Sys[] SYSTEMS = {
-        new Sys("nes", "NES", "Nintendo Entertainment System", "nes"),
+        new Sys("nes", "NES", "Nintendo Entertainment System", "nes", "unf", "unif"),
         new Sys("snes", "SNES", "Super Nintendo", "sfc", "smc"),
         new Sys("gb", "Game Boy", "Game Boy", "gb", "gbc"),
         new Sys("gbc", "Game Boy Color", "Game Boy Color", "gbc", "gb"),
         new Sys("mastersystem", "Master System", "Sega Master System", "sms"),
-        new Sys("gamegear", "Game Gear", "Sega Game Gear", "gg"),
+        // Game Gear collections often hold a few Master System games (.sms); the same core plays them.
+        new Sys("gamegear", "Game Gear", "Sega Game Gear", "gg", "sms"),
         new Sys("gba", "GBA", "Game Boy Advance", "gba"),
         new Sys("md", "Mega Drive", "Mega Drive and Genesis", "md", "gen", "smd"),
         new Sys("n64", "N64", "Nintendo 64", "z64", "n64", "v64"),

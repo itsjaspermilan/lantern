@@ -59,19 +59,32 @@ final class Library {
         new Sys("test", "Test core", "Test core", "test"),
     };
 
-    /** Id used for the Android apps on the Systems shelf. */
+    /** Ids used for the installed Android apps and Android games on the Systems shelf. */
     static final String APPS = "android";
+    static final String GAMES = "androidgames";
+
+    /** "game" or "app", for counts: Android apps are not games. */
+    static String unit(String sysId, int n) {
+        String w = APPS.equals(sysId) ? "app" : "game";
+        return n == 1 ? w : w + "s";
+    }
+
+    static boolean isAndroid(String sysId) {
+        return APPS.equals(sysId) || GAMES.equals(sysId);
+    }
 
     /** The full name of a system, for its tile on the Systems shelf. */
     static String systemTitle(String sysId) {
-        if (APPS.equals(sysId)) return "Android";
+        if (GAMES.equals(sysId)) return "Android Games";
+        if (APPS.equals(sysId)) return "Android Apps";
         for (Sys s : SYSTEMS) if (s.folder.equals(sysId)) return s.title;
         return sysId;
     }
 
     /** The short name of a system, as shown on a game's chip. */
     static String systemName(String sysId) {
-        if (APPS.equals(sysId)) return "Android";
+        if (GAMES.equals(sysId)) return "Android Game";
+        if (APPS.equals(sysId)) return "Android App";
         for (Sys s : SYSTEMS) if (s.folder.equals(sysId)) return s.name;
         return sysId;
     }
@@ -222,8 +235,9 @@ final class Library {
             g.id = "app:" + pkg;
             g.pkg = pkg;
             g.title = String.valueOf(ri.loadLabel(pm));
-            g.system = "Android";
-            g.sysId = APPS;
+            boolean game = isGame(ri.activityInfo.applicationInfo);
+            g.sysId = game ? GAMES : APPS;
+            g.system = systemName(g.sysId);
             g.icon = ri.loadIcon(pm);
             g.hue = hue(pkg);
             g.launch = new Intent(Intent.ACTION_MAIN)
@@ -233,6 +247,13 @@ final class Library {
             out.add(g);
         }
         return out;
+    }
+
+    /** Android's own label: the app declares itself a game (category, or the older flag). */
+    @SuppressWarnings("deprecation")
+    private static boolean isGame(android.content.pm.ApplicationInfo ai) {
+        return ai.category == android.content.pm.ApplicationInfo.CATEGORY_GAME
+                || (ai.flags & android.content.pm.ApplicationInfo.FLAG_IS_GAME) != 0;
     }
 
     /** "Moonlit Courier (USA) [!].gba" becomes "Moonlit Courier". */

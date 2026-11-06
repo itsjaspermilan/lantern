@@ -174,7 +174,7 @@ final class Cover extends View {
         for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
         p.setStyle(Paint.Style.FILL);
 
-        String count = g.count + (g.count == 1 ? " game" : " games");
+        String count = g.count + " " + Library.unit(g.sysId, g.count);
         tp.setTextSize(24 * s);
         tp.setColor(0xD9FFFFFF);
         c.drawText(count, 20 * s, 18 * s + 24 * s, tp);

@@ -539,8 +539,10 @@ public class HomeActivity extends Activity {
         for (Game g : all) counts.put(g.sysId, counts.containsKey(g.sysId) ? counts.get(g.sysId) + 1 : 1);
         List<String> ids = new ArrayList<>(counts.keySet());
         Collections.sort(ids, (a, b) -> {
-            if (a.equals(Library.APPS)) return b.equals(Library.APPS) ? 0 : 1;
-            if (b.equals(Library.APPS)) return -1;
+            // Consoles first, by name; then Android games; Android apps last.
+            int ra = Library.APPS.equals(a) ? 2 : Library.GAMES.equals(a) ? 1 : 0;
+            int rb = Library.APPS.equals(b) ? 2 : Library.GAMES.equals(b) ? 1 : 0;
+            if (ra != rb) return ra - rb;
             return Library.systemTitle(a).compareToIgnoreCase(Library.systemTitle(b));
         });
         List<Game> out = new ArrayList<>();
@@ -565,9 +567,10 @@ public class HomeActivity extends Activity {
         if (g.systemTile) {
             title.setText(g.title);
             chipView.setVisibility(View.VISIBLE);
-            chipView.setText(g.count + (g.count == 1 ? " GAME" : " GAMES"));
+            chipView.setText((g.count + " " + Library.unit(g.sysId, g.count)).toUpperCase());
             when.setText("");
             sub.setText(g.sysId.equals(Library.APPS) ? "Installed Android apps"
+                    : g.sysId.equals(Library.GAMES) ? "Installed Android games"
                     : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
                     : "No emulator core for this system yet");
             glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
@@ -745,7 +748,8 @@ public class HomeActivity extends Activity {
             crumb.setVisibility(View.GONE);
             return;
         }
-        crumb.setText(where + "   \u00B7   " + shown.size() + (shown.size() == 1 ? " game" : " games"));
+        crumb.setText(where + "   \u00B7   " + shown.size() + " "
+                + (filter != null && query == null ? Library.unit(filter, shown.size()) : shown.size() == 1 ? "game" : "games"));
         crumb.setVisibility(View.VISIBLE);
     }
 

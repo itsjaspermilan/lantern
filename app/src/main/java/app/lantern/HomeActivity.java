@@ -65,10 +65,10 @@ public class HomeActivity extends Activity {
     private FrameLayout searchView;
     private TextView crumb;
     private static final String[][] KEYS = {
-        {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"},
-        {"k", "l", "m", "n", "o", "p", "q", "r", "s", "t"},
-        {"u", "v", "w", "x", "y", "z", "0", "1", "2", "3"},
-        {"4", "5", "6", "7", "8", "9", "Space", "Del", "OK"},
+        {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
+        {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
+        {"a", "s", "d", "f", "g", "h", "j", "k", "l"},
+        {"z", "x", "c", "v", "b", "n", "m", "Space", "Del", "OK"},
     };
 
     @Override
@@ -694,7 +694,7 @@ public class HomeActivity extends Activity {
     private void openSearch() {
         searchOpen = true;
         draft = query == null ? "" : query;
-        kbRow = 0;
+        kbRow = 1 // starts on Q;
         kbCol = 0;
         renderSearch();
         searchView.setVisibility(View.VISIBLE);
@@ -835,7 +835,7 @@ public class HomeActivity extends Activity {
                 kd.setColor(on ? Color.WHITE : k.equals("OK") ? 0x40FFB454 : 0x1AFFFFFF);
                 v.setBackground(kd);
                 FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(u(cell), u(cell - 8), Gravity.TOP | Gravity.START);
-                kp.leftMargin = u(140 + c * (cell + gap));
+                kp.leftMargin = u(140 + (r == 2 ? (cell + gap) / 2 : 0) + c * (cell + gap)); // the home row is indented, as on a keyboard
                 kp.topMargin = u(350 + r * (cell - 8 + gap));
                 final int fr = r, fc = c;
                 v.setOnClickListener(x -> {

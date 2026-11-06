@@ -216,16 +216,17 @@ public class HomeActivity extends Activity {
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding(u(EDGE_L), 0, u(EDGE_R), 0);
 
-        View flame = new View(this);
-        GradientDrawable fd = new GradientDrawable();
-        fd.setShape(GradientDrawable.OVAL);
-        fd.setColor(AMBER);
-        flame.setBackground(fd);
-        flame.setElevation(u(8));
-        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(u(22), u(30));
-        fp.rightMargin = u(14);
-        top.addView(flame, fp);
-        top.addView(label("Lantern", 34, Color.WHITE, true));
+        LanternLogo logo = new LanternLogo(this);
+        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(u(116), u(116));
+        fp.leftMargin = -u(26); // the glow around the lantern reaches past the margin
+        fp.rightMargin = -u(12);
+        top.addView(logo, fp);
+        TextView word = label("Lantern", 38, Color.WHITE, true);
+        word.setLetterSpacing(0.04f);
+        word.setShadowLayer(u(14), 0, 0, 0x66FFB454); // a faint glow, as if lit by the lantern
+        word.post(() -> word.getPaint().setShader(new android.graphics.LinearGradient(0, 0, word.getWidth(), 0,
+                new int[]{0xFFFFFFFF, 0xFFFFE2B0}, null, android.graphics.Shader.TileMode.CLAMP)));
+        top.addView(word);
 
         LinearLayout tabs = new LinearLayout(this);
         tabs.setGravity(Gravity.CENTER_VERTICAL);

@@ -29,7 +29,7 @@ import java.util.Map;
 
 /**
  * The home screen, laid out to the 1920 x 1080 mockup: three shelves switched with L1 and R1,
- * D-pad to browse, A to open, Y to favourite. Every size below is in mockup pixels, scaled to the screen.
+ * D-pad to browse, A to open, Y to favourite, X to search. Every size below is in mockup pixels, scaled to the screen.
  */
 public class HomeActivity extends Activity {
     private static final int AMBER = 0xFFFFB454;
@@ -57,6 +57,19 @@ public class HomeActivity extends Activity {
     private TextView title, when, chipView, sub, empty, banner, battery;
     private int tab = -1;
     private String lastId;
+    /** The search being shown on the shelf (all games that match), or null. */
+    private String query;
+    private boolean searchOpen;
+    private String draft = "";
+    private int kbRow, kbCol;
+    private FrameLayout searchView;
+    private TextView crumb;
+    private static final String[][] KEYS = {
+        {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"},
+        {"k", "l", "m", "n", "o", "p", "q", "r", "s", "t"},
+        {"u", "v", "w", "x", "y", "z", "0", "1", "2", "3"},
+        {"4", "5", "6", "7", "8", "9", "Space", "Del", "OK"},
+    };
 
     @Override
     protected void onCreate(Bundle state) {
@@ -146,6 +159,12 @@ public class HomeActivity extends Activity {
         });
         stage.addView(shelf, new FrameLayout.LayoutParams(-1, -1));
         buildTopBar();
+        crumb = label("", 28, 0xCCFFFFFF, false);
+        crumb.setVisibility(View.GONE);
+        FrameLayout.LayoutParams cr = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
+        cr.leftMargin = u(140);
+        cr.topMargin = u(104);
+        stage.addView(crumb, cr);
         buildInfo();
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
@@ -155,6 +174,10 @@ public class HomeActivity extends Activity {
         pageView = new FrameLayout(this);
         pageView.setVisibility(View.GONE);
         stage.addView(pageView, new FrameLayout.LayoutParams(-1, -1));
+        searchOpen = false;
+        searchView = new FrameLayout(this);
+        searchView.setVisibility(View.GONE);
+        stage.addView(searchView, new FrameLayout.LayoutParams(-1, -1));
         buildHints();
 
         battery.setText(batteryText);
@@ -312,6 +335,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (searchOpen) closeSearch();
         if (shelf != null) shelf.setIndex(0, true); // Home pressed while Lantern is showing: back to the first game
     }
 
@@ -337,8 +361,12 @@ public class HomeActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         boolean first = event.getRepeatCount() == 0;
         if (shelf == null) return super.onKeyDown(keyCode, event); // not built yet
+        if (searchOpen) return searchKey(keyCode, event, first);
         if (pageOpen) return pageKey(keyCode, first);
         switch (keyCode) {
+            case KeyEvent.KEYCODE_BUTTON_X:
+                if (first) openSearch();
+                return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 shelf.move(-1);
                 return true;
@@ -379,7 +407,7 @@ public class HomeActivity extends Activity {
     @Override
     public void onBackPressed() {
         // A launcher has nowhere to go back to, except out of a game page or a system.
-        if (pageOpen) closePage(); else leaveSystem();
+        if (searchOpen) closeSearch(); else if (pageOpen) closePage(); else leaveSystem();
     }
 
     /** A on the shelf: a system tile opens that system's games, a game tile opens its page. */
@@ -395,8 +423,13 @@ public class HomeActivity extends Activity {
         }
     }
 
-    /** B inside a system goes back to the Systems shelf, with that system's tile selected. */
+    /** B inside a search clears it; B inside a system goes back to the Systems shelf, with that system's tile selected. */
     private void leaveSystem() {
+        if (query != null) {
+            query = null;
+            refresh(true); // the focused game stays focused if the shelf still holds it
+            return;
+        }
         if (filter == null) return;
         lastId = "sys:" + filter;
         filter = null;
@@ -413,14 +446,18 @@ public class HomeActivity extends Activity {
     private void setTab(int t) {
         tab = (t + TABS.length) % TABS.length;
         filter = null;
+        query = null;
         lastId = null;
         refresh(false);
     }
 
     private void refresh(boolean keepFocus) {
         shown.clear();
-        boolean systemTiles = tab == TAB_SYSTEMS && filter == null;
-        if (systemTiles) {
+        boolean searching = query != null;
+        boolean systemTiles = !searching && tab == TAB_SYSTEMS && filter == null;
+        if (searching) {
+            shown.addAll(matches(query));
+        } else if (systemTiles) {
             shown.addAll(systemTiles());
         } else {
             for (Game g : all) {
@@ -434,7 +471,7 @@ public class HomeActivity extends Activity {
 
         for (int i = 0; i < tabViews.size(); i++) {
             TextView t = tabViews.get(i);
-            boolean on = i == tab;
+            boolean on = i == tab && !searching;
             // Inside a system, its tab shows the system's name, so it is clear where you are.
             if (on && i == TAB_SYSTEMS) t.setText(filter == null ? TABS[i] : Library.systemTitle(filter));
             else t.setText(TABS[i]);
@@ -456,6 +493,7 @@ public class HomeActivity extends Activity {
         shelf.setIndex(restore, false);
         setHints(pageOpen);
 
+        updateCrumb();
         empty.setText(shown.isEmpty() ? emptyMessage() : "");
         if (shown.isEmpty()) {
             title.setText("");
@@ -467,6 +505,7 @@ public class HomeActivity extends Activity {
     }
 
     private String emptyMessage() {
+        if (query != null) return "No games match \u201c" + query + "\u201d.\nPress B to clear the search.";
         if (filter != null) return "No games here.";
         if (tab == 0) return "Nothing played yet.\nOpen a game and it will show up here.";
         if (tab == 1) return "No favourites yet.\nPress Y on a game to add one.";
@@ -559,7 +598,7 @@ public class HomeActivity extends Activity {
         if (i < 0 || i >= shown.size()) return;
         if (shown.get(i).systemTile) return; // systems cannot be favourites
         Library.toggleFav(this, shown.get(i));
-        if (tab == 1 && filter == null) {
+        if (tab == 1 && filter == null && query == null) {
             lastId = null;
             refresh(false);
             shelf.setIndex(Math.min(i, shown.size() - 1), false);
@@ -597,7 +636,13 @@ public class HomeActivity extends Activity {
 
     private void setHints(boolean page) {
         hintsRow.removeAllViews();
-        if (page) {
+        if (searchOpen) {
+            hint(hintsRow, glyph("◀ ▶ ▲ ▼", Color.WHITE, true), "Choose");
+            hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Type");
+            hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Delete");
+            hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Show results");
+            hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Cancel");
+        } else if (page) {
             hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Confirm");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
@@ -610,11 +655,208 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("R1", Color.WHITE, false), "Shelf");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Open");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
-            if (filter != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
+            hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
+            if (filter != null || query != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
             // Start asks for file access until Lantern has it, and then switches cover art on and off.
             hint(hintsRow, glyph("Start", Color.WHITE, false),
-                    !Library.hasFileAccess() ? "Allow file access to find your games" : artOn ? "Cover art: on" : "Cover art: off");
+                    !Library.hasFileAccess() ? "Allow file access" : artOn ? "Cover art: on" : "Cover art: off");
         }
+    }
+
+    // ---- search and breadcrumbs ----
+
+    /** Games whose title or system contains every word of the query, in title order. */
+    private List<Game> matches(String q) {
+        String[] words = q.toLowerCase(java.util.Locale.ROOT).trim().split("\\s+");
+        List<Game> out = new ArrayList<>();
+        for (Game g : all) {
+            String hay = (g.title + " " + g.system).toLowerCase(java.util.Locale.ROOT);
+            boolean ok = true;
+            for (String w : words) if (!w.isEmpty() && !hay.contains(w)) { ok = false; break; }
+            if (ok) out.add(g);
+        }
+        return out;
+    }
+
+    /** "Systems > Game Boy Advance . 214 games" inside a system, "Search > "mario" . 12 games" after a search. */
+    private void updateCrumb() {
+        String where = null;
+        if (query != null) where = "Search  \u203A  \u201C" + query + "\u201D";
+        else if (filter != null) where = "Systems  \u203A  " + Library.systemTitle(filter);
+        if (where == null) {
+            crumb.setVisibility(View.GONE);
+            return;
+        }
+        crumb.setText(where + "   \u00B7   " + shown.size() + (shown.size() == 1 ? " game" : " games"));
+        crumb.setVisibility(View.VISIBLE);
+    }
+
+    private void openSearch() {
+        searchOpen = true;
+        draft = query == null ? "" : query;
+        kbRow = 0;
+        kbCol = 0;
+        renderSearch();
+        searchView.setVisibility(View.VISIBLE);
+        searchView.setAlpha(0f);
+        searchView.animate().alpha(1f).setDuration(150).start();
+        setHints(false);
+    }
+
+    private void closeSearch() {
+        searchOpen = false;
+        searchView.setVisibility(View.GONE);
+        searchView.removeAllViews();
+        setHints(pageOpen);
+    }
+
+    /** Shows the draft's matches on the shelf (an empty draft clears the search). */
+    private void applySearch() {
+        String q = draft.trim();
+        query = q.isEmpty() ? null : q;
+        if (query != null) filter = null;
+        closeSearch();
+        lastId = null;
+        refresh(false);
+    }
+
+    private void typeChar(String c) {
+        if (draft.length() < 40) draft += c;
+        renderSearch();
+    }
+
+    private void backspace() {
+        if (!draft.isEmpty()) draft = draft.substring(0, draft.length() - 1);
+        renderSearch();
+    }
+
+    private boolean searchKey(int keyCode, KeyEvent event, boolean first) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                kbCol = (kbCol + KEYS[kbRow].length - 1) % KEYS[kbRow].length;
+                renderSearch();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                kbCol = (kbCol + 1) % KEYS[kbRow].length;
+                renderSearch();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_UP:
+                kbRow = (kbRow + KEYS.length - 1) % KEYS.length;
+                kbCol = Math.min(kbCol, KEYS[kbRow].length - 1);
+                renderSearch();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                kbRow = (kbRow + 1) % KEYS.length;
+                kbCol = Math.min(kbCol, KEYS[kbRow].length - 1);
+                renderSearch();
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (!first) return true;
+                String k = KEYS[kbRow][kbCol];
+                if (k.equals("OK")) applySearch();
+                else if (k.equals("Del")) backspace();
+                else typeChar(k.equals("Space") ? " " : k);
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_Y:
+            case KeyEvent.KEYCODE_DEL:
+                backspace();
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_X:
+                if (first) applySearch();
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_B:
+            case KeyEvent.KEYCODE_ESCAPE:
+                if (first) closeSearch();
+                return true;
+            default:
+                // A real keyboard works too.
+                int ch = event.getUnicodeChar();
+                if (ch > 0 && (Character.isLetterOrDigit(ch) || ch == ' ')) {
+                    typeChar(String.valueOf((char) Character.toLowerCase(ch)));
+                    return true;
+                }
+                return true;
+        }
+    }
+
+    private void renderSearch() {
+        searchView.removeAllViews();
+        View dim = new View(this);
+        dim.setBackgroundColor(0xF20B0A10);
+        searchView.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView head = label("Search", 56, Color.WHITE, true);
+        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
+        hp.leftMargin = u(140);
+        hp.topMargin = u(110);
+        searchView.addView(head, hp);
+
+        TextView box = label(draft.isEmpty() ? "Type a game name" : draft + "\u2502", 44, draft.isEmpty() ? 0x66FFFFFF : Color.WHITE, false);
+        box.setSingleLine(true);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        box.setPadding(u(28), 0, u(28), 0);
+        GradientDrawable bd = new GradientDrawable();
+        bd.setCornerRadius(u(18));
+        bd.setColor(0x1FFFFFFF);
+        bd.setStroke(u(3), AMBER);
+        box.setBackground(bd);
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(u(1040), u(96), Gravity.TOP | Gravity.START);
+        bp.leftMargin = u(140);
+        bp.topMargin = u(215);
+        searchView.addView(box, bp);
+
+        // The letters: a grid chosen with the D-pad.
+        int cell = 92, gap = 10;
+        for (int r = 0; r < KEYS.length; r++) {
+            for (int c = 0; c < KEYS[r].length; c++) {
+                String k = KEYS[r][c];
+                boolean on = r == kbRow && c == kbCol;
+                boolean word = k.length() > 1;
+                TextView v = label(word ? k : k.toUpperCase(), word ? 26 : 38, on ? 0xFF17131F : Color.WHITE, true);
+                v.setGravity(Gravity.CENTER);
+                GradientDrawable kd = new GradientDrawable();
+                kd.setCornerRadius(u(16));
+                kd.setColor(on ? Color.WHITE : k.equals("OK") ? 0x40FFB454 : 0x1AFFFFFF);
+                v.setBackground(kd);
+                FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(u(cell), u(cell - 8), Gravity.TOP | Gravity.START);
+                kp.leftMargin = u(140 + c * (cell + gap));
+                kp.topMargin = u(350 + r * (cell - 8 + gap));
+                searchView.addView(v, kp);
+            }
+        }
+
+        // Live matches on the right.
+        List<Game> hits = draft.trim().isEmpty() ? new ArrayList<Game>() : matches(draft);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        String sum = draft.trim().isEmpty() ? "Pick letters, then press X to see the games"
+                : hits.size() + (hits.size() == 1 ? " game" : " games");
+        col.addView(label(sum, 28, AMBER, true));
+        for (int i = 0; i < Math.min(hits.size(), 8); i++) {
+            Game g = hits.get(i);
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            TextView name = label(g.title, 30, Color.WHITE, false);
+            name.setSingleLine(true);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            row.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
+            row.addView(label(g.system, 22, 0x99FFFFFF, false));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
+            rp.topMargin = u(18);
+            col.addView(row, rp);
+        }
+        if (hits.size() > 8) {
+            TextView more = label("and " + (hits.size() - 8) + " more", 24, 0x99FFFFFF, false);
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
+            mp.topMargin = u(18);
+            col.addView(more, mp);
+        }
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(560), -2, Gravity.TOP | Gravity.START);
+        cp.leftMargin = u(1260);
+        cp.topMargin = u(232);
+        searchView.addView(col, cp);
     }
 
     // ---- game page ----
@@ -664,7 +906,7 @@ public class HomeActivity extends Activity {
         infoBlock.setVisibility(View.VISIBLE);
         setHints(false);
         int i = shelf.getIndex();
-        if (tab == 1 && filter == null) {
+        if (tab == 1 && filter == null && query == null) {
             // A game un-favourited on its page leaves the Favourites shelf now.
             lastId = null;
             refresh(false);

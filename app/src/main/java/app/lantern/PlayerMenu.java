@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -16,9 +17,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * The in-game menu, in the style of MinUI: one plain list over the frozen game. Continue, Save and
- * Load with a slot to pick (and a screenshot of what is in it), Options, Quit. Laid out in the
+ * Load with a slot to pick (and a screenshot of what is in it), Options, Cheats when the game has
+ * any, Quit. Laid out in the
  * 1920 x 1080 units of the mockup, like the rest of Lantern.
  */
 final class PlayerMenu extends FrameLayout {
@@ -37,6 +42,7 @@ final class PlayerMenu extends FrameLayout {
         /** Saves the resume point and leaves the game. */
         void quit();
         void optionsChanged();
+        void cheatsChanged();
     }
 
     static final String[] SCALING = {"Aspect", "Integer", "Fill"};
@@ -45,6 +51,8 @@ final class PlayerMenu extends FrameLayout {
 
     private static final int AMBER = 0xFFFFB454;
     private static final String[] MAIN = {"Continue", "Save", "Load", "Options", "Quit"};
+    private static final String[] MAIN_CHEATS = {"Continue", "Save", "Load", "Options", "Cheats", "Quit"};
+    private static final int CHEATS_SHOWN = 7;
     private static final String[] OPTIONS = {"Scaling", "Screen effect", "Fast-forward"};
 
     private final Host host;
@@ -54,6 +62,8 @@ final class PlayerMenu extends FrameLayout {
     private Bitmap current;
     /** Chosen option values, set by the player screen. */
     int scaling, effect, fast;
+    /** This game's cheats, empty if it has none. Set by the player screen. */
+    List<Cheats.Cheat> cheats = Collections.emptyList();
 
     PlayerMenu(Context c, Host host) {
         super(c);
@@ -100,7 +110,7 @@ final class PlayerMenu extends FrameLayout {
 
     /** Handles one key press while the menu is open. Always consumes it. */
     boolean key(int code) {
-        int count = level == 0 ? MAIN.length : OPTIONS.length;
+        int count = names().length;
         switch (code) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 idx = (idx + count - 1) % count;
@@ -123,7 +133,7 @@ final class PlayerMenu extends FrameLayout {
                 break;
             case KeyEvent.KEYCODE_BUTTON_B:
             case KeyEvent.KEYCODE_BACK:
-                if (level == 1) { level = 0; idx = 3; message = ""; }
+                if (level > 0) { idx = level == 1 ? 3 : 4; level = 0; message = ""; }
                 else { host.continueGame(); return true; }
                 break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
@@ -142,6 +152,12 @@ final class PlayerMenu extends FrameLayout {
             if (idx == 1 || idx == 2) slot = (slot - 1 + d + 9) % 9 + 1;
             return;
         }
+        if (level == 2) {
+            Cheats.Cheat c = cheats.get(idx);
+            c.on = !c.on;
+            host.cheatsChanged();
+            return;
+        }
         if (idx == 0) scaling = (scaling + d + SCALING.length) % SCALING.length;
         else if (idx == 1) effect = (effect + d + EFFECT.length) % EFFECT.length;
         else fast = (fast + d + FAST.length) % FAST.length;
@@ -149,7 +165,7 @@ final class PlayerMenu extends FrameLayout {
     }
 
     private void activate() {
-        if (level == 1) {
+        if (level > 0) {
             change(1);
             return;
         }
@@ -170,9 +186,25 @@ final class PlayerMenu extends FrameLayout {
                 idx = 0;
                 message = "";
                 break;
+            case 4:
+                if (!cheats.isEmpty()) {
+                    level = 2;
+                    idx = 0;
+                    message = "";
+                    break;
+                }
+                // fall through: without cheats, row 4 is Quit
             default:
                 host.quit();
         }
+    }
+
+    private String[] names() {
+        if (level == 1) return OPTIONS;
+        if (level == 0) return cheats.isEmpty() ? MAIN : MAIN_CHEATS;
+        String[] n = new String[cheats.size()];
+        for (int i = 0; i < n.length; i++) n[i] = cheats.get(i).name;
+        return n;
     }
 
     // ---- drawing ----
@@ -191,14 +223,17 @@ final class PlayerMenu extends FrameLayout {
 
         LinearLayout col = new LinearLayout(getContext());
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label(level == 0 ? host.gameTitle() : "Options", 44, 0xA6FFFFFF, true);
+        TextView title = label(level == 0 ? host.gameTitle() : level == 1 ? "Options" : "Cheats", 44, 0xA6FFFFFF, true);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
         tp.bottomMargin = u(28);
         col.addView(title, tp);
 
-        String[] names = level == 0 ? MAIN : OPTIONS;
-        for (int i = 0; i < names.length; i++) {
+        String[] names = names();
+        boolean wide = level == 2; // cheat names are long, so the list takes the preview's place
+        int first = wide ? Math.max(0, Math.min(idx - CHEATS_SHOWN / 2, names.length - CHEATS_SHOWN)) : 0;
+        int end = wide ? Math.min(names.length, first + CHEATS_SHOWN) : names.length;
+        for (int i = first; i < end; i++) {
             boolean on = i == idx;
             LinearLayout row = new LinearLayout(getContext());
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -208,19 +243,21 @@ final class PlayerMenu extends FrameLayout {
             bg.setColor(on ? Color.WHITE : 0);
             row.setBackground(bg);
             int ink = on ? 0xFF17131F : Color.WHITE;
-            row.addView(label(names[i], 50, ink, true));
-            row.addView(new View(getContext()), new LinearLayout.LayoutParams(0, 1, 1f));
+            TextView name = label(names[i], wide ? 34 : 50, ink, true);
+            name.setSingleLine(true);
+            name.setEllipsize(TextUtils.TruncateAt.END);
+            row.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
             row.addView(label(valueOf(i), 34, on ? 0xBF17131F : 0xBFFFFFFF, false));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(820), u(96));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(wide ? 1640 : 820), u(96));
             rp.bottomMargin = u(10);
             col.addView(row, rp);
         }
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(820), -2, Gravity.TOP | Gravity.START);
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(wide ? 1640 : 820), -2, Gravity.TOP | Gravity.START);
         cp.leftMargin = u(140);
         cp.topMargin = u(110);
         stage.addView(col, cp);
 
-        addPreview(stage);
+        if (!wide) addPreview(stage);
 
         TextView msg = label(message, 30, AMBER, true);
         FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
@@ -240,7 +277,8 @@ final class PlayerMenu extends FrameLayout {
     }
 
     private String valueOf(int i) {
-        if (level == 0) return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : i == 3 ? "›" : "";
+        if (level == 0) return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : i == 3 || (i == 4 && !cheats.isEmpty()) ? "›" : "";
+        if (level == 2) return cheats.get(i).on ? "◀ On ▶" : "◀ Off ▶";
         String[] set = i == 0 ? SCALING : i == 1 ? EFFECT : FAST;
         int v = i == 0 ? scaling : i == 1 ? effect : fast;
         return "◀ " + set[v] + " ▶";

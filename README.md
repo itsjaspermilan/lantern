@@ -181,7 +181,7 @@ Retroid Pocket 6 reports for its menu or home key is not known yet; the choice i
 slots, with that slot's screenshot and age), Options, Quit. A confirms, B goes back (and Continue closes it).
 Options are Scaling (Aspect, Integer, Fill), Screen effect (Off, Scanlines) and Fast-forward speed (2x, 3x, 4x,
 Max), kept per system. Hold R2 to fast-forward; sound is muted while it runs, and R2 is not passed to the game.
-Cheats, Controls and the core's own settings are not built, so they are not in the menu.
+Controls and the core's own settings are not built, so they are not in the menu.
 
 Leaving a game by Quit, Home or anything that takes the screen saves a resume point (`<game>.state.auto` plus a
 screenshot). The game page shows Resume (highlighted) above Play from the start, and the shelf says
@@ -204,7 +204,23 @@ Limits: software-rendered cores only (hardware rendering is refused), no core op
 draws through the system compositor (no shaders), and N64, PlayStation, PSP, Saturn, Dreamcast and DS have no core.
 Sound was measured by underrun count only; the emulator says nothing about latency.
 
-Not done yet: cheats, button remapping, a BIOS check, disc swapping, more cores.
+### Cheats
+
+A game's cheats live in `Lantern/cheats/<system>/<game>.cht`, in RetroArch's format (`cheat0_desc`, `cheat0_code`,
+`cheat0_enable`), named like its save. A game with that file gets a Cheats row in the in-game menu, listing each
+cheat with On or Off; A or left and right change it, the change reaches the game at once and is written back to the
+file's enable lines. The codes go through libretro's cheat calls, so their format is whatever the core takes.
+The host resets and re-sends the whole list on each change, because mGBA ignores libretro's enabled flag.
+Cheats that patch code or need a master code may only take effect from a fresh start, not after Resume.
+
+Checked on a real Pocket 6 with mGBA, using test codes that write known values to RAM in American Idol: enabled codes
+appeared in a save state and a disabled one did not; turning one on in the menu reached the running game; on the next
+fresh start the changed file applied and the code turned off was gone. Pokemon Emerald resumed from a NextUI state
+with its 2 cheats on and ran.
+Not verified: what those Emerald or FireRed cheats do in play, FireRed on the device, and cheats on any other core
+(all five export the calls; nothing else was tried). A cheat turned off mid-game leaves what it wrote in RAM.
+
+Not done yet: button remapping, a BIOS check, disc swapping, more cores.
 Not verified: anything on the real device. Only checked on the `retroid-sim` emulator, which keeps system bars
 on screen (the layout fits what the window leaves). The D-pad is handled as key events only; stick or hat
 motion events are not handled yet.

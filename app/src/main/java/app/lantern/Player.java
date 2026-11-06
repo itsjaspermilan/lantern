@@ -34,6 +34,9 @@ final class Player {
 
     static native boolean nativeLoadState(int slot);
 
+    /** The cheat codes that should be on, replacing any before. Can be called before nativeStart. */
+    static native void nativeCheats(String[] codes);
+
     /** Width in the high 16 bits, height in the low 16, or 0 before the first frame. */
     static native int nativeFrameSize();
 

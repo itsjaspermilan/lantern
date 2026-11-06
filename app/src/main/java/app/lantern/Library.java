@@ -147,6 +147,11 @@ final class Library {
         return dot > 0 ? n.substring(0, dot) : n;
     }
 
+    /** A game's cheats, in RetroArch's .cht format: Lantern/cheats/&lt;system&gt;/&lt;game&gt;.cht. May not exist. */
+    static File cheatFile(String sysId, File rom) {
+        return new File(Environment.getExternalStorageDirectory(), "Lantern/cheats/" + sysId + "/" + baseName(rom) + ".cht");
+    }
+
     /**
      * A save state file. suffix ".auto" is the resume point, "3" is slot 3. Same names as the native
      * player writes: "<game>.state.auto", "<game>.state3". A screenshot sits next to it as "<file>.png".

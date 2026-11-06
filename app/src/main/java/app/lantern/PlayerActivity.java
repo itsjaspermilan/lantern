@@ -44,7 +44,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Map<Integer, Bitmap> slotCache = new HashMap<>();
     private SharedPreferences prefs;
-    private File romFile;
+    private File romFile, cheatFile;
     private String sysId, title;
     private boolean running, resumeSaved, selectDown, startDown, failed;
     /** Height of the navigation bar that covers the bottom of the screen, in pixels. */
@@ -98,6 +98,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         menu.scaling = prefs.getInt(sysId + ":scaling", 0);
         menu.effect = prefs.getInt(sysId + ":effect", 0);
         menu.fast = prefs.getInt(sysId + ":fast", 0);
+        cheatFile = Library.cheatFile(sysId, romFile);
+        menu.cheats = Cheats.read(cheatFile);
         root.addView(menu, new FrameLayout.LayoutParams(-1, -1));
 
         root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitPicture());
@@ -182,6 +184,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        Player.nativeCheats(Cheats.codesOn(menu.cheats));
         running = Player.nativeStart(
                 getIntent().getStringExtra(EXTRA_CORE), getIntent().getStringExtra(EXTRA_ROM),
                 getIntent().getStringExtra(EXTRA_SYS), getIntent().getStringExtra(EXTRA_SAVE), holder.getSurface(),
@@ -285,6 +288,12 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         prefs.edit().putInt(sysId + ":scaling", menu.scaling).putInt(sysId + ":effect", menu.effect)
                 .putInt(sysId + ":fast", menu.fast).apply();
         applyOptions();
+    }
+
+    @Override
+    public void cheatsChanged() {
+        Player.nativeCheats(Cheats.codesOn(menu.cheats));
+        Cheats.write(cheatFile, menu.cheats);
     }
 
     private void openMenu() {

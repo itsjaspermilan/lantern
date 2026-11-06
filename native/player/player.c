@@ -3,7 +3,7 @@
  * its video on an Android surface, plays its audio through AAudio, and feeds it the buttons.
  *
  * Also owns what a menu needs: pause, numbered save-state slots plus a resume point, a copy of the
- * latest frame (for screenshots), battery saves, and fast-forward.
+ * latest frame (for screenshots), battery saves, cheats, and fast-forward.
  *
  * Limits: software-rendered cores only (no hardware rendering), no core options, one controller on
  * port 0, the video is scaled by the system compositor, and speed follows the audio clock.
@@ -53,6 +53,8 @@ static struct {
     bool (*unserialize)(const void *, size_t);
     void *(*get_memory_data)(unsigned);
     size_t (*get_memory_size)(unsigned);
+    void (*cheat_reset)(void);
+    void (*cheat_set)(unsigned, bool, const char *);
 } C;
 
 /* ---- shared state ---- */
@@ -343,6 +345,8 @@ static bool load_core(void) {
     SYM(unserialize, "retro_unserialize");
     SYM(get_memory_data, "retro_get_memory_data");
     SYM(get_memory_size, "retro_get_memory_size");
+    SYM(cheat_reset, "retro_cheat_reset");
+    SYM(cheat_set, "retro_cheat_set");
     if (C.api_version() != RETRO_API_VERSION) { set_status("ERROR: core speaks libretro API %u", C.api_version()); return false; }
     return true;
 }
@@ -463,6 +467,21 @@ static void sram_flush(bool force) {
     else LOGE("saving %s failed", g_sram_path);
 }
 
+/* ---- cheats: the codes that should be on. The emulation thread gives them to the core between frames. ---- */
+static pthread_mutex_t g_cheat_lock = PTHREAD_MUTEX_INITIALIZER;
+static char **g_cheats;
+static int g_cheat_count;
+static atomic_bool g_cheats_changed;
+
+/* Starts over each time: mGBA, for one, ignores the "enabled" flag, so a cheat is only ever turned off by leaving it out. */
+static void apply_cheats(void) {
+    pthread_mutex_lock(&g_cheat_lock);
+    C.cheat_reset();
+    for (int i = 0; i < g_cheat_count; i++) C.cheat_set((unsigned)i, true, g_cheats[i]);
+    LOGI("%d cheats on", g_cheat_count);
+    pthread_mutex_unlock(&g_cheat_lock);
+}
+
 static double now_s(void) {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
@@ -530,6 +549,7 @@ static void *emulation_thread(void *arg) {
 
     while (atomic_load(&g_run)) {
         service_request();
+        if (atomic_exchange(&g_cheats_changed, false)) apply_cheats(); /* also while paused: the menu changes them */
 
         if (atomic_load(&g_paused)) {
             if (audio_on && !audio_paused) { AAudioStream_requestPause(g_stream); audio_paused = true; }
@@ -673,6 +693,28 @@ JNIEXPORT void JNICALL Java_app_lantern_Player_nativeButton(JNIEnv *env, jclass 
     } else {
         atomic_fetch_and(&g_buttons, ~(1u << id));
     }
+}
+
+/* Replaces the cheats that are on. Safe before nativeStart: the game then starts with them. */
+JNIEXPORT void JNICALL Java_app_lantern_Player_nativeCheats(JNIEnv *env, jclass cls, jobjectArray codes) {
+    (void)cls;
+    int n = codes ? (*env)->GetArrayLength(env, codes) : 0;
+    char **list = n ? calloc((size_t)n, sizeof *list) : NULL;
+    if (n && !list) return;
+    for (int i = 0; i < n; i++) {
+        jstring s = (jstring)(*env)->GetObjectArrayElement(env, codes, i);
+        const char *c = s ? (*env)->GetStringUTFChars(env, s, NULL) : NULL;
+        list[i] = strdup(c ? c : "");
+        if (c) (*env)->ReleaseStringUTFChars(env, s, c);
+        if (s) (*env)->DeleteLocalRef(env, s);
+    }
+    pthread_mutex_lock(&g_cheat_lock);
+    for (int i = 0; i < g_cheat_count; i++) free(g_cheats[i]);
+    free(g_cheats);
+    g_cheats = list;
+    g_cheat_count = n;
+    pthread_mutex_unlock(&g_cheat_lock);
+    atomic_store(&g_cheats_changed, true);
 }
 
 JNIEXPORT void JNICALL Java_app_lantern_Player_nativePause(JNIEnv *env, jclass cls, jboolean paused) {

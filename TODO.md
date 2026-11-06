@@ -26,7 +26,7 @@ Before adding any core: read its licence, record it in `native/CORES.md`, check 
 - Optional "trim black edges" for games that send black rows at the top (seen in Aladdin on SNES).
 - Decide the in-game menu button (Back, Mode and Select + Start all open it now).
 - Integer scaling versus soft scaling as the default.
-- Cheats, button remapping, BIOS check, disc swapping.
+- Button remapping, BIOS check, disc swapping.
 
 ## Home
 

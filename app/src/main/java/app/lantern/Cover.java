@@ -165,31 +165,15 @@ final class Cover extends View {
         ring(c, w, h, r);
     }
 
-    /** A system's tile: soft rings, how many games it holds, and its name. */
+    /** A system's tile: soft rings and its picture. The name and the count are shown below the shelf, not repeated here. */
     private void drawSystem(Canvas c, float w, float h) {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(Math.max(2f, w * .018f));
         p.setColor(0x38FFFFFF);
-        float cx = w / 2f, cy = 54 * s + w * .19f; // below the game count, above the system name
+        float cx = w / 2f, cy = h / 2f;
         for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
         p.setStyle(Paint.Style.FILL);
-        SystemArt.draw(getContext(), c, p, g.sysId, cx, cy, w * .306f);
-
-        String count = g.count + " " + Library.unit(g.sysId, g.count);
-        tp.setTextSize(24 * s);
-        tp.setColor(0xD9FFFFFF);
-        c.drawText(count, 20 * s, 18 * s + 24 * s, tp);
-        tp.setColor(Color.WHITE);
-
-        tp.setTextSize((40 + 22 * weight) * s);
-        tp.setShadowLayer(8 * s, 0, 2 * s, 0x73000000);
-        StaticLayout sl = StaticLayout.Builder.obtain(g.title, 0, g.title.length(), tp, Math.max(1, Math.round(w - 40 * s)))
-                .setMaxLines(3).setEllipsize(TextUtils.TruncateAt.END).build();
-        c.save();
-        c.translate(20 * s, h - 18 * s - sl.getHeight());
-        sl.draw(c);
-        c.restore();
-        tp.clearShadowLayer();
+        SystemArt.draw(getContext(), c, p, g.sysId, cx, cy, w * .52f);
     }
 
     /** The white ring around the focused tile. */

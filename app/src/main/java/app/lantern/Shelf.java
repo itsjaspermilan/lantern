@@ -30,7 +30,7 @@ final class Shelf extends ViewGroup {
     // Game tiles and system tiles, in mockup pixels.
     private static final float GW = 250, GH = 340, GBW = 400, GBH = 540;
     private static final float SW = 300, SH = 300, SBW = 460, SBH = 460;
-    private static final float GAP = 28, LEFT = 140, BOTTOM = 690;
+    private static final float GAP = 28, LEFT = 90, BOTTOM = 690;
 
     private final float s;
     private final SparseArray<Cover> attached = new SparseArray<>();

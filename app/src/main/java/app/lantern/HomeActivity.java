@@ -41,6 +41,9 @@ public class HomeActivity extends Activity {
     private final List<TextView> tabViews = new ArrayList<>();
 
     private float s = 1f;
+    /** Text is drawn this much larger than the mockup's sizes, and the side margins are tighter (EDGE_L, EDGE_R). */
+    private static final float FONT = 1.1f;
+    private static final int EDGE_L = 90, EDGE_R = 70;
     private boolean loaded;
     private String batteryText = "";
     private FrameLayout root, safe, stage, pageView;
@@ -162,7 +165,7 @@ public class HomeActivity extends Activity {
         crumb = label("", 28, 0xCCFFFFFF, false);
         crumb.setVisibility(View.GONE);
         FrameLayout.LayoutParams cr = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
-        cr.leftMargin = u(140);
+        cr.leftMargin = u(EDGE_L);
         cr.topMargin = u(104);
         stage.addView(crumb, cr);
         letterBadge = label("", 64, Color.WHITE, true);
@@ -174,13 +177,13 @@ public class HomeActivity extends Activity {
         letterBadge.setBackground(lb);
         letterBadge.setAlpha(0f);
         FrameLayout.LayoutParams lbp = new FrameLayout.LayoutParams(u(120), u(120), Gravity.TOP | Gravity.END);
-        lbp.rightMargin = u(100);
+        lbp.rightMargin = u(EDGE_R);
         lbp.topMargin = u(200);
         stage.addView(letterBadge, lbp);
         buildInfo();
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
-        empty.setPadding(u(140), 0, u(140), 0);
+        empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
         stage.addView(empty, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
         pageOpen = false;
         pageView = new FrameLayout(this);
@@ -201,7 +204,7 @@ public class HomeActivity extends Activity {
     private void buildTopBar() {
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(u(140), 0, u(100), 0);
+        top.setPadding(u(EDGE_L), 0, u(EDGE_R), 0);
 
         View flame = new View(this);
         GradientDrawable fd = new GradientDrawable();
@@ -240,7 +243,7 @@ public class HomeActivity extends Activity {
         clock.setFormat24Hour("HH:mm");
         clock.setFormat12Hour("HH:mm");
         clock.setTextColor(Color.WHITE);
-        clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30 * s);
+        clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30 * FONT * s);
         top.addView(clock);
         stage.addView(top, new FrameLayout.LayoutParams(-1, u(120), Gravity.TOP));
     }
@@ -275,8 +278,8 @@ public class HomeActivity extends Activity {
         sp.topMargin = u(16);
         info.addView(sub, sp);
 
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(u(1400), -2, Gravity.TOP | Gravity.START);
-        ip.leftMargin = u(140);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(u(1700), -2, Gravity.TOP | Gravity.START);
+        ip.leftMargin = u(EDGE_L);
         ip.topMargin = u(735);
         stage.addView(info, ip);
     }
@@ -284,7 +287,7 @@ public class HomeActivity extends Activity {
     private void buildHints() {
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
-        bottom.setPadding(u(140), 0, u(100), 0);
+        bottom.setPadding(u(EDGE_L), 0, u(EDGE_R), 0);
         banner = label("", 28, AMBER, true);
         banner.setVisibility(View.GONE); // no longer used: the Start hint says what is needed
         bottom.addView(banner);
@@ -858,7 +861,7 @@ public class HomeActivity extends Activity {
 
         TextView head = label("Search", 56, Color.WHITE, true);
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
-        hp.leftMargin = u(140);
+        hp.leftMargin = u(EDGE_L);
         hp.topMargin = u(110);
         searchView.addView(head, hp);
 
@@ -872,7 +875,7 @@ public class HomeActivity extends Activity {
         bd.setStroke(u(3), AMBER);
         box.setBackground(bd);
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(u(1040), u(96), Gravity.TOP | Gravity.START);
-        bp.leftMargin = u(140);
+        bp.leftMargin = u(EDGE_L);
         bp.topMargin = u(215);
         searchView.addView(box, bp);
 
@@ -890,7 +893,7 @@ public class HomeActivity extends Activity {
                 kd.setColor(on ? Color.WHITE : k.equals("OK") ? 0x40FFB454 : 0x1AFFFFFF);
                 v.setBackground(kd);
                 FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(u(cell), u(cell - 8), Gravity.TOP | Gravity.START);
-                kp.leftMargin = u(140 + (r == 2 ? (cell + gap) / 2 : 0) + c * (cell + gap)); // the home row is indented, as on a keyboard
+                kp.leftMargin = u(EDGE_L + (r == 2 ? (cell + gap) / 2 : 0) + c * (cell + gap)); // the home row is indented, as on a keyboard
                 kp.topMargin = u(350 + r * (cell - 8 + gap));
                 final int fr = r, fc = c;
                 v.setOnClickListener(x -> {
@@ -911,7 +914,7 @@ public class HomeActivity extends Activity {
         cancel.setBackground(cdr);
         cancel.setOnClickListener(x -> closeSearch());
         FrameLayout.LayoutParams cap = new FrameLayout.LayoutParams(u(170), u(64), Gravity.TOP | Gravity.START);
-        cap.leftMargin = u(1010);
+        cap.leftMargin = u(EDGE_L + 870);
         cap.topMargin = u(120);
         searchView.addView(cancel, cap);
 
@@ -948,8 +951,8 @@ public class HomeActivity extends Activity {
             mp.topMargin = u(18);
             col.addView(more, mp);
         }
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(560), -2, Gravity.TOP | Gravity.START);
-        cp.leftMargin = u(1260);
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(600), -2, Gravity.TOP | Gravity.START);
+        cp.leftMargin = u(1210);
         cp.topMargin = u(232);
         searchView.addView(col, cp);
     }
@@ -1019,7 +1022,7 @@ public class HomeActivity extends Activity {
         big.setGame(g);
         big.setWeight(1f);
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(430), u(620), Gravity.TOP | Gravity.START);
-        cp.leftMargin = u(140);
+        cp.leftMargin = u(EDGE_L);
         cp.topMargin = u(170);
         pageView.addView(big, cp);
 
@@ -1086,7 +1089,7 @@ public class HomeActivity extends Activity {
         }
 
         FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(u(1120), -2, Gravity.TOP | Gravity.START);
-        colp.leftMargin = u(660);
+        colp.leftMargin = u(EDGE_L + 520);
         colp.topMargin = u(170);
         pageView.addView(col, colp);
     }
@@ -1204,7 +1207,7 @@ public class HomeActivity extends Activity {
     private TextView label(String text, float mockupPx, int color, boolean bold) {
         TextView v = new TextView(this);
         v.setText(text);
-        v.setTextSize(TypedValue.COMPLEX_UNIT_PX, mockupPx * s);
+        v.setTextSize(TypedValue.COMPLEX_UNIT_PX, mockupPx * FONT * s);
         v.setTextColor(color);
         if (bold) v.setTypeface(Typeface.DEFAULT_BOLD);
         return v;

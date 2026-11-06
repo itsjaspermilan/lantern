@@ -173,6 +173,7 @@ final class Cover extends View {
         float cx = w / 2f, cy = h * .42f;
         for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
         p.setStyle(Paint.Style.FILL);
+        SystemArt.draw(c, p, g.sysId, cx, cy, w * .52f);
 
         String count = g.count + " " + Library.unit(g.sysId, g.count);
         tp.setTextSize(24 * s);

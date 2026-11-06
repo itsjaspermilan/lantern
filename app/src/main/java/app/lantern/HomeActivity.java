@@ -63,7 +63,7 @@ public class HomeActivity extends Activity {
     private String draft = "";
     private int kbRow, kbCol;
     private FrameLayout searchView;
-    private TextView crumb;
+    private TextView crumb, letterBadge;
     private static final String[][] KEYS = {
         {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
         {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
@@ -165,6 +165,18 @@ public class HomeActivity extends Activity {
         cr.leftMargin = u(140);
         cr.topMargin = u(104);
         stage.addView(crumb, cr);
+        letterBadge = label("", 64, Color.WHITE, true);
+        letterBadge.setGravity(Gravity.CENTER);
+        GradientDrawable lb = new GradientDrawable();
+        lb.setCornerRadius(u(28));
+        lb.setColor(0xCC17131F);
+        lb.setStroke(u(3), AMBER);
+        letterBadge.setBackground(lb);
+        letterBadge.setAlpha(0f);
+        FrameLayout.LayoutParams lbp = new FrameLayout.LayoutParams(u(120), u(120), Gravity.TOP | Gravity.END);
+        lbp.rightMargin = u(100);
+        lbp.topMargin = u(200);
+        stage.addView(letterBadge, lbp);
         buildInfo();
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
@@ -366,6 +378,10 @@ public class HomeActivity extends Activity {
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_X:
                 if (first) openSearch();
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_L2:
+            case KeyEvent.KEYCODE_BUTTON_R2:
+                if (first) jumpLetter(keyCode == KeyEvent.KEYCODE_BUTTON_R2 ? 1 : -1);
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
                 shelf.move(-1);
@@ -661,6 +677,48 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("Start", Color.WHITE, false),
                     !Library.hasFileAccess() ? "Allow file access" : artOn ? "Cover art: on" : "Cover art: off");
         }
+    }
+
+    // ---- letter jumping ----
+
+    /** The letter a title files under; digits and symbols share "#". */
+    private static char initial(Game g) {
+        String n = g.title;
+        for (int i = 0; i < n.length(); i++) {
+            char c = n.charAt(i);
+            if (Character.isLetter(c)) return Character.toUpperCase(c);
+            if (Character.isDigit(c)) return '#';
+        }
+        return '#';
+    }
+
+    /** R2 jumps to the first game of the next letter, L2 to the start of this letter, then of the previous one. */
+    private void jumpLetter(int dir) {
+        if (tab == 0 && filter == null && query == null) return; // Recent is in play order, not alphabetical
+        int n = shown.size(), cur = shelf.getIndex();
+        if (n < 2 || cur < 0 || cur >= n) return;
+        char c = initial(shown.get(cur));
+        int target;
+        if (dir > 0) {
+            target = 0; // wraps to the top after the last letter
+            for (int i = cur + 1; i < n; i++) if (initial(shown.get(i)) != c) { target = i; break; }
+        } else {
+            int start = cur;
+            while (start > 0 && initial(shown.get(start - 1)) == c) start--;
+            if (start < cur) {
+                target = start;
+            } else {
+                int last = start == 0 ? n - 1 : start - 1; // wraps to the last letter before the first
+                char pc = initial(shown.get(last));
+                target = last;
+                while (target > 0 && initial(shown.get(target - 1)) == pc) target--;
+            }
+        }
+        shelf.setIndex(target, true);
+        letterBadge.setText(String.valueOf(initial(shown.get(target))));
+        letterBadge.animate().cancel();
+        letterBadge.setAlpha(1f);
+        letterBadge.animate().alpha(0f).setStartDelay(700).setDuration(300).start();
     }
 
     // ---- search and breadcrumbs ----

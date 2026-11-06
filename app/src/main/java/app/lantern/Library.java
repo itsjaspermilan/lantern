@@ -9,6 +9,8 @@ import android.os.Build;
 import android.os.Environment;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -109,10 +111,11 @@ final class Library {
 
     /**
      * Cover art for a ROM: a picture in Lantern/art/&lt;system&gt;/&lt;game&gt;.png (or .jpg) wins, then one already
-     * fetched. Null if there is none. Apps have no art here: they use their own icon.
+     * fetched. Null if there is none. An app has art only if it carries a `boxart.png` in its assets (Nova games do); otherwise
+     * it uses its own icon.
      */
     static File findArt(Context c, Game g, Map<String, Map<String, String>> own, Map<String, Map<String, String>> cached) {
-        if (!g.isRom()) return null;
+        if (!g.isRom()) return appBoxArt(c, g);
         String base = baseName(g.file);
         Map<String, String> mine = own.get(g.sysId);
         if (mine == null) {
@@ -130,6 +133,30 @@ final class Library {
         }
         String actual = fetched.get((base + ".png").toLowerCase(Locale.ROOT));
         return actual == null ? null : new File(ArtFetcher.cacheFile(c, g).getParentFile(), actual);
+    }
+
+    /**
+     * The cover an app ships as `assets/boxart.png`, copied once into Lantern's own files (again after the app is updated) so that
+     * it can be read like any other cover. Null if the app has none.
+     */
+    private static File appBoxArt(Context c, Game g) {
+        try {
+            PackageManager pm = c.getPackageManager();
+            File dir = new File(c.getFilesDir(), "art/apps");
+            File out = new File(dir, g.pkg + ".png");
+            long updated = pm.getPackageInfo(g.pkg, 0).lastUpdateTime;
+            if (out.exists() && out.lastModified() >= updated) return out;
+            try (InputStream in = pm.getResourcesForApplication(g.pkg).getAssets().open("boxart.png")) {
+                dir.mkdirs();
+                try (FileOutputStream fo = new FileOutputStream(out)) {
+                    byte[] buf = new byte[16384];
+                    for (int n; (n = in.read(buf)) > 0; ) fo.write(buf, 0, n);
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            return null; // no such asset (most apps), or the package went away
+        }
     }
 
     /** The file names in a folder, keyed by lower case, from one listing instead of one check per game. */

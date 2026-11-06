@@ -99,7 +99,7 @@ final class Cover extends View {
         drawMotif(c);
         c.restore();
 
-        if (g.icon != null) {
+        if (g.icon != null && g.art == null) {
             int sz = Math.round(w * .42f);
             int x = Math.round((w - sz) / 2f), y = Math.round(h * .20f);
             g.icon.setBounds(x, y, x + sz, y + sz);

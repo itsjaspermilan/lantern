@@ -36,7 +36,18 @@ final class ArtCache {
             return b.getByteCount();
         }
     };
+    /** Tiny blurred copies of the covers (a few KB each): the soft backdrop behind a cover fitted into a tile. */
+    private static final LruCache<String, Bitmap> BACKDROPS = new LruCache<>(256);
     private static Listener listener;
+
+    private static String key(Game g) {
+        return g.art.getPath() + "@" + g.art.lastModified();
+    }
+
+    /** The blurred backdrop for a game's cover if it has been made (it is made together with the cover), else null. */
+    static Bitmap backdrop(Game g) {
+        return g.art == null ? null : BACKDROPS.get(key(g));
+    }
 
     static void setListener(Listener l) {
         listener = l;
@@ -45,7 +56,7 @@ final class ArtCache {
     /** The picture if it is ready; otherwise null, and it starts loading and redraws the view when done. */
     static Bitmap get(final Game g, final View redraw) {
         if (g.art == null) return null;
-        final String key = g.art.getPath() + "@" + g.art.lastModified();
+        final String key = key(g);
         Bitmap b = CACHE.get(key);
         if (b != null) return b;
         synchronized (LOADING) {
@@ -75,8 +86,29 @@ final class ArtCache {
         o.inJustDecodeBounds = false;
         o.inSampleSize = sample;
         Bitmap b = BitmapFactory.decodeFile(g.art.getPath(), o);
-        if (b != null) g.hue = dominantHue(b, g.hue);
+        if (b != null) {
+            g.hue = dominantHue(b, g.hue);
+            BACKDROPS.put(key(g), blurred(b));
+        }
         return b;
+    }
+
+    /**
+     * A very small, soft copy of the picture, cropped to the shape of a tile. Drawn stretched over the whole
+     * tile, bilinear filtering turns the few pixels into a smooth blur of the cover's own colours.
+     */
+    private static Bitmap blurred(Bitmap b) {
+        float aspect = 0.72f; // a tile is about 400 x 555
+        int cw = b.getWidth(), ch = Math.round(cw / aspect);
+        if (ch > b.getHeight()) { ch = b.getHeight(); cw = Math.round(ch * aspect); }
+        Bitmap cur = Bitmap.createBitmap(b, (b.getWidth() - cw) / 2, (b.getHeight() - ch) / 2, cw, ch);
+        // Halve repeatedly: one big step would skip pixels and shimmer instead of blurring.
+        while (cur.getHeight() > 18) {
+            Bitmap next = Bitmap.createScaledBitmap(cur, Math.max(2, cur.getWidth() / 2), Math.max(2, cur.getHeight() / 2), true);
+            if (cur != b) cur.recycle();
+            cur = next;
+        }
+        return cur;
     }
 
     /** The most colourful hue in the picture, weighted by saturation and brightness, or fallback for grey art. */

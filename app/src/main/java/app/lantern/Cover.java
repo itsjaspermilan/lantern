@@ -117,17 +117,32 @@ final class Cover extends View {
         c.restore();
         tp.clearShadowLayer();
 
-        // A real cover replaces the generated art and the title: fitted inside the tile, never cropped.
+        // A real cover replaces the generated art and the title. It is fitted inside the tile, never cropped;
+        // the rest of the tile is a soft blur of the cover itself, and the cover floats on a shadow.
         Bitmap art = ArtCache.get(g, this);
         if (art != null) {
-            p.setColor(Color.WHITE);
-            p.setShader(new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP));
-            c.drawRect(0, 0, w, h, p);
-            p.setShader(null);
-            float pad = 8 * s;
+            Bitmap back = ArtCache.backdrop(g);
+            if (back != null) {
+                rect.set(0, 0, w, h);
+                c.drawBitmap(back, null, rect, artPaint);
+                c.drawColor(0x66000000); // dim it so the sharp cover stands out
+            } else {
+                p.setColor(Color.WHITE);
+                p.setShader(new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP));
+                c.drawRect(0, 0, w, h, p);
+                p.setShader(null);
+            }
+            float pad = (16 - 8 * weight) * s; // the focused cover rises a little
             float k = Math.min((w - 2 * pad) / art.getWidth(), (h - 2 * pad) / art.getHeight());
             float dw = art.getWidth() * k, dh = art.getHeight() * k;
             artBox.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);
+            p.setStyle(Paint.Style.FILL);
+            for (int i = 4; i >= 1; i--) { // a soft shadow from a few widening layers
+                float grow = i * 4 * s * (1 + weight * .6f);
+                rect.set(artBox.left - grow, artBox.top - grow + 6 * s, artBox.right + grow, artBox.bottom + grow + 6 * s);
+                p.setColor(((int) (0x1C * (.7f + .5f * weight)) << 24));
+                c.drawRoundRect(rect, 8 * s + grow, 8 * s + grow, p);
+            }
             c.drawBitmap(art, null, artBox, artPaint);
         }
 

@@ -694,7 +694,7 @@ public class HomeActivity extends Activity {
     private void openSearch() {
         searchOpen = true;
         draft = query == null ? "" : query;
-        kbRow = 1 // starts on Q;
+        kbRow = 1; // starts on Q
         kbCol = 0;
         renderSearch();
         searchView.setVisibility(View.VISIBLE);

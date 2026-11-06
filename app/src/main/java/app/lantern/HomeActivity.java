@@ -666,9 +666,6 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("R1", Color.WHITE, false), "Next");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
-            hint(hintsRow, glyph("◀ ▶", Color.WHITE, true), "Browse");
-            hint(hintsRow, glyph("L1", Color.WHITE, false), "Shelf");
-            hint(hintsRow, glyph("R1", Color.WHITE, false), "Shelf");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Open");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");

@@ -170,10 +170,10 @@ final class Cover extends View {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(Math.max(2f, w * .018f));
         p.setColor(0x38FFFFFF);
-        float cx = w / 2f, cy = h * .42f;
+        float cx = w / 2f, cy = 54 * s + w * .19f; // below the game count, above the system name
         for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
         p.setStyle(Paint.Style.FILL);
-        SystemArt.draw(c, p, g.sysId, cx, cy, w * .52f);
+        SystemArt.draw(getContext(), c, p, g.sysId, cx, cy, w * .306f);
 
         String count = g.count + " " + Library.unit(g.sysId, g.count);
         tp.setTextSize(24 * s);

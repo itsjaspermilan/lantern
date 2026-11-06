@@ -228,3 +228,9 @@ Make it the home screen on an emulator:
 
 Moving to Gradle, Kotlin and Compose needs downloads (Gradle, Kotlin, AndroidX). Do that when the UI outgrows plain Views.
 The built-in player's native host is a separate decision (see the plan).
+
+
+## System icons
+
+The Systems shelf shows an icon for each console, from libretro's retroarch-assets (CC BY 4.0). Attribution, source and
+licence text are in `licenses/system-icons.md`. Android apps and games use shapes drawn in code (`SystemArt.java`).

@@ -35,4 +35,4 @@ Before adding any core: read its licence, record it in `native/CORES.md`, check 
 - Search results: rank titles that start with the text first.
 - "Move to Games" on an Android app's page, for games that do not declare a category.
 - Hint for L2/R2 letter jumping in the bottom row, if there is room.
-- System art: replace the drawn line art with the owner's own pictures from `Lantern/art/_systems/<id>.png` if wanted.
+- System art: icons for Android apps and games are still the drawn shapes (`SystemArt.java`); the console icons are libretro's. Optionally let the owner's pictures in `Lantern/art/_systems/<id>.png` win.

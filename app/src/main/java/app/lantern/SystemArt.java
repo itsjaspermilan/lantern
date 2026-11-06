@@ -1,5 +1,8 @@
 package app.lantern;
 
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -14,8 +17,38 @@ final class SystemArt {
     private static final int FILL = 0x2EFFFFFF, LINE = 0xB3FFFFFF, DETAIL = 0xCCFFFFFF, SCREEN = 0x55FFFFFF;
     private static final RectF R = new RectF();
 
+    private static final java.util.Map<String, Bitmap> ICONS = new java.util.HashMap<>();
+    private static final Paint ICON_PAINT = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+    private static final RectF DST = new RectF();
+
+    /**
+     * The system's icon from assets/system-icons (libretro's retroarch-assets, CC BY 4.0, see licenses/), or null
+     * for systems that have none (Android apps and games), which fall back to the drawn shapes below.
+     */
+    private static Bitmap icon(Context ctx, String sysId) {
+        synchronized (ICONS) {
+            if (ICONS.containsKey(sysId)) return ICONS.get(sysId);
+            Bitmap b = null;
+            try (java.io.InputStream in = ctx.getAssets().open("system-icons/" + sysId + ".png")) {
+                b = BitmapFactory.decodeStream(in);
+            } catch (java.io.IOException e) {
+                // no icon for this system
+            }
+            ICONS.put(sysId, b);
+            return b;
+        }
+    }
+
     /** Draws the art for a system, centred at (cx, cy), about `size` pixels across. */
-    static void draw(Canvas c, Paint p, String sysId, float cx, float cy, float size) {
+    static void draw(Context ctx, Canvas c, Paint p, String sysId, float cx, float cy, float size) {
+        Bitmap icon = icon(ctx, sysId);
+        if (icon != null) {
+            float half = size * .62f; // the pictures have a margin of their own
+            DST.set(cx - half, cy - half, cx + half, cy + half);
+            ICON_PAINT.setAlpha(235);
+            c.drawBitmap(icon, null, DST, ICON_PAINT);
+            return;
+        }
         c.save();
         c.translate(cx, cy);
         float k = size / 100f;

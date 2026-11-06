@@ -43,6 +43,14 @@ final class PlayerMenu extends FrameLayout {
         void quit();
         void optionsChanged();
         void cheatsChanged();
+        /** Short name of the console, for "All SNES games". */
+        String consoleName();
+        boolean controlsPerGame();
+        void setControlsPerGame(boolean game);
+        /** The key now on a RetroPad button, or 0. */
+        int controlKey(int id);
+        void bindControl(int id, int keyCode);
+        void resetControls();
     }
 
     static final String[] SCALING = {"Aspect", "Integer", "Fill"};
@@ -50,8 +58,10 @@ final class PlayerMenu extends FrameLayout {
     static final String[] FAST = {"2×", "3×", "4×", "Max"};
 
     private static final int AMBER = 0xFFFFB454;
-    private static final String[] MAIN = {"Continue", "Save", "Load", "Options", "Quit"};
-    private static final String[] MAIN_CHEATS = {"Continue", "Save", "Load", "Options", "Cheats", "Quit"};
+    private static final String[] MAIN = {"Continue", "Save", "Load", "Options", "Controls", "Quit"};
+    private static final String[] MAIN_CHEATS = {"Continue", "Save", "Load", "Options", "Controls", "Cheats", "Quit"};
+    /** Level 3 rows: where changes are kept, the 16 buttons (Controls.ORDER), then reset. */
+    private static final int CONTROL_ROWS = Controls.ORDER.length + 2;
     private static final int CHEATS_SHOWN = 7;
     private static final String[] OPTIONS = {"Scaling", "Screen effect", "Fast-forward"};
 
@@ -59,6 +69,8 @@ final class PlayerMenu extends FrameLayout {
     private float s = 1f;
     private int level, idx, slot = 1;
     private String message = "";
+    /** Waiting for the person to press the key a button should use. */
+    private boolean capturing;
     private Bitmap current;
     /** Chosen option values, set by the player screen. */
     int scaling, effect, fast;
@@ -110,6 +122,16 @@ final class PlayerMenu extends FrameLayout {
 
     /** Handles one key press while the menu is open. Always consumes it. */
     boolean key(int code) {
+        if (capturing) {
+            capturing = false;
+            if (Controls.reserved(code)) message = "Cancelled";
+            else {
+                host.bindControl(Controls.ORDER[idx - 1], code);
+                message = Controls.buttonName(Controls.ORDER[idx - 1]) + " is now " + Controls.keyName(code);
+            }
+            render();
+            return true;
+        }
         int count = names().length;
         switch (code) {
             case KeyEvent.KEYCODE_DPAD_UP:
@@ -133,7 +155,7 @@ final class PlayerMenu extends FrameLayout {
                 break;
             case KeyEvent.KEYCODE_BUTTON_B:
             case KeyEvent.KEYCODE_BACK:
-                if (level > 0) { idx = level == 1 ? 3 : 4; level = 0; message = ""; }
+                if (level > 0) { idx = indexOf(level == 1 ? "Options" : level == 3 ? "Controls" : "Cheats"); level = 0; message = ""; }
                 else { host.continueGame(); return true; }
                 break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
@@ -152,6 +174,10 @@ final class PlayerMenu extends FrameLayout {
             if (idx == 1 || idx == 2) slot = (slot - 1 + d + 9) % 9 + 1;
             return;
         }
+        if (level == 3) {
+            if (idx == 0) host.setControlsPerGame(!host.controlsPerGame());
+            return;
+        }
         if (level == 2) {
             Cheats.Cheat c = cheats.get(idx);
             c.on = !c.on;
@@ -164,9 +190,33 @@ final class PlayerMenu extends FrameLayout {
         host.optionsChanged();
     }
 
+    private int indexOf(String name) {
+        String[] n = MAIN_CHEATS;
+        for (int i = 0; i < n.length; i++) if (n[i].equals(name)) return i;
+        return 0;
+    }
+
     private void activate() {
+        if (level == 3) {
+            if (idx == 0) change(1);
+            else if (idx == CONTROL_ROWS - 1) {
+                host.resetControls();
+                message = "Back to the usual buttons";
+            } else {
+                capturing = true;
+                message = "Press the button for " + Controls.buttonName(Controls.ORDER[idx - 1]) + "  (Back cancels)";
+            }
+            return;
+        }
         if (level > 0) {
             change(1);
+            return;
+        }
+        String item = names()[idx];
+        if (item.equals("Options") || item.equals("Controls") || item.equals("Cheats")) {
+            level = item.equals("Options") ? 1 : item.equals("Cheats") ? 2 : 3;
+            idx = 0;
+            message = "";
             return;
         }
         switch (idx) {
@@ -181,19 +231,6 @@ final class PlayerMenu extends FrameLayout {
                 else if (host.loadSlot(slot)) host.continueGame();
                 else message = "Could not load slot " + slot;
                 break;
-            case 3:
-                level = 1;
-                idx = 0;
-                message = "";
-                break;
-            case 4:
-                if (!cheats.isEmpty()) {
-                    level = 2;
-                    idx = 0;
-                    message = "";
-                    break;
-                }
-                // fall through: without cheats, row 4 is Quit
             default:
                 host.quit();
         }
@@ -201,6 +238,13 @@ final class PlayerMenu extends FrameLayout {
 
     private String[] names() {
         if (level == 1) return OPTIONS;
+        if (level == 3) {
+            String[] n = new String[CONTROL_ROWS];
+            n[0] = "Save changes for";
+            for (int i = 0; i < Controls.ORDER.length; i++) n[i + 1] = Controls.buttonName(Controls.ORDER[i]);
+            n[CONTROL_ROWS - 1] = "Reset to usual buttons";
+            return n;
+        }
         if (level == 0) return cheats.isEmpty() ? MAIN : MAIN_CHEATS;
         String[] n = new String[cheats.size()];
         for (int i = 0; i < n.length; i++) n[i] = cheats.get(i).name;
@@ -223,14 +267,14 @@ final class PlayerMenu extends FrameLayout {
 
         LinearLayout col = new LinearLayout(getContext());
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label(level == 0 ? host.gameTitle() : level == 1 ? "Options" : "Cheats", 44, 0xA6FFFFFF, true);
+        TextView title = label(level == 0 ? host.gameTitle() : level == 1 ? "Options" : level == 3 ? "Controls" : "Cheats", 44, 0xA6FFFFFF, true);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
         tp.bottomMargin = u(28);
         col.addView(title, tp);
 
         String[] names = names();
-        boolean wide = level == 2; // cheat names are long, so the list takes the preview's place
+        boolean wide = level == 2 || level == 3; // cheat names are long, so the list takes the preview's place
         int first = wide ? Math.max(0, Math.min(idx - CHEATS_SHOWN / 2, names.length - CHEATS_SHOWN)) : 0;
         int end = wide ? Math.min(names.length, first + CHEATS_SHOWN) : names.length;
         for (int i = first; i < end; i++) {
@@ -277,7 +321,16 @@ final class PlayerMenu extends FrameLayout {
     }
 
     private String valueOf(int i) {
-        if (level == 0) return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : i == 3 || (i == 4 && !cheats.isEmpty()) ? "›" : "";
+        if (level == 0) {
+            String n = names()[i];
+            return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : n.equals("Options") || n.equals("Controls") || n.equals("Cheats") ? "›" : "";
+        }
+        if (level == 3) {
+            if (i == 0) return host.controlsPerGame() ? "◀ This game ▶" : "◀ All " + host.consoleName() + " games ▶";
+            if (i == CONTROL_ROWS - 1) return "";
+            if (capturing && i == idx) return "Press a button…";
+            return Controls.keyName(host.controlKey(Controls.ORDER[i - 1]));
+        }
         if (level == 2) return cheats.get(i).on ? "◀ On ▶" : "◀ Off ▶";
         String[] set = i == 0 ? SCALING : i == 1 ? EFFECT : FAST;
         int v = i == 0 ? scaling : i == 1 ? effect : fast;

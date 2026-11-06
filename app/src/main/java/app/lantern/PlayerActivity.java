@@ -45,6 +45,9 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private final Map<Integer, Bitmap> slotCache = new HashMap<>();
     private SharedPreferences prefs;
     private File romFile, cheatFile;
+    private Controls controls;
+    /** Whether the last key came from a pad labelled the Nintendo way (the Retroid's own). */
+    private boolean nintendoPad = true;
     private String sysId, title;
     private boolean running, resumeSaved, selectDown, startDown, failed;
     /** The screen went off while playing: the game was put away at its resume point and comes back on waking. */
@@ -108,6 +111,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         menu.scaling = prefs.getInt(sysId + ":scaling", 0);
         menu.effect = prefs.getInt(sysId + ":effect", 0);
         menu.fast = prefs.getInt(sysId + ":fast", 0);
+        controls = new Controls(prefs, sysId, Library.baseName(romFile));
         cheatFile = Library.cheatFile(sysId, romFile);
         menu.cheats = Cheats.read(cheatFile);
         root.addView(menu, new FrameLayout.LayoutParams(-1, -1));
@@ -325,6 +329,36 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     }
 
     @Override
+    public String consoleName() {
+        return Library.systemName(sysId);
+    }
+
+    @Override
+    public boolean controlsPerGame() {
+        return controls.perGame();
+    }
+
+    @Override
+    public void setControlsPerGame(boolean game) {
+        controls.setPerGame(game);
+    }
+
+    @Override
+    public int controlKey(int id) {
+        return controls.table(nintendoPad)[id];
+    }
+
+    @Override
+    public void bindControl(int id, int keyCode) {
+        controls.bind(id, keyCode, nintendoPad);
+    }
+
+    @Override
+    public void resetControls() {
+        controls.reset();
+    }
+
+    @Override
     public void cheatsChanged() {
         Player.nativeCheats(Cheats.codesOn(menu.cheats));
         Cheats.write(cheatFile, menu.cheats);
@@ -374,6 +408,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     public boolean dispatchKeyEvent(KeyEvent e) {
         int code = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+        if (Controls.defaultId(code, true) >= 0 && e.getDevice() != null) nintendoPad = nintendoLabelled(e);
 
         if (failed) { // the game never started: any "back" key leaves, with no menu and no save
             if (down && (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_BUTTON_B
@@ -402,7 +437,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             openMenu();
             return true;
         }
-        if (code == KeyEvent.KEYCODE_BUTTON_R2) { // hold to fast-forward; not passed to the game
+        int id = controls.idFor(code, nintendoPad);
+        if (id < 0 && code == KeyEvent.KEYCODE_BUTTON_R2) { // hold to fast-forward, unless R2 was given to a game button
             Player.nativeSpeed(down ? fastSpeed() : 1);
             return true;
         }
@@ -410,8 +446,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             hud.setVisibility(hud.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
             return true;
         }
-        int id = retroButton(code, nintendoLabelled(e));
-        if (id < 0) return super.dispatchKeyEvent(e);
+        if (id < 0) {
+            // a pad key with no job in this game is still not for the system
+            return Controls.defaultId(code, true) >= 0 || code == KeyEvent.KEYCODE_BUTTON_R2 || super.dispatchKeyEvent(e);
+        }
         if (e.getRepeatCount() == 0) Player.nativeButton(id, down);
         return true;
     }
@@ -433,31 +471,5 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private static boolean nintendoLabelled(KeyEvent e) {
         android.view.InputDevice d = e.getDevice();
         return d != null && d.getName() != null && d.getName().toLowerCase(java.util.Locale.ROOT).contains("retroid");
-    }
-
-    /**
-     * Android gamepad keys to RetroPad buttons, by position. libretro's A is the right face button, B
-     * the bottom, X the top and Y the left. An Xbox-style pad's A is at the bottom, so it becomes RetroPad B.
-     * The Retroid's A is already at the right, so it stays A.
-     */
-    private static int retroButton(int keyCode, boolean nintendo) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_BUTTON_A: return nintendo ? 8 : 0;
-            case KeyEvent.KEYCODE_BUTTON_X: return nintendo ? 9 : 1;
-            case KeyEvent.KEYCODE_BUTTON_SELECT: return 2;
-            case KeyEvent.KEYCODE_BUTTON_START: return 3;
-            case KeyEvent.KEYCODE_DPAD_UP: return 4;
-            case KeyEvent.KEYCODE_DPAD_DOWN: return 5;
-            case KeyEvent.KEYCODE_DPAD_LEFT: return 6;
-            case KeyEvent.KEYCODE_DPAD_RIGHT: return 7;
-            case KeyEvent.KEYCODE_BUTTON_B: return nintendo ? 0 : 8;
-            case KeyEvent.KEYCODE_BUTTON_Y: return nintendo ? 1 : 9;
-            case KeyEvent.KEYCODE_BUTTON_L1: return 10;
-            case KeyEvent.KEYCODE_BUTTON_R1: return 11;
-            case KeyEvent.KEYCODE_BUTTON_L2: return 12;
-            case KeyEvent.KEYCODE_BUTTON_THUMBL: return 14;
-            case KeyEvent.KEYCODE_BUTTON_THUMBR: return 15;
-            default: return -1;
-        }
     }
 }

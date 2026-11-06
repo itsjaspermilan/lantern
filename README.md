@@ -190,6 +190,17 @@ Sleep is different from Home: when the screen turns off mid-game the resume poin
 player stays open, so waking carries on from that point (even if Android ended the process meanwhile). If the in-game menu was
 open it is open again. Tested on the Pocket 6 with the power key (sleep, wake: same screen, game running); Home still ends the game.
 
+### Controls
+
+In-game menu, Controls: every RetroPad button is listed with the key that presses it. Press A on a row, then the
+key you want; if that key was doing something else the two swap. The first row decides where changes are kept:
+"This game" or "All <console> games" (starting from the console's controls when first switched to a game). Reset puts
+the usual buttons back for whichever is in use. Stored in the player's own preferences (`ctl:console:<system>`,
+`ctl:game:<system>/<game>`, `ctl:use:...`), as `button:key` pairs, so only changes are kept and defaults can improve.
+Defaults are by position (the Retroid's labels differ from an Xbox pad's). Back and Home/Mode always open the menu and
+cannot be bound. Physical R2 stays hold-to-fast-forward unless it is given to a game button. Sticks are not mapped yet.
+Tested on the Pocket 6 with injected keys (rebind, swap, persistence across a relaunch, reset); not yet with a long real play session.
+
 Checked on the emulator with Advance Wars: the menu opens over the frozen game with a "Current game" preview;
 Save to slot 1 writes a 462,912-byte state and a PNG and the slot then previews it; Load restored an earlier
 scene and closed the menu; Quit and Home both wrote a fresh resume point; Resume continued the game;

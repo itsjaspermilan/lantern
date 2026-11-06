@@ -94,7 +94,7 @@ fetched, then (only if switched on with Start) a fetch from libretro's thumbnail
 best. It is off by default and is the only use of the network. One request at a time, it stops after three
 failures in a row, refuses anything over 4 MB or that is not a PNG, and remembers a "not found" for a week.
 Covers are fitted inside the tile, never cropped, decoded off the main thread and kept in a 24 MB cache, and the
-glow and tile colour take their hue from the cover. Android apps use their own icon, unless the APK carries `assets/boxart.png` (Nova games do: the build copies the project's `boxart.png` there); Lantern then copies it once into its own files, again after the app is updated, and shows it like a cover. Built, not yet run on a device.
+glow and tile colour take their hue from the cover. Android apps use their own icon, unless there is a picture in `Lantern/art/androidgames/` (or `android/` for other apps) named after the package (`com.nova.games.pine_ridge_rally.png`) or the title (`Pine Ridge Rally.png`). Nothing is fetched for apps.
 A first line in `Lantern/art-source.txt` replaces the server address, for a mirror or for testing; plain HTTP is
 allowed only for `localhost` (`res/xml/network_security_config.xml`).
 

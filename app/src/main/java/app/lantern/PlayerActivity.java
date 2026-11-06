@@ -362,7 +362,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             hud.setVisibility(hud.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
             return true;
         }
-        int id = retroButton(code);
+        int id = retroButton(code, nintendoLabelled(e));
         if (id < 0) return super.dispatchKeyEvent(e);
         if (e.getRepeatCount() == 0) Player.nativeButton(id, down);
         return true;
@@ -378,22 +378,32 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     }
 
     /**
-     * Android gamepad keys to RetroPad buttons, by position: libretro's A is the right face button
-     * and B the bottom one, so Android's A (bottom) becomes RetroPad B. The Retroid's own labels
-     * may differ; this table is the one place to change.
+     * True for the Retroid Pocket's own controller. It reports Nintendo-style labels (A is the right
+     * button, B the bottom, X the top, Y the left), read from its key presses on a real Pocket 6. Xbox-style
+     * pads label them the other way round (A bottom, B right, X left, Y top).
      */
-    private static int retroButton(int keyCode) {
+    private static boolean nintendoLabelled(KeyEvent e) {
+        android.view.InputDevice d = e.getDevice();
+        return d != null && d.getName() != null && d.getName().toLowerCase(java.util.Locale.ROOT).contains("retroid");
+    }
+
+    /**
+     * Android gamepad keys to RetroPad buttons, by position. libretro's A is the right face button, B
+     * the bottom, X the top and Y the left. An Xbox-style pad's A is at the bottom, so it becomes RetroPad B.
+     * The Retroid's A is already at the right, so it stays A.
+     */
+    private static int retroButton(int keyCode, boolean nintendo) {
         switch (keyCode) {
-            case KeyEvent.KEYCODE_BUTTON_A: return 0;   // B
-            case KeyEvent.KEYCODE_BUTTON_X: return 1;   // Y
+            case KeyEvent.KEYCODE_BUTTON_A: return nintendo ? 8 : 0;
+            case KeyEvent.KEYCODE_BUTTON_X: return nintendo ? 9 : 1;
             case KeyEvent.KEYCODE_BUTTON_SELECT: return 2;
             case KeyEvent.KEYCODE_BUTTON_START: return 3;
             case KeyEvent.KEYCODE_DPAD_UP: return 4;
             case KeyEvent.KEYCODE_DPAD_DOWN: return 5;
             case KeyEvent.KEYCODE_DPAD_LEFT: return 6;
             case KeyEvent.KEYCODE_DPAD_RIGHT: return 7;
-            case KeyEvent.KEYCODE_BUTTON_B: return 8;   // A
-            case KeyEvent.KEYCODE_BUTTON_Y: return 9;   // X
+            case KeyEvent.KEYCODE_BUTTON_B: return nintendo ? 0 : 8;
+            case KeyEvent.KEYCODE_BUTTON_Y: return nintendo ? 1 : 9;
             case KeyEvent.KEYCODE_BUTTON_L1: return 10;
             case KeyEvent.KEYCODE_BUTTON_R1: return 11;
             case KeyEvent.KEYCODE_BUTTON_L2: return 12;

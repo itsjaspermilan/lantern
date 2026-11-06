@@ -149,7 +149,6 @@ public class HomeActivity extends Activity {
 
         battery.setText(batteryText);
         if (loaded) {
-            banner.setText(Library.hasFileAccess() ? "" : "Lantern needs file access to find your games. Press Start to allow it.");
             refresh(true);
         }
     }
@@ -242,7 +241,7 @@ public class HomeActivity extends Activity {
         bottom.setOrientation(LinearLayout.VERTICAL);
         bottom.setPadding(u(140), 0, u(100), 0);
         banner = label("", 28, AMBER, true);
-        banner.setPadding(0, 0, 0, u(8));
+        banner.setVisibility(View.GONE); // no longer used: the Start hint says what is needed
         bottom.addView(banner);
 
         hintsRow = new LinearLayout(this);
@@ -602,7 +601,9 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Open");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             if (filter != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
-            hint(hintsRow, glyph("Start", Color.WHITE, false), artOn ? "Cover art: on" : "Cover art: off");
+            // Start asks for file access until Lantern has it, and then switches cover art on and off.
+            hint(hintsRow, glyph("Start", Color.WHITE, false),
+                    !Library.hasFileAccess() ? "Allow file access to find your games" : artOn ? "Cover art: on" : "Cover art: off");
         }
     }
 

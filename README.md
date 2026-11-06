@@ -19,6 +19,27 @@ it in the game's colours, the title block, and the button hints.
 - A opens the game's page: Play, add or remove favourite, Details (file or package facts), and for apps
   Android's App settings. L1/R1 move to the previous or next game, Y favourites, B goes back.
 
+### On the real Retroid Pocket 6
+
+Read over adb on 2026-11-05 (read-only, then the debug APK installed with the owner's OK; Lantern was not made the
+home screen and was given no file access): Retroid Pocket 6, QCS8550, Android 13 (SDK 33), arm64, panel 1080 x 1920
+used in landscape, density 369, 60 or 120 Hz (default 120), a 55 px navigation bar, no camera cut-out found in the
+display dump, 92 GB free, Retroid's own `com.retroidpocket.gamelauncher` installed. The controller is "Retroid
+Pocket Controller" (a gamepad with two sticks, digital and analogue triggers, a d-pad that reports as both hat and
+buttons, Mode, Home, Back, App-select and F24 keys).
+
+Button positions, from the raw events while the owner pressed them in a set order (bottom, right, left, top face
+button, L1, R1, L2, R2, Select, Start, Home, then others): bottom = `BTN_EAST` (Android B), right = `BTN_SOUTH`
+(Android A), left = `BTN_WEST` (Android Y), top = `BTN_NORTH` (Android X). So the Pocket 6 uses Nintendo-style
+labels, the same as libretro's RetroPad, and `PlayerActivity` now maps its buttons straight across (A to A, B to B,
+X to X, Y to Y), while other pads keep the Xbox-style swap. This rests on the owner having pressed in the order
+given; it has not yet been checked by playing a game. Not pressed in that session: Mode, Back, App-select, F24,
+the d-pad and the sticks, so the menu button is still undecided (Back, Mode or Select + Start all open the menu).
+
+Seen on the device for the first time: Lantern runs and looks as on the emulator, with the real battery and
+clock. It showed one bug the emulator could not (the "needs file access" line overlapped the status line), fixed by
+dropping that line and letting the Start hint say "Allow file access to find your games". Nothing was played.
+
 ### Shelf speed and the Systems shelf
 
 `Shelf` keeps views only for the tiles on or near the screen (about 10) and reuses them as the row slides, so the

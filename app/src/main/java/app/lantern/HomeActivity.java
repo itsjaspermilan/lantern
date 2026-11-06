@@ -730,6 +730,22 @@ public class HomeActivity extends Activity {
         renderSearch();
     }
 
+    private void pressKey(String k) {
+        if (k.equals("OK")) applySearch();
+        else if (k.equals("Del")) backspace();
+        else typeChar(k.equals("Space") ? " " : k);
+    }
+
+    /** Touch: a tapped result closes the search with those matches on the shelf and that game focused. */
+    private void pickResult(Game g) {
+        String q = draft.trim();
+        query = q.isEmpty() ? null : q;
+        if (query != null) filter = null;
+        closeSearch();
+        lastId = g.id;
+        refresh(true);
+    }
+
     private boolean searchKey(int keyCode, KeyEvent event, boolean first) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_LEFT:
@@ -754,10 +770,7 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
                 if (!first) return true;
-                String k = KEYS[kbRow][kbCol];
-                if (k.equals("OK")) applySearch();
-                else if (k.equals("Del")) backspace();
-                else typeChar(k.equals("Space") ? " " : k);
+                pressKey(KEYS[kbRow][kbCol]);
                 return true;
             case KeyEvent.KEYCODE_BUTTON_Y:
             case KeyEvent.KEYCODE_DEL:
@@ -785,6 +798,7 @@ public class HomeActivity extends Activity {
         searchView.removeAllViews();
         View dim = new View(this);
         dim.setBackgroundColor(0xF20B0A10);
+        dim.setClickable(true); // swallows touches so the shelf underneath is not tapped
         searchView.addView(dim, new FrameLayout.LayoutParams(-1, -1));
 
         TextView head = label("Search", 56, Color.WHITE, true);
@@ -823,9 +837,28 @@ public class HomeActivity extends Activity {
                 FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(u(cell), u(cell - 8), Gravity.TOP | Gravity.START);
                 kp.leftMargin = u(140 + c * (cell + gap));
                 kp.topMargin = u(350 + r * (cell - 8 + gap));
+                final int fr = r, fc = c;
+                v.setOnClickListener(x -> {
+                    kbRow = fr;
+                    kbCol = fc;
+                    pressKey(k);
+                });
                 searchView.addView(v, kp);
             }
         }
+
+        // Touch: close, and show the results.
+        TextView cancel = label("Cancel", 28, Color.WHITE, true);
+        cancel.setGravity(Gravity.CENTER);
+        GradientDrawable cdr = new GradientDrawable();
+        cdr.setCornerRadius(u(99));
+        cdr.setColor(0x24FFFFFF);
+        cancel.setBackground(cdr);
+        cancel.setOnClickListener(x -> closeSearch());
+        FrameLayout.LayoutParams cap = new FrameLayout.LayoutParams(u(170), u(64), Gravity.TOP | Gravity.START);
+        cap.leftMargin = u(1010);
+        cap.topMargin = u(120);
+        searchView.addView(cancel, cap);
 
         // Live matches on the right.
         List<Game> hits = draft.trim().isEmpty() ? new ArrayList<Game>() : matches(draft);
@@ -833,7 +866,12 @@ public class HomeActivity extends Activity {
         col.setOrientation(LinearLayout.VERTICAL);
         String sum = draft.trim().isEmpty() ? "Pick letters, then press X to see the games"
                 : hits.size() + (hits.size() == 1 ? " game" : " games");
-        col.addView(label(sum, 28, AMBER, true));
+        TextView sumView = label(sum, 28, AMBER, true);
+        if (!hits.isEmpty()) {
+            sumView.setText(sum + "  \u2014  tap to show all");
+            sumView.setOnClickListener(x -> applySearch());
+        }
+        col.addView(sumView);
         for (int i = 0; i < Math.min(hits.size(), 8); i++) {
             Game g = hits.get(i);
             LinearLayout row = new LinearLayout(this);
@@ -843,8 +881,10 @@ public class HomeActivity extends Activity {
             name.setEllipsize(android.text.TextUtils.TruncateAt.END);
             row.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
             row.addView(label(g.system, 22, 0x99FFFFFF, false));
+            row.setPadding(0, u(6), 0, u(6));
+            row.setOnClickListener(x -> pickResult(g));
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
-            rp.topMargin = u(18);
+            rp.topMargin = u(12);
             col.addView(row, rp);
         }
         if (hits.size() > 8) {

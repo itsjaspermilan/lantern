@@ -51,6 +51,13 @@ Gear, which recovered 52 files): the library loads in 294 ms in the background, 
 no Switch core. Systems with no core yet (N64, Atari 2600/7800/Lynx, Famicom Disk, Neo Geo Pocket, PC Engine,
 32X, SG-1000) were copied but only N64 is known to Lantern; the rest do not appear until they are added.
 
+Reported by the owner after playing a GBA game on the Pocket 6: buttons right, picture clipped. Cause: the game
+picture was sized for the full 1080 px height while the 55 px navigation bar is drawn over the bottom of the screen,
+so the last rows were lost (it had also been visible on the emulator's screenshots and not chased). Fix: the player
+sizes and centres the picture in the space above the bar, as the home screen and the menu already did. Checked on
+the Pocket 6 with the same game: the whole picture shows, 1538 x 1025 px, 3:2. The picture is scaled smoothly by
+Android, so it looks soft; Options, Scaling, Integer gives sharp pixels at whole multiples (not judged on the device).
+
 ### Shelf speed and the Systems shelf
 
 `Shelf` keeps views only for the tiles on or near the screen (about 10) and reuses them as the row slides, so the

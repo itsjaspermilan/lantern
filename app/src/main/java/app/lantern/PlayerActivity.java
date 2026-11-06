@@ -47,6 +47,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private File romFile;
     private String sysId, title;
     private boolean running, resumeSaved, selectDown, startDown, failed;
+    /** Height of the navigation bar that covers the bottom of the screen, in pixels. */
+    private int navReserve;
 
     private final Runnable poll = new Runnable() {
         @Override
@@ -107,7 +109,9 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 android.graphics.Insets i = ins.getInsets(
                         android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
                 int nav = ins.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.navigationBars()).bottom;
-                menu.setInsets(0, 0, 0, Math.max(i.bottom, nav)); // same rule as the home screen
+                navReserve = Math.max(i.bottom, nav); // same rule as the home screen
+                menu.setInsets(0, 0, 0, navReserve);
+                fitPicture();
                 return ins;
             });
         }
@@ -120,7 +124,9 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
 
     /** Sizes the picture by the chosen scaling: Aspect fits with bars, Integer uses whole multiples, Fill stretches. */
     private void fitPicture() {
-        int w = root.getWidth(), h = root.getHeight();
+        // The navigation bar is drawn over the bottom of the screen; a picture running under it loses its
+        // last rows (seen on the Pocket 6), so the picture is fitted and centred in the space above it.
+        int w = root.getWidth(), h = root.getHeight() - navReserve;
         if (w <= 0 || h <= 0) return;
         float aspect = Player.nativeAspect();
         int size = Player.nativeFrameSize(), bw = size >>> 16, bh = size & 0xFFFF;
@@ -140,9 +146,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             }
         }
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) picture.getLayoutParams();
-        if (lp.width != pw || lp.height != ph) {
+        if (lp.width != pw || lp.height != ph || lp.bottomMargin != navReserve) {
             lp.width = pw;
             lp.height = ph;
+            lp.setMargins(0, 0, 0, navReserve); // centred in what is left above the bar
             picture.setLayoutParams(lp);
         }
     }

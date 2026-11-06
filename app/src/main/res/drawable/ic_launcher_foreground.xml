@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The lantern, drawn like LanternLogo.java, centred inside the 66 dp safe zone of an adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="1.05" android:scaleY="1.05" android:pivotX="38" android:pivotY="33.75"
+        android:translateX="16" android:translateY="20.25">
+        <path android:pathData="M31.5,14.5 A6.5,6.5 0 0 1 44.5,14.5"
+            android:strokeColor="#FFF6DDAA" android:strokeWidth="2.6" android:fillColor="#00000000" />
+        <path android:pathData="M28,19 a2.5,2.5 0 0 1 2.5,-2.5 H45.5 a2.5,2.5 0 0 1 2.5,2.5 V22 H28 Z"
+            android:fillColor="#FFF6DDAA" />
+        <path android:pathData="M29.5,54 H46.5 V57 a2.5,2.5 0 0 1 -2.5,2.5 H32 a2.5,2.5 0 0 1 -2.5,-2.5 Z"
+            android:fillColor="#FFF6DDAA" />
+        <path android:pathData="M28.5,22 H47.5 V47.5 a6.5,6.5 0 0 1 -6.5,6.5 H35 a6.5,6.5 0 0 1 -6.5,-6.5 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="0" android:startY="22" android:endX="0" android:endY="54"
+                    android:startColor="#FFFFD27A" android:endColor="#FFFF8A3D" />
+            </aapt:attr>
+        </path>
+        <path android:pathData="M38,29.5 C45,37 44.5,47 38,49 C31.5,47 31,37 38,29.5 Z"
+            android:fillColor="#FFFFF3C9" />
+        <path android:pathData="M34.8,43.5 a3.2,3.2 0 1 0 6.4,0 a3.2,3.2 0 1 0 -6.4,0 Z"
+            android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M34.7,22.5 V53.5 M41.3,22.5 V53.5"
+            android:strokeColor="#66401E00" android:strokeWidth="1.6" />
+    </group>
+</vector>

@@ -7,3 +7,4 @@ native/cores/
 *.keystore
 *.idsig
 local.properties
+CLAUDE.local.md

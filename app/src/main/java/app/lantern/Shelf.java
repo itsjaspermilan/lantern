@@ -66,6 +66,9 @@ final class Shelf extends ViewGroup {
     private float enterT = 1f;
     /** The big Recent cover slowly breathes: 0 to 1 and back. */
     private float breath;
+    /** The details page is open (0 to 1): the row under the big tile slides down; the big tile itself is hidden while the page's copy stands in. */
+    private float pageT;
+    private boolean heroHide;
     private Listener listener;
     private float downY, lastY;
     private boolean dragging;
@@ -219,6 +222,12 @@ final class Shelf extends ViewGroup {
         setIndex(index + d, true);
     }
 
+    void setPage(float t, boolean hideHero) {
+        pageT = t;
+        heroHide = hideHero;
+        requestLayout();
+    }
+
     private void startBreath() {
         if (breathAnim != null) breathAnim.cancel();
         breathAnim = null;
@@ -325,6 +334,8 @@ final class Shelf extends ViewGroup {
                 y = hb[1] + (sy - hb[1]) * k;
                 w = hb[2] + (SMALL_W - hb[2]) * k;
                 h = hb[3] + (SMALL_H - hb[3]) * k;
+                y += pageT * 420f * k;
+                if (heroHide) ek *= Math.max(0f, Math.min(1f, d * 2f));
                 if (d >= 1f) ek = .3f + .7f * Math.max(0f, Math.min(1f, (1900f - x) / 240f)); // the row fades out at the right edge
                 wt = Math.max(0f, 1f - Math.abs(d));
                 alpha = d >= 1f ? .6f : d > 0f ? 1f - .4f * d : Math.max(0f, 1f + d);

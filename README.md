@@ -256,6 +256,12 @@ The tab bar has a fixed width, so it never grows over the battery and the time. 
 - **Resume**: games with a resume point get a small amber play button on their tile, and Recent's big tile shows a screenshot of where you left off. The info line adds total play time, counted while the game runs in the player.
 - **Motion**: the focused grid tile springs up with a little overshoot, and a new grid's tiles come in one after another. Inside a system, the tab highlight takes that system's colour.
 
+## Motion that follows the buttons
+
+Movement matches the direction you pressed, so the screen feels like one space.
+- **Down on Recent** opens the details: the row under the big tile slides down and away, the line above the title, the title and the big tile stay exactly where they are (the details title is the same size as Recent's), and the details drop in from above. **Up** (at the top of the details) or **B** reverses it: the details lift away and the row slides back up.
+- **L1/R1** slide the next tab in from the side it sits on. **A** on a system makes its games rise in from below; **B** brings the systems back down from above.
+
 ## Build
 
 No Gradle. `build.sh` runs javac, d8, aapt2, zipalign and apksigner from the Android SDK, and builds the

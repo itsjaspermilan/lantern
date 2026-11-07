@@ -73,7 +73,7 @@ public class HomeActivity extends Activity {
     private android.animation.ValueAnimator pillAnim;
     private int pillX, pillW;
     /** The page's big cover and its text column, kept so Recent's game can fly into place and back. */
-    private View pageCover, pageCol;
+    private View pageCover, pageCol, pageRest;
     private View chevL, chevR;
     private FrameLayout.LayoutParams infoLp;
     /** Recent's big first game has the focus, so A plays it straight away. */
@@ -654,6 +654,7 @@ public class HomeActivity extends Activity {
             filter = g.sysId;
             lastId = null;
             refresh(false);
+            slideIn(0, 80); // into a system: its games rise in from below
         } else if (shelf.mode() == Shelf.HERO) {
             open(g, Library.resumeTime(g) > 0); // Recent: the big game is the selected one; one press and it is playing
         } else {
@@ -674,6 +675,19 @@ public class HomeActivity extends Activity {
         lastId = "sys:" + filter;
         filter = null;
         refresh(true);
+        slideIn(0, -80); // back out: the systems come down from above
+    }
+
+    /** The shelf and the info text arrive from a direction (mockup pixels) and fade in, so a move reads as a move. */
+    private void slideIn(float dx, float dy) {
+        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+        for (View v : new View[]{shelf, infoBlock}) {
+            v.animate().cancel();
+            v.setAlpha(0f);
+            v.setTranslationX(u(dx));
+            v.setTranslationY(u(dy));
+            v.animate().alpha(1f).translationX(0f).translationY(0f).setDuration(280).setInterpolator(ease).start();
+        }
     }
 
     // ---- shelves ----
@@ -684,6 +698,7 @@ public class HomeActivity extends Activity {
     }
 
     private void setTab(int t) {
+        int old = tab;
         int next = (t + TABS.length) % TABS.length;
         if (next == TAB_SEARCH && tab != TAB_SEARCH) tabBeforeSearch = tab;
         tab = next;
@@ -691,6 +706,7 @@ public class HomeActivity extends Activity {
         query = null;
         lastId = null;
         refresh(false);
+        slideIn(t > old ? 120 : -120, 0); // the next tab arrives from the side it sits on
         if (tab == TAB_SEARCH) openSearch(); // arriving on Search opens the keyboard
     }
 
@@ -1470,17 +1486,30 @@ public class HomeActivity extends Activity {
             // Recent's big cover grows and settles into its place on the page while the text rises in beside it.
             heroCoverPose(true);
             pageCover.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(340).setInterpolator(ease).start();
-            pageCol.setAlpha(0f);
-            pageCol.setTranslationY(u(70));
-            pageCol.animate().alpha(1f).translationY(0f).setStartDelay(90).setDuration(300).setInterpolator(ease).start();
+            // Down moves the screen down: the row under the big tile slides away, and the details drop in from above.
+            pageRest.setAlpha(0f);
+            pageRest.setTranslationY(-u(70));
+            pageRest.animate().alpha(1f).translationY(0f).setStartDelay(110).setDuration(340).setInterpolator(ease).start();
             pageView.setAlpha(1f);
             pageView.setTranslationY(0f);
+            shelf.setPage(0f, true);
+            android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            va.setDuration(360);
+            va.setInterpolator(ease);
+            va.addUpdateListener(a -> shelf.setPage((Float) a.getAnimatedValue(), true));
+            va.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(android.animation.Animator an) {
+                    if (pageOpen) shelf.setVisibility(View.INVISIBLE);
+                }
+            });
+            va.start();
         } else {
             pageView.setAlpha(0f);
             pageView.setTranslationY(0f);
             pageView.animate().alpha(1f).setDuration(200).setInterpolator(ease).start();
         }
-        shelf.setVisibility(View.INVISIBLE);
+        if (!fromHero) shelf.setVisibility(View.INVISIBLE);
         setInfoVisibility(View.INVISIBLE);
         setHints(true);
     }
@@ -1503,13 +1532,23 @@ public class HomeActivity extends Activity {
             pageCover.setPivotX(0f);
             pageCover.setPivotY(0f);
             pageCover.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(280).setInterpolator(ease).start();
-            pageCol.animate().alpha(0f).translationY(u(70)).setStartDelay(0).setDuration(220).setInterpolator(ease)
+            // Up moves the screen back up: the details lift away, the row slides back in from below, and the info returns.
+            shelf.setVisibility(View.VISIBLE);
+            shelf.setPage(1f, false);
+            android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(1f, 0f);
+            va.setDuration(360);
+            va.setInterpolator(ease);
+            va.addUpdateListener(a -> { if (!pageOpen) shelf.setPage((Float) a.getAnimatedValue(), false); });
+            va.start();
+            infoBlock.setAlpha(0f);
+            setInfoVisibility(View.VISIBLE);
+            infoBlock.animate().alpha(1f).setStartDelay(120).setDuration(260).start();
+            pageRest.animate().alpha(0f).translationY(-u(70)).setStartDelay(0).setDuration(240).setInterpolator(ease)
                     .withEndAction(() -> {
                         if (pageOpen) return; // opened again meanwhile
                         pageView.setVisibility(View.GONE);
                         pageView.removeAllViews();
-                        shelf.setVisibility(View.VISIBLE);
-                        setInfoVisibility(View.VISIBLE);
+                        shelf.setPage(0f, false);
                     }).start();
         } else {
             pageView.setVisibility(View.GONE);
@@ -1537,10 +1576,26 @@ public class HomeActivity extends Activity {
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView t = label(g.title, 96, Color.WHITE, true); // with the details open, everything is tighter so it fits
-        t.setMaxLines(2);
+        // The line above the title and the title are the same size and in the same place as on Recent, so they
+        // do not move when the page opens; only what is below them slides in.
+        if (shelf.mode() == Shelf.HERO) {
+            TextView eb = label(String.valueOf(eyebrow.getText()), 24, AMBER, true);
+            eb.setLetterSpacing(.16f);
+            eb.setSingleLine(true);
+            LinearLayout.LayoutParams ebp = new LinearLayout.LayoutParams(-2, -2);
+            ebp.bottomMargin = u(8);
+            col.addView(eb, ebp);
+        }
+        float tk = shelf.mode() == Shelf.HERO ? Math.max(.62f, Math.min(1f, 24f / Math.max(1, g.title.length()))) : 1f;
+        TextView t = label(g.title, 84 * tk, Color.WHITE, true);
+        t.setMaxLines(3);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         col.addView(t);
+
+        LinearLayout rest = new LinearLayout(this);
+        rest.setOrientation(LinearLayout.VERTICAL);
+        col.addView(rest, new LinearLayout.LayoutParams(-1, -2));
+        pageRest = rest;
 
         LinearLayout meta = new LinearLayout(this);
         meta.setGravity(Gravity.CENTER_VERTICAL);
@@ -1557,7 +1612,7 @@ public class HomeActivity extends Activity {
         meta.addView(when, wp);
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
         mp.topMargin = u(14);
-        col.addView(meta, mp);
+        rest.addView(meta, mp);
 
         TextView blurb = label(infoOpen ? details(g) : summary(g), infoOpen ? 22 : 30, 0xBFFFFFFF, false);
         blurb.setLineSpacing(0, infoOpen ? 1.15f : 1.25f);
@@ -1566,7 +1621,7 @@ public class HomeActivity extends Activity {
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(u(infoOpen ? 1100 : 900), -2);
         bp.topMargin = u(22);
         bp.bottomMargin = u(30);
-        col.addView(blurb, bp);
+        rest.addView(blurb, bp);
 
         List<Act> acts = actionsFor(g);
         actIdx = Math.max(0, Math.min(actIdx, acts.size() - 1));
@@ -1590,7 +1645,7 @@ public class HomeActivity extends Activity {
             row.addView(label(a.hint, 24, on ? 0xBF17131F : 0xB3FFFFFF, false));
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(760), u(82));
             rp.bottomMargin = u(14);
-            col.addView(row, rp);
+            rest.addView(row, rp);
         }
 
         FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(u(980), -2, Gravity.TOP | Gravity.START);

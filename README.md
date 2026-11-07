@@ -281,3 +281,9 @@ that line). Touch: drag a grid up and down. Checked on the Pocket 6 with injecte
 The hint buttons (A, B, X, Y, L, R, Select, D-pad), the arrows under Recent's big game and the All games tile's grid icon
 are Kenney's Input Prompts and Game Icons (CC0, `app/src/main/assets/ui/`, notes in `licenses/kenney-ui.md`). Hints keep
 their colours by tinting the white pictures. Other drawn bits (the lantern, system art, stars) are unchanged.
+
+### Breadcrumbs in the tab bar
+
+There is no separate breadcrumb line. Inside a system, the Systems tab becomes a pill with a back arrow, the system's name and
+its game count ("< Game Boy . 498"). A search turns the All games tab into "< "words" . 12". B (or the arrow's meaning) goes back.
+

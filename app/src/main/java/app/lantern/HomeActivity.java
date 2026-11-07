@@ -599,10 +599,25 @@ public class HomeActivity extends Activity {
 
         for (int i = 0; i < tabViews.size(); i++) {
             TextView t = tabViews.get(i);
-            boolean on = i == tab && !searching;
-            // Inside a system, its tab shows the system's name, so it is clear where you are.
-            if (on && i == TAB_SYSTEMS) t.setText(filter == null ? TABS[i] : Library.systemTitle(filter));
+            // A search is shown in the All games tab, since it looks through everything.
+            boolean on = searching ? i == TAB_ALL : i == tab;
+            // The tab bar is the breadcrumb: inside a system, "Systems" becomes the system's name with a back arrow
+            // and the number of games; a search becomes "back arrow, the words, the number of results".
+            boolean back = on && (searching || (i == TAB_SYSTEMS && filter != null));
+            if (back && searching) t.setText("\u201C" + query + "\u201D  \u00B7  " + shown.size());
+            else if (back) t.setText(Library.systemTitle(filter) + "  \u00B7  " + shown.size());
             else t.setText(TABS[i]);
+            if (back) {
+                android.graphics.Bitmap arrow = UiIcons.get(this, "arrow_left");
+                if (arrow != null) {
+                    android.graphics.drawable.BitmapDrawable ad = new android.graphics.drawable.BitmapDrawable(getResources(), arrow);
+                    ad.setBounds(0, 0, u(34), u(34));
+                    t.setCompoundDrawables(ad, null, null, null);
+                    t.setCompoundDrawablePadding(u(12));
+                }
+            } else {
+                t.setCompoundDrawables(null, null, null, null);
+            }
             t.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             t.setAlpha(on ? 1f : 0.55f);
             GradientDrawable pill = new GradientDrawable();
@@ -1043,16 +1058,7 @@ public class HomeActivity extends Activity {
 
     /** "Systems > Game Boy Advance . 214 games" inside a system, "Search > "mario" . 12 games" after a search. */
     private void updateCrumb() {
-        String where = null;
-        if (query != null) where = "Search  \u203A  \u201C" + query + "\u201D";
-        else if (filter != null) where = "Systems  \u203A  " + Library.systemTitle(filter);
-        if (where == null) {
-            crumb.setVisibility(View.GONE);
-            return;
-        }
-        crumb.setText(where + "   \u00B7   " + shown.size() + " "
-                + (filter != null && query == null ? Library.unit(filter, shown.size()) : shown.size() == 1 ? "game" : "games"));
-        crumb.setVisibility(View.VISIBLE);
+        crumb.setVisibility(View.GONE); // the tab bar now carries the breadcrumb
     }
 
     private void openSearch() {

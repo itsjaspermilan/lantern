@@ -1870,14 +1870,7 @@ public class HomeActivity extends Activity {
                     if (hero) {
                         // The page's copy and the real tile and title are at the same place now: swap in the same frame.
                         shelf.setPage(0f, false);
-                        infoBlock.animate().cancel();
-                        infoBlock.setAlpha(1f);
-                        setInfoVisibility(View.VISIBLE);
-                        for (int ci = 2; ci < infoBlock.getChildCount(); ci++) {
-                            View cv = infoBlock.getChildAt(ci);
-                            cv.setAlpha(0f);
-                            cv.animate().alpha(1f).setStartDelay(0).setDuration(260).start();
-                        }
+                        for (int ci = 0; ci < 2 && ci < infoBlock.getChildCount(); ci++) infoBlock.getChildAt(ci).setAlpha(1f); // the line above the title, and the title
                     }
                 }).start();
         shelf.animate().cancel();
@@ -1888,6 +1881,16 @@ public class HomeActivity extends Activity {
             // shows twice); both come back in the frame the page goes.
             shelf.setAlpha(1f);
             shelf.setPage(1f, true);
+            // The rest of the info (chips, status, the Play button) comes back with the row sliding in, not after it.
+            infoBlock.animate().cancel();
+            infoBlock.setAlpha(1f);
+            setInfoVisibility(View.VISIBLE);
+            for (int ci = 0; ci < infoBlock.getChildCount(); ci++) {
+                View cv = infoBlock.getChildAt(ci);
+                cv.animate().cancel();
+                cv.setAlpha(0f);
+                if (ci >= 2) cv.animate().alpha(1f).setStartDelay(120).setDuration(PAGE_MS - 120).start();
+            }
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(1f, 0f);
             va.setDuration(PAGE_MS);
             va.setInterpolator(ease);

@@ -68,6 +68,8 @@ public class HomeActivity extends Activity {
     private TextView eyebrow;
     private Game lastFocused;
     private int lastHeroIndex = -1;
+    private android.animation.ValueAnimator marquee;
+    private TextView marqueeTab;
     private View veil;
     private View dots;
     private int dotsN, dotsAt;
@@ -343,6 +345,33 @@ public class HomeActivity extends Activity {
         stage.addView(top, new FrameLayout.LayoutParams(-1, u(120), Gravity.TOP));
     }
 
+    private void stopMarquee() {
+        if (marquee != null) marquee.cancel();
+        marquee = null;
+        if (marqueeTab != null) marqueeTab.setScrollX(0);
+        marqueeTab = null;
+    }
+
+    /** A system name too long for its place in the tab bar slides slowly to its end and back, pausing at each end. */
+    private void startMarquee(TextView t) {
+        if (t == null || tab < 0 || tab >= tabViews.size() || tabViews.get(tab) != t || t.getWidth() == 0) return;
+        stopMarquee();
+        float avail = t.getWidth() - t.getTotalPaddingLeft() - t.getTotalPaddingRight();
+        float over = t.getPaint().measureText(String.valueOf(t.getText())) - avail;
+        if (over < 4f) return;
+        marqueeTab = t;
+        marquee = android.animation.ValueAnimator.ofFloat(0f, over + u(6));
+        marquee.setDuration(Math.max(2600L, (long) (over / s / 40f * 1000f))); // about 40 mockup pixels a second
+        marquee.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        marquee.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+        marquee.setInterpolator(x -> {
+            float f = Math.max(0f, Math.min(1f, (x - .18f) / .64f)); // rests at both ends
+            return f * f * (3f - 2f * f);
+        });
+        marquee.addUpdateListener(a -> t.setScrollX(Math.round((Float) a.getAnimatedValue())));
+        marquee.start();
+    }
+
     private void applyClock() {
         String f = clock24 ? "HH:mm" : "h:mm a";
         clock.setFormat24Hour(f);
@@ -564,8 +593,15 @@ public class HomeActivity extends Activity {
     // ---- lifecycle ----
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        if (marquee != null) marquee.pause();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        if (marquee != null) marquee.resume();
         ArtCache.clearShots();
         unveil(true);
         Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -831,6 +867,9 @@ public class HomeActivity extends Activity {
             } else {
                 t.setCompoundDrawables(null, null, null, null);
             }
+            t.setGravity(back ? Gravity.START | Gravity.CENTER_VERTICAL : Gravity.CENTER); // scrolling text starts at the left
+            t.setEllipsize(back ? null : android.text.TextUtils.TruncateAt.END); // a long name scrolls instead of being cut (see startMarquee)
+            if (!back && t == marqueeTab) stopMarquee();
             t.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             float want = on ? 1f : 0.55f;
             t.setBackground(null); // the shared pill behind the tabs does the highlighting
@@ -841,6 +880,11 @@ public class HomeActivity extends Activity {
             } else {
                 t.animate().alpha(want).setDuration(180).start();
             }
+        }
+        if (crumbAt >= 0) {
+            final TextView ct = tabViews.get(crumbAt);
+            stopMarquee();
+            ct.postDelayed(() -> startMarquee(ct), 450); // after the tabs have settled into their new widths
         }
         int sysHue = filter == null ? -1 : Library.baseHue(filter); // inside a system the highlight takes its colour
         pillBg.setColor(sysHue >= 0 && tab == TAB_SYSTEMS ? (0x55000000 | (0xFFFFFF & Color.HSVToColor(new float[]{sysHue, .45f, 1f}))) : 0x2EFFFFFF);

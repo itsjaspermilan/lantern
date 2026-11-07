@@ -2051,7 +2051,7 @@ public class HomeActivity extends Activity {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (actIdx > 0) { actIdx--; renderPage(); }
-                else if (first && shelf.mode() == Shelf.HERO) closePage(); // top of the menu: back up to Recent
+                else if (first) closePage(); // top of the menu: back up to where the page came from (Recent or the grid)
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (actIdx < acts.size() - 1) { actIdx++; renderPage(); }

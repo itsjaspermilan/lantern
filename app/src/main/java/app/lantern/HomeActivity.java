@@ -58,6 +58,8 @@ public class HomeActivity extends Activity {
     private Glow glow;
     private Shelf shelf;
     private TextView playPill;
+    /** The page's big cover and its text column, kept so Recent's game can fly into place and back. */
+    private View pageCover, pageCol;
     private View chevL, chevR;
     private FrameLayout.LayoutParams infoLp;
     /** Recent's big first game has the focus, so A plays it straight away. */
@@ -1295,33 +1297,59 @@ public class HomeActivity extends Activity {
         actIdx = 0;
         renderPage();
         pageView.setVisibility(View.VISIBLE);
-        boolean fromHero = shelf.mode() == Shelf.HERO; // from Recent the page rises up from below
-        pageView.setAlpha(0f);
-        pageView.setTranslationY(fromHero ? u(120) : 0);
-        pageView.animate().alpha(1f).translationY(0).setDuration(fromHero ? 300 : 200)
-                .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        boolean fromHero = shelf.mode() == Shelf.HERO;
+        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+        if (fromHero) {
+            // Recent's big cover grows and settles into its place on the page while the text rises in beside it.
+            heroCoverPose(true);
+            pageCover.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(340).setInterpolator(ease).start();
+            pageCol.setAlpha(0f);
+            pageCol.setTranslationY(u(70));
+            pageCol.animate().alpha(1f).translationY(0f).setStartDelay(90).setDuration(300).setInterpolator(ease).start();
+            pageView.setAlpha(1f);
+            pageView.setTranslationY(0f);
+        } else {
+            pageView.setAlpha(0f);
+            pageView.setTranslationY(0f);
+            pageView.animate().alpha(1f).setDuration(200).setInterpolator(ease).start();
+        }
         shelf.setVisibility(View.INVISIBLE);
         infoBlock.setVisibility(View.INVISIBLE);
         setHints(true);
     }
 
+    /** Puts the page's cover where Recent's big cover is (or, with false, back in its page place). */
+    private void heroCoverPose(boolean atHero) {
+        pageCover.setPivotX(0f);
+        pageCover.setPivotY(0f);
+        pageCover.setScaleX(atHero ? 480f / 430f : 1f);
+        pageCover.setScaleY(atHero ? 660f / 620f : 1f);
+        pageCover.setTranslationY(atHero ? -u(20) : 0f);
+    }
+
     private void closePage() {
         pageOpen = false;
         updateChevrons();
-        if (shelf.mode() == Shelf.HERO) { // sink back down, the way it came up
-            pageView.animate().alpha(0f).translationY(u(120)).setDuration(220).withEndAction(() -> {
-                if (pageOpen) return; // opened again meanwhile
-                pageView.setVisibility(View.GONE);
-                pageView.removeAllViews();
-                pageView.setTranslationY(0);
-                pageView.setAlpha(1f);
-            }).start();
+        if (shelf.mode() == Shelf.HERO && pageCover != null) {
+            // The cover flies back to Recent's big tile; the shelf shows again once it has landed.
+            android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+            pageCover.setPivotX(0f);
+            pageCover.setPivotY(0f);
+            pageCover.animate().scaleX(480f / 430f).scaleY(660f / 620f).translationY(-u(20)).setDuration(280).setInterpolator(ease).start();
+            pageCol.animate().alpha(0f).translationY(u(70)).setStartDelay(0).setDuration(220).setInterpolator(ease)
+                    .withEndAction(() -> {
+                        if (pageOpen) return; // opened again meanwhile
+                        pageView.setVisibility(View.GONE);
+                        pageView.removeAllViews();
+                        shelf.setVisibility(View.VISIBLE);
+                        infoBlock.setVisibility(View.VISIBLE);
+                    }).start();
         } else {
             pageView.setVisibility(View.GONE);
             pageView.removeAllViews();
+            shelf.setVisibility(View.VISIBLE);
+            infoBlock.setVisibility(View.VISIBLE);
         }
-        shelf.setVisibility(View.VISIBLE);
-        infoBlock.setVisibility(View.VISIBLE);
         setHints(false);
         int i = shelf.getIndex();
         if (tab == 1 && filter == null && query == null) {
@@ -1345,6 +1373,7 @@ public class HomeActivity extends Activity {
         cp.leftMargin = u(EDGE_L);
         cp.topMargin = u(170);
         pageView.addView(big, cp);
+        pageCover = big;
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -1412,6 +1441,7 @@ public class HomeActivity extends Activity {
         colp.leftMargin = u(EDGE_L + 520);
         colp.topMargin = u(170);
         pageView.addView(col, colp);
+        pageCol = col;
     }
 
     private boolean pageKey(int keyCode, boolean first) {
@@ -1419,6 +1449,7 @@ public class HomeActivity extends Activity {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (actIdx > 0) { actIdx--; renderPage(); }
+                else if (first && shelf.mode() == Shelf.HERO) closePage(); // top of the menu: back up to Recent
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (actIdx < acts.size() - 1) { actIdx++; renderPage(); }

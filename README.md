@@ -268,7 +268,7 @@ licence text are in `licenses/system-icons.md`. Android apps and games use shape
 ### Home layouts
 
 Recent shows the selected game very large with a Resume/Play button; pressing A starts it straight away (from its
-resume point when it has one) and Down slides its game page up from below (B sinks it back) (play from the start, details). Only the selected game is
+resume point when it has one) and Down opens its game page (the big cover grows into its place while the text rises in; Up on the page's first row or B flies it back) (play from the start, details). Only the selected game is
 highlighted. Left and Right change the selection: the next game glides into the big spot and the six after it show in a
 small row. Up to twelve recent games are kept there, then a last "All games" tile that opens the All games tab. Small arrows under the big game show which ways you can go (the left one hides on the first game, the right one on the last). Titles are printed under each tile, not on it. The button hints at the bottom are right-aligned. Favourites, Systems, All games, a system's games and search results are
 a vertical grid (seven game tiles or six system tiles across) that scrolls a row at a time, with a peek of the next row;

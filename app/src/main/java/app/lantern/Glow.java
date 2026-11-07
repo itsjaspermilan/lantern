@@ -3,6 +3,7 @@ package app.lantern;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
@@ -18,6 +19,9 @@ final class Glow extends View {
     private int a1 = 0xFF2A2438;
     private int a2 = 0xFF14121C;
     private ValueAnimator anim;
+    private Bitmap cur, prev;
+    private float fade = 1f;
+    private ValueAnimator artAnim;
 
     Glow(Context c, float s) {
         super(c);
@@ -39,10 +43,36 @@ final class Glow extends View {
         anim.start();
     }
 
+    /** Crossfades the soft, blurred cover of the focused game across the whole screen (null: none). */
+    void art(Bitmap b) {
+        if (b == cur) return;
+        prev = cur;
+        cur = b;
+        if (artAnim != null) artAnim.cancel();
+        artAnim = ValueAnimator.ofFloat(0f, 1f);
+        artAnim.setDuration(500);
+        fade = 0f;
+        artAnim.addUpdateListener(v -> {
+            fade = (Float) v.getAnimatedValue();
+            invalidate();
+        });
+        artAnim.start();
+    }
+
+    private void drawArt(Canvas c, Bitmap b, float alpha) {
+        if (b == null || alpha <= 0f) return;
+        p.setAlpha((int) (255 * alpha));
+        p.setFilterBitmap(true);
+        c.drawBitmap(b, null, new android.graphics.RectF(0, 0, getWidth(), getHeight()), p);
+        p.setAlpha(255);
+    }
+
     @Override
     protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight();
         c.drawColor(0xFF0B0A10);
+        drawArt(c, prev, .50f * (1f - fade));
+        drawArt(c, cur, .50f * fade);
         pool(c, w * .28f, h * .45f, 1250 * s, a1, .70f);
         pool(c, w * .85f, h * .10f, 1000 * s, a2, .60f);
         p.setShader(new LinearGradient(0, h * .55f, 0, h, 0x00000000, 0xA6000000, Shader.TileMode.CLAMP));

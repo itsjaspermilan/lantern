@@ -239,6 +239,12 @@ Not verified: anything on the real device. Only checked on the `retroid-sim` emu
 on screen (the layout fits what the window leaves). The D-pad is handled as key events only; stick or hat
 motion events are not handled yet.
 
+## Art-book look
+
+- **Tiles follow the covers.** A grid takes its tile shape from the middle cover shape in the list (read from the picture headers), so a Game Boy Advance shelf gets squarer tiles and a PlayStation shelf gets tall ones. Covers are always fitted inside the tile, never cropped, on a soft blur of themselves.
+- **Backdrop.** The focused game's blurred cover fades in across the whole screen behind the glow.
+- **No cover?** The tile shows the game's initials. Each system has its own colour family, so a shelf without art still looks organised.
+
 ## Build
 
 No Gradle. `build.sh` runs javac, d8, aapt2, zipalign and apksigner from the Android SDK, and builds the

@@ -111,6 +111,7 @@ final class Cover extends View {
         if (weight < .5f) drawMotif(c); // the selected tile has no pale pattern over it: its ring is enough
         c.restore();
 
+        if (g.icon == null && g.art == null) drawMonogram(c, w, h);
         if (g.icon != null && g.art == null) {
             int sz = Math.round(w * .42f);
             int x = Math.round((w - sz) / 2f), y = Math.round(h * .20f);
@@ -156,6 +157,25 @@ final class Cover extends View {
         c.restore();
         ring(c, w, h, r);
         drawLabel(c, w, h);
+    }
+
+    /** A game with no cover gets its initials, large and pale, in its system's colours. */
+    private void drawMonogram(Canvas c, float w, float h) {
+        String[] words = g.title.trim().split("[\\s:\\-]+");
+        StringBuilder b = new StringBuilder();
+        for (String word : words) {
+            if (word.isEmpty() || !Character.isLetterOrDigit(word.charAt(0))) continue;
+            b.append(Character.toUpperCase(word.charAt(0)));
+            if (b.length() == 2) break;
+        }
+        if (b.length() == 0) return;
+        tp.setTypeface(Typeface.DEFAULT_BOLD);
+        tp.setTextSize(Math.min(h * .34f, w * .5f));
+        tp.setColor(0x66FFFFFF);
+        String m = b.toString();
+        float tw = tp.measureText(m);
+        c.drawText(m, (w - tw) / 2f, h * .5f + tp.getTextSize() * .35f, tp);
+        tp.setColor(Color.WHITE);
     }
 
     /** The title under the picture, on one line. */

@@ -225,7 +225,7 @@ final class Library {
                 g.system = s.name;
                 g.file = new File(dir, n);
                 g.sysId = s.folder;
-                g.hue = hue(g.title);
+                g.hue = systemHue(s.folder, g.title);
                 out.add(g);
             }
         }
@@ -271,6 +271,30 @@ final class Library {
         if (dot > 0) n = n.substring(0, dot);
         n = n.replaceAll("\\s*[\\(\\[][^\\)\\]]*[\\)\\]]", "").replace('_', ' ').trim();
         return n.isEmpty() ? fileName : n;
+    }
+
+    /** Each system has its own colour family; a game varies a little within it, so a shelf of games without art still looks organised. */
+    private static int systemHue(String folder, String title) {
+        int base;
+        switch (folder) {
+            case "nes": base = 0; break;
+            case "snes": base = 265; break;
+            case "gb": base = 95; break;
+            case "gbc": base = 320; break;
+            case "mastersystem": base = 205; break;
+            case "gamegear": base = 175; break;
+            case "gba": base = 245; break;
+            case "md": base = 225; break;
+            case "n64": base = 140; break;
+            case "nds": base = 195; break;
+            case "psx": base = 30; break;
+            case "psp": base = 285; break;
+            case "saturn": base = 345; break;
+            case "dc": base = 18; break;
+            case "ps2": base = 215; break;
+            default: return hue(title);
+        }
+        return (base + (title.hashCode() & 0x7fffffff) % 31 - 15 + 360) % 360;
     }
 
     private static int hue(String s) {

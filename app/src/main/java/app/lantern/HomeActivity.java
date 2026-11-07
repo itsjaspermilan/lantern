@@ -721,6 +721,7 @@ public class HomeActivity extends Activity {
             sub.setText("");
             playPill.setVisibility(View.GONE);
             glow.to(0xFF2A2438, 0xFF14121C);
+            glow.art(null);
         }
     }
 
@@ -782,6 +783,7 @@ public class HomeActivity extends Activity {
                     : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
                     : "No emulator core for this system yet");
             glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
+            glow.art(null);
             compactInfo();
             boolean heroMode = shelf.mode() == Shelf.HERO;
             playPill.setVisibility(heroMode ? View.VISIBLE : View.GONE);
@@ -796,6 +798,7 @@ public class HomeActivity extends Activity {
         sub.setText(g.isRom() && !Cores.has(this, g.sysId) ? "No emulator core for " + g.system + " yet"
                 : saved > 0 ? "Resume available · saved " + ago(saved) : "Ready to play");
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
+        glow.art(ArtCache.backdrop(g));
         compactInfo();
         if (shelf.mode() == Shelf.HERO) {
             boolean h = true; // the selected game is always the big one

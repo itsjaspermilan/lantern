@@ -49,6 +49,22 @@ final class ArtCache {
         return g.art == null ? null : BACKDROPS.get(key(g));
     }
 
+    private static final java.util.HashMap<String, Float> ASPECTS = new java.util.HashMap<>();
+
+    /** Width over height of a game's cover, read from the file header only. 1 for an app icon, 0 if there is nothing. */
+    static float aspect(Game g) {
+        if (g.art == null) return g.icon != null ? 1f : 0f;
+        String k = key(g);
+        Float known = ASPECTS.get(k);
+        if (known != null) return known;
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(g.art.getPath(), o);
+        float a = o.outWidth > 0 && o.outHeight > 0 ? (float) o.outWidth / o.outHeight : 0f;
+        ASPECTS.put(k, a);
+        return a;
+    }
+
     static void setListener(Listener l) {
         listener = l;
     }

@@ -35,7 +35,7 @@ final class Shelf extends ViewGroup {
     // Mockup pixels. The grid lives between GRID_TOP and GRID_BOTTOM; the info line is under it.
     private static final float LEFT = 90, RIGHT = 70, GRID_TOP = 150, GRID_BOTTOM = 860, GAP = 24;
     // Picture sizes; each tile also has a LABEL strip under it for the title.
-    private static final float GAME_W = 228, GAME_H = 300, SYS_W = 270, SYS_H = 270, LABEL = 42;
+    private static final float DEF_W = 228, DEF_H = 300, SYS_W = 270, SYS_H = 270, LABEL = 42;
     // The hero tile and the small row beside and below it.
     private static final float HERO_W = 430, HERO_H = 620, HERO_Y = 170; // the same size and place as the cover on the details page
     private static final float SMALL_X = 620, SMALL_W = 180, SMALL_H = 262, SMALL_GAP = 20, SMALL_BOTTOM = 956;
@@ -49,6 +49,8 @@ final class Shelf extends ViewGroup {
     private int mode = GRID;
     /** Grid scroll, in mockup pixels from the top of the first row. */
     private float scroll;
+    /** Game tile size for the list on show: it follows the shape of the covers (see fitCells). */
+    private float gameW = DEF_W, gameH = DEF_H;
     private int index;
     /** Where the hero layout is, as a game number that glides between whole numbers. */
     private float heroPos;
@@ -93,6 +95,7 @@ final class Shelf extends ViewGroup {
         removeAllViews();
         items = list;
         mode = layout;
+        if (layout == GRID) fitCells(list);
         index = 0;
         scroll = 0;
         heroPos = 0;
@@ -100,18 +103,44 @@ final class Shelf extends ViewGroup {
         if (listener != null && !items.isEmpty()) listener.onFocus(0);
     }
 
+    /**
+     * Sizes the tiles to the covers in this list: the middle cover shape wins, so a Game Boy Advance library
+     * gets squarer tiles and a PlayStation one gets tall ones. Tall tiles keep the default height (two rows
+     * must fit); wide ones get a little smaller in height and a little larger in width.
+     */
+    private void fitCells(List<Game> list) {
+        int n = list.size(), step = Math.max(1, n / 48);
+        ArrayList<Float> a = new ArrayList<>();
+        for (int i = 0; i < n; i += step) {
+            float x = ArtCache.aspect(list.get(i));
+            if (x > 0f) a.add(x);
+        }
+        gameW = DEF_W;
+        gameH = DEF_H;
+        if (a.size() < 3) return;
+        Collections.sort(a);
+        float asp = Math.max(.6f, Math.min(1.4f, a.get(a.size() / 2)));
+        if (asp < DEF_W / DEF_H) {
+            gameH = DEF_H;
+            gameW = Math.round(DEF_H * asp);
+        } else {
+            gameW = Math.round((float) Math.sqrt(DEF_W * DEF_H * asp));
+            gameH = Math.round(gameW / asp);
+        }
+    }
+
     private int cols() {
-        float w = mode == SYSTEMS ? SYS_W : GAME_W;
+        float w = cellW();
         return Math.max(1, (int) Math.floor((1920 - LEFT - RIGHT + GAP) / (w + GAP)));
     }
 
     private float cellW() {
-        return mode == SYSTEMS ? SYS_W : GAME_W;
+        return mode == SYSTEMS ? SYS_W : gameW;
     }
 
     /** A grid cell's full height: the picture and the title strip under it. */
     private float cellH() {
-        return (mode == SYSTEMS ? SYS_H : GAME_H) + LABEL;
+        return (mode == SYSTEMS ? SYS_H : gameH) + LABEL;
     }
 
     private float maxScroll() {

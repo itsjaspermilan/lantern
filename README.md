@@ -262,6 +262,7 @@ Movement matches the direction you pressed, so the screen feels like one space.
 - **Down on Recent** opens the details: the row under the big tile slides down and away, the line above the title, the title and the big tile stay exactly where they are (the details title is the same size as Recent's), and the details drop in from above. **Up** (at the top of the details) or **B** reverses it: the details lift away and the row slides back up.
 - **Launching a game** eases the screen towards you and fades to black, then the game opens; coming back fades up.
 - **Menu (Select)** comes in from the left, where the button is, and pushes the screen a little to the right.
+- **Search by L1/R1**: reaching the Search tab with R1 brings the keyboard and results in from the right, with L1 from the left, in a wave that starts on that side (the X button still raises it from below).
 - **Search (X)** keeps the tab bar, so L1 and R1 still move between tabs. The keyboard rises from below and the results come in from the right.
 - **Y on Recent** takes the big game off the list (a toast says so, and the next game slides into the big spot). Its saves and play time are kept; playing it again puts it back.
 - **The tab bar opens and closes smoothly**: going into a system, the other tabs slide aside to make room for the breadcrumb, and slide back together when you leave; the highlight follows the whole way.

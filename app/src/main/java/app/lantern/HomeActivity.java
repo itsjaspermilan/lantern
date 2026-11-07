@@ -68,6 +68,8 @@ public class HomeActivity extends Activity {
     private TextView eyebrow;
     private Game lastFocused;
     private int lastHeroIndex = -1;
+    /** How the search keyboard arrives: +1 from the right (R1 onto the Search tab), -1 from the left (L1), 0 rising from below (X). */
+    private int searchDir;
     /** Top of the details text column on screen, in pixels: it is centred on the screen like the cover. */
     private int pageColTop;
     private android.animation.ValueAnimator marquee;
@@ -762,7 +764,10 @@ public class HomeActivity extends Activity {
         if (pageOpen) return pageKey(keyCode, first);
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_X:
-                if (first) openSearch();
+                if (first) {
+                    searchDir = 0;
+                    openSearch();
+                }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_L2:
             case KeyEvent.KEYCODE_BUTTON_R2:
@@ -898,7 +903,10 @@ public class HomeActivity extends Activity {
         shelf.setEnterDirection(t > old ? 1 : -1); // R1: the new tab comes in from the right; L1: from the left
         refresh(false);
         slideIn(t > old ? 120 : -120, 0); // the next tab arrives from the side it sits on
-        if (tab == TAB_SEARCH) openSearch(); // arriving on Search opens the keyboard
+        if (tab == TAB_SEARCH) { // arriving on Search opens the keyboard, which comes in from the side of the button pressed
+            searchDir = t > old ? 1 : -1;
+            openSearch();
+        }
     }
 
     private void refresh(boolean keepFocus) {
@@ -1528,8 +1536,18 @@ public class HomeActivity extends Activity {
             View cv = searchView.getChildAt(ci);
             boolean results = ((FrameLayout.LayoutParams) cv.getLayoutParams()).leftMargin == u(1210);
             cv.setAlpha(0f);
-            if (results) cv.setTranslationX(u(140)); else cv.setTranslationY(u(160));
-            cv.animate().alpha(1f).translationX(0f).translationY(0f).setStartDelay(Math.min(ci, 30) * 6L).setDuration(300).setInterpolator(easeS).start();
+            long delay = Math.min(ci, 30) * 6L;
+            if (searchDir != 0) {
+                // From the side of the button pressed, in a wave that starts on that side.
+                cv.setTranslationX(searchDir * u(170));
+                float x = ((FrameLayout.LayoutParams) cv.getLayoutParams()).leftMargin;
+                delay = (long) ((searchDir > 0 ? u(1920) - x : x) / u(1920) * 170f);
+            } else if (results) {
+                cv.setTranslationX(u(140));
+            } else {
+                cv.setTranslationY(u(160));
+            }
+            cv.animate().alpha(1f).translationX(0f).translationY(0f).setStartDelay(delay).setDuration(300).setInterpolator(easeS).start();
         }
         setHints(false);
     }

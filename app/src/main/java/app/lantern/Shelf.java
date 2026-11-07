@@ -154,7 +154,7 @@ final class Shelf extends ViewGroup {
 
     /** A grid cell's full height: the picture and the title strip under it. */
     private float cellH() {
-        return (mode == SYSTEMS ? SYS_H : gameH) + LABEL;
+        return mode == SYSTEMS ? SYS_H : gameH; // grid tiles carry no title: the focused game's name is under the grid
     }
 
     private float maxScroll() {
@@ -342,14 +342,14 @@ final class Shelf extends ViewGroup {
             Game g = items.get(i);
             if (c.game() != g) c.setGame(g);
             boolean on = i == index;
-            float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = LABEL, ek = 1f, ty = 0f;
+            float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = 0f, ek = 1f, ty = 0f;
             if (mode == HERO) {
                 // d is how far this game is from the hero spot. At 0 it is the big tile; from 1 on it sits in the
                 // small row, and between 0 and 1 it glides from one to the other. The game just left fades out.
                 float d = i - heroPos, k = Math.max(0f, Math.min(1f, d));
                 float slotCx = SMALL_X + (Math.max(d, 1f) - 1) * (SMALL_W + SMALL_GAP) + SMALL_W / 2f;
                 float sx = slotCx - SMALL_W / 2f, sy = SMALL_BOTTOM - SMALL_H;
-                label = LABEL * k;
+                label = LABEL * k; // Recent's row of small tiles keeps its titles
                 float[] hb = heroBox(g);
                 x = hb[0] + (sx - hb[0]) * k;
                 y = hb[1] + (sy - hb[1]) * k;

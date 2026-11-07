@@ -285,5 +285,6 @@ their colours by tinting the white pictures. Other drawn bits (the lantern, syst
 ### Breadcrumbs in the tab bar
 
 There is no separate breadcrumb line. Inside a system, the Systems tab becomes a pill with a back arrow, the system's name and
-its game count ("< Game Boy . 498"). A search turns the All games tab into "< "words" . 12". B (or the arrow's meaning) goes back.
+its game count ("< Game Boy . 498"). Search is its own tab at the end of the bar: X from anywhere (or R1 onto the tab) opens
+the keyboard there, and the results show in the tab as "< "words" . 12". B goes back to the tab you came from.
 

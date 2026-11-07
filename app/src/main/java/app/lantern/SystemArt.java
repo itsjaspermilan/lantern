@@ -41,6 +41,17 @@ final class SystemArt {
 
     /** Draws the art for a system, centred at (cx, cy), about `size` pixels across. */
     static void draw(Context ctx, Canvas c, Paint p, String sysId, float cx, float cy, float size) {
+        if (Library.GAMES.equals(sysId)) { // Google's Material "android" icon
+            int id = ctx.getResources().getIdentifier("ic_android", "drawable", ctx.getPackageName());
+            android.graphics.drawable.Drawable d = id == 0 ? null : ctx.getResources().getDrawable(id, null).mutate();
+            if (d != null) {
+                float half = size * .62f;
+                d.setTint(0xEBFFFFFF);
+                d.setBounds(Math.round(cx - half), Math.round(cy - half), Math.round(cx + half), Math.round(cy + half));
+                d.draw(c);
+                return;
+            }
+        }
         Bitmap icon = icon(ctx, sysId);
         if (icon != null) {
             float half = size * .62f; // the pictures have a margin of their own

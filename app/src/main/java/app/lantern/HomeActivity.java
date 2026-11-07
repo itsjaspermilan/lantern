@@ -33,8 +33,10 @@ import java.util.Map;
  */
 public class HomeActivity extends Activity {
     private static final int AMBER = 0xFFFFB454;
-    private static final String[] TABS = {"Recent", "Favourites", "Systems", "All games"};
-    private static final int TAB_SYSTEMS = 2, TAB_ALL = 3;
+    private static final String[] TABS = {"Recent", "Favourites", "Systems", "All games", "Search"};
+    private static final int TAB_SYSTEMS = 2, TAB_ALL = 3, TAB_SEARCH = 4;
+    /** The tab to go back to when the search is left with B. */
+    private int tabBeforeSearch;
 
     private final List<Game> all = new ArrayList<>();
     private final List<Game> shown = new ArrayList<>();
@@ -535,9 +537,11 @@ public class HomeActivity extends Activity {
 
     /** B inside a search clears it; B inside a system goes back to the Systems shelf, with that system's tile selected. */
     private void leaveSystem() {
-        if (query != null) {
+        if (tab == TAB_SEARCH) { // out of the Search tab, back to where the search began
             query = null;
-            refresh(true); // the focused game stays focused if the shelf still holds it
+            tab = tabBeforeSearch == TAB_SEARCH ? 0 : tabBeforeSearch;
+            lastId = null;
+            refresh(false);
             return;
         }
         if (filter == null) return;
@@ -554,20 +558,23 @@ public class HomeActivity extends Activity {
     }
 
     private void setTab(int t) {
-        tab = (t + TABS.length) % TABS.length;
+        int next = (t + TABS.length) % TABS.length;
+        if (next == TAB_SEARCH && tab != TAB_SEARCH) tabBeforeSearch = tab;
+        tab = next;
         filter = null;
         query = null;
         lastId = null;
         refresh(false);
+        if (tab == TAB_SEARCH) openSearch(); // arriving on Search opens the keyboard
     }
 
     private void refresh(boolean keepFocus) {
         shown.clear();
         boolean searching = query != null;
-        boolean systemTiles = !searching && tab == TAB_SYSTEMS && filter == null;
+        boolean systemTiles = tab == TAB_SYSTEMS && filter == null;
         boolean hero = !searching && tab == 0 && filter == null;
-        if (searching) {
-            shown.addAll(matches(query));
+        if (tab == TAB_SEARCH) {
+            if (searching) shown.addAll(matches(query));
         } else if (systemTiles) {
             shown.addAll(systemTiles());
         } else {
@@ -600,10 +607,10 @@ public class HomeActivity extends Activity {
         for (int i = 0; i < tabViews.size(); i++) {
             TextView t = tabViews.get(i);
             // A search is shown in the All games tab, since it looks through everything.
-            boolean on = searching ? i == TAB_ALL : i == tab;
+            boolean on = i == tab;
             // The tab bar is the breadcrumb: inside a system, "Systems" becomes the system's name with a back arrow
             // and the number of games; a search becomes "back arrow, the words, the number of results".
-            boolean back = on && (searching || (i == TAB_SYSTEMS && filter != null));
+            boolean back = on && ((i == TAB_SEARCH && searching) || (i == TAB_SYSTEMS && filter != null));
             if (back && searching) t.setText("\u201C" + query + "\u201D  \u00B7  " + shown.size());
             else if (back) t.setText(Library.systemTitle(filter) + "  \u00B7  " + shown.size());
             else t.setText(TABS[i]);
@@ -653,6 +660,7 @@ public class HomeActivity extends Activity {
     }
 
     private String emptyMessage() {
+        if (tab == TAB_SEARCH && query == null) return "Search your library.\nPress X to open the keyboard.";
         if (query != null) return "No games match \u201c" + query + "\u201d.\nPress B to clear the search.";
         if (filter != null) return "No games here.";
         if (tab == 0) return "Nothing played yet.\nOpen a game and it will show up here.";
@@ -843,7 +851,7 @@ public class HomeActivity extends Activity {
             if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("▼", Color.WHITE, true), "Details");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
-            if (filter != null || query != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
+            if (filter != null || tab == TAB_SEARCH) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
             // Select opens the drawer: settings, file access and the Android apps list.
             hint(hintsRow, glyph("Select", Color.WHITE, false), Library.hasFileAccess() ? "Menu" : "Menu (file access)");
         }
@@ -1062,7 +1070,16 @@ public class HomeActivity extends Activity {
     }
 
     private void openSearch() {
+        if (tab != TAB_SEARCH) { // X from anywhere: go to the Search tab first, then type
+            tabBeforeSearch = tab;
+            tab = TAB_SEARCH;
+            filter = null;
+            query = null;
+            lastId = null;
+            refresh(false);
+        }
         searchOpen = true;
+        empty.setVisibility(View.GONE); // the keyboard has the screen; the empty-search hint would show through its dim layer
         draft = query == null ? "" : query;
         kbRow = 1; // starts on Q
         kbCol = 0;
@@ -1075,6 +1092,7 @@ public class HomeActivity extends Activity {
 
     private void closeSearch() {
         searchOpen = false;
+        empty.setVisibility(View.VISIBLE);
         searchView.setVisibility(View.GONE);
         searchView.removeAllViews();
         setHints(pageOpen);

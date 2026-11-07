@@ -245,6 +245,10 @@ motion events are not handled yet.
 - **Backdrop.** The focused game's blurred cover fades in across the whole screen behind the glow.
 - **No cover?** The tile shows the game's initials. Each system has its own colour family, so a shelf without art still looks organised.
 
+## Tab bar size and the clock
+
+The tab bar has a fixed width, so it never grows over the battery and the time. Tabs share it by weight; inside a system or a search the breadcrumb tab takes room from its neighbours and shortens long names with "...". The menu has a Clock row: 12 hour or 24 hour (it starts with the system's setting).
+
 ## Build
 
 No Gradle. `build.sh` runs javac, d8, aapt2, zipalign and apksigner from the Android SDK, and builds the

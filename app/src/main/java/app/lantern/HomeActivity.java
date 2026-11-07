@@ -63,6 +63,9 @@ public class HomeActivity extends Activity {
     /** The highlight behind the active tab: it glides from tab to tab and grows or shrinks with the label. */
     private View tabPill;
     private LinearLayout tabBar;
+    private TextClock clock;
+    private float[] tabNat;
+    private boolean clock24;
     private FrameLayout tabHost;
     private android.animation.ValueAnimator pillAnim;
     private int pillX, pillW;
@@ -263,34 +266,70 @@ public class HomeActivity extends Activity {
         tabPill.setBackground(pillBg);
         pillX = pillW = 0;
         tabHost.addView(tabPill, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
-        tabHost.addView(tabs, new FrameLayout.LayoutParams(-2, -2));
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
+        tabHost.addView(tabs, new FrameLayout.LayoutParams(-1, -2));
+        // A fixed width: the bar never grows into the battery and the clock. Tabs share it by weight (see applyTabWeights).
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(u(1120), -2);
         tp.leftMargin = u(60);
         top.addView(tabHost, tp);
         tabs.addView(glyph("L1", Color.WHITE, false));
         for (String name : TABS) {
             TextView t = label(name, 32, Color.WHITE, false);
             t.setPadding(u(18), u(8), u(18), u(8));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            t.setSingleLine(true);
+            t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            t.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
             lp.leftMargin = u(11);
             lp.rightMargin = u(11);
             tabs.addView(t, lp);
             tabViews.add(t);
         }
         tabs.addView(glyph("R1", Color.WHITE, false));
+        tabNat = new float[TABS.length];
+        android.graphics.Paint bold = new android.graphics.Paint(tabViews.get(0).getPaint());
+        bold.setTypeface(Typeface.DEFAULT_BOLD);
+        for (int i = 0; i < TABS.length; i++) tabNat[i] = bold.measureText(TABS[i]);
+        applyTabWeights(-1);
 
         top.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         battery = label("", 30, Color.WHITE, false);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
         bp.rightMargin = u(26);
         top.addView(battery, bp);
-        TextClock clock = new TextClock(this);
-        clock.setFormat24Hour("HH:mm");
-        clock.setFormat12Hour("HH:mm");
+        clock = new TextClock(this);
+        clock24 = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("clock24", android.text.format.DateFormat.is24HourFormat(this));
+        applyClock();
         clock.setTextColor(Color.WHITE);
         clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30 * FONT * s);
         top.addView(clock);
         stage.addView(top, new FrameLayout.LayoutParams(-1, u(120), Gravity.TOP));
+    }
+
+    private void applyClock() {
+        String f = clock24 ? "HH:mm" : "h:mm a";
+        clock.setFormat24Hour(f);
+        clock.setFormat12Hour(f);
+    }
+
+    /**
+     * The tabs share a fixed width by weight, so the bar is always the same size. Inside a system or a search the
+     * tab that holds the breadcrumb (crumb, or -1) takes the room the others give up by tightening their padding.
+     */
+    private void applyTabWeights(int crumb) {
+        float total = 0, others = 0;
+        for (int i = 0; i < tabNat.length; i++) {
+            total += tabNat[i] + u(58);
+            if (i != crumb) others += tabNat[i] + u(24);
+        }
+        for (int i = 0; i < tabViews.size(); i++) {
+            TextView v = tabViews.get(i);
+            boolean tight = crumb >= 0 && i != crumb;
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
+            lp.weight = crumb < 0 ? tabNat[i] + u(58) : i == crumb ? total - others : tabNat[i] + u(24);
+            lp.leftMargin = lp.rightMargin = tight ? u(4) : u(11);
+            v.setPadding(tight ? u(8) : u(18), u(8), tight ? u(8) : u(18), u(8));
+            v.setLayoutParams(lp);
+        }
     }
 
     private void buildInfo() {
@@ -663,6 +702,7 @@ public class HomeActivity extends Activity {
             }
         }
 
+        int crumbAt = -1;
         for (int i = 0; i < tabViews.size(); i++) {
             TextView t = tabViews.get(i);
             // A search is shown in the All games tab, since it looks through everything.
@@ -671,6 +711,7 @@ public class HomeActivity extends Activity {
             // The tab bar is the breadcrumb: inside a system, "Systems" becomes the system's name with a back arrow
             // and the number of games; a search becomes "back arrow, the words, the number of results".
             boolean back = on && ((i == TAB_SEARCH && searching) || (i == TAB_SYSTEMS && filter != null));
+            if (back) crumbAt = i;
             if (back && searching) t.setText("\u201C" + query + "\u201D  \u00B7  " + shown.size());
             else if (back) t.setText(Library.systemTitle(filter) + "  \u00B7  " + shown.size());
             else t.setText(TABS[i]);
@@ -696,6 +737,7 @@ public class HomeActivity extends Activity {
                 t.animate().alpha(want).setDuration(180).start();
             }
         }
+        applyTabWeights(crumbAt);
         glidePill();
 
         // Work out which tile to come back to first: setItems announces item 0, which overwrites lastId.
@@ -933,13 +975,14 @@ public class HomeActivity extends Activity {
 
     // ---- drawer (Select) ----
 
-    private static final int D_APPS = 0, D_SHOWAPPS = 1, D_ART = 2, D_FILES = 3;
+    private static final int D_APPS = 0, D_SHOWAPPS = 1, D_ART = 2, D_FILES = 3, D_CLOCK = 4;
 
     private List<Integer> drawerItems() {
         List<Integer> l = new ArrayList<>();
         l.add(D_APPS);
         l.add(D_SHOWAPPS);
         l.add(D_ART);
+        l.add(D_CLOCK);
         if (!Library.hasFileAccess()) l.add(D_FILES);
         return l;
     }
@@ -979,6 +1022,12 @@ public class HomeActivity extends Activity {
                 break;
             case D_ART:
                 toggleArt();
+                renderDrawer();
+                break;
+            case D_CLOCK:
+                clock24 = !clock24;
+                getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("clock24", clock24).apply();
+                applyClock();
                 renderDrawer();
                 break;
             case D_FILES:
@@ -1044,6 +1093,7 @@ public class HomeActivity extends Activity {
                 case D_APPS: name = "Android apps"; value = apps + "  \u203A"; break;
                 case D_SHOWAPPS: name = "Show apps on every shelf"; value = showApps ? "On" : "Off"; break;
                 case D_ART: name = "Cover art"; value = artOn ? "On" : "Off"; break;
+                case D_CLOCK: name = "Clock"; value = clock24 ? "24 hour" : "12 hour"; break;
                 default: name = "Allow file access"; value = "\u203A";
             }
             LinearLayout row = new LinearLayout(this);

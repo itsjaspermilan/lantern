@@ -1769,7 +1769,7 @@ public class HomeActivity extends Activity {
         pageOpen = true;
         infoOpen = false;
         if (chevL != null) { chevL.setVisibility(View.GONE); chevR.setVisibility(View.GONE); dots.setVisibility(View.GONE); }
-        pageChrome(true);
+        pageChrome(true, shelf.mode() == Shelf.HERO); // the chevron is for Recent's page only
         actIdx = 0;
         renderPage();
         pageView.setVisibility(View.VISIBLE);
@@ -1809,13 +1809,17 @@ public class HomeActivity extends Activity {
     }
 
     /** With the details open the tab bar fades up and away and a wide chevron takes its place; closing reverses it. */
-    private void pageChrome(boolean open) {
+    private void pageChrome(boolean open, boolean chevron) {
         // The tab bar and the chevron are one crossfade: same start, same length, same easing.
         android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
         tabHost.animate().cancel();
         upChev.animate().cancel();
         if (open) {
             tabHost.animate().alpha(0f).translationY(-u(44)).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            if (!chevron) {
+                upChev.setVisibility(View.GONE);
+                return;
+            }
             upChev.setVisibility(View.VISIBLE);
             upChev.setAlpha(0f);
             upChev.setTranslationY(u(26));
@@ -1885,7 +1889,7 @@ public class HomeActivity extends Activity {
 
     private void closePage() {
         pageOpen = false;
-        pageChrome(false);
+        pageChrome(false, false);
         updateChevrons();
         if (pageCover == null) {
             shelf.setHiddenTile(-1);
@@ -2054,7 +2058,7 @@ public class HomeActivity extends Activity {
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (actIdx > 0) { actIdx--; renderPage(); }
-                else if (first) closePage(); // top of the menu: back up to where the page came from (Recent or the grid)
+                else if (first && shelf.mode() == Shelf.HERO) closePage(); // top of Recent's page: back up (the grid's page goes back with B)
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (actIdx < acts.size() - 1) { actIdx++; renderPage(); }

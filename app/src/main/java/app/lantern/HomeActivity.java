@@ -72,6 +72,8 @@ public class HomeActivity extends Activity {
     private TextView marqueeTab;
     private View veil;
     private View dots, upChev;
+    /** Length of the moves that open and close the details page: tab bar, chevron and row all take this long. */
+    private static final long PAGE_MS = 320;
     private int dotsN, dotsAt;
     private float[] tabNat;
     private boolean clock24;
@@ -1783,7 +1785,7 @@ public class HomeActivity extends Activity {
             pageView.setTranslationY(0f);
             shelf.setPage(0f, true);
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
-            va.setDuration(360);
+            va.setDuration(PAGE_MS);
             va.setInterpolator(ease);
             va.addUpdateListener(a -> shelf.setPage((Float) a.getAnimatedValue(), true));
             va.addListener(new android.animation.AnimatorListenerAdapter() {
@@ -1804,18 +1806,19 @@ public class HomeActivity extends Activity {
 
     /** With the details open the tab bar fades up and away and a wide chevron takes its place; closing reverses it. */
     private void pageChrome(boolean open) {
+        // The tab bar and the chevron are one crossfade: same start, same length, same easing.
         android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
         tabHost.animate().cancel();
         upChev.animate().cancel();
         if (open) {
-            tabHost.animate().alpha(0f).translationY(-u(44)).setDuration(260).setInterpolator(ease).start();
+            tabHost.animate().alpha(0f).translationY(-u(44)).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             upChev.setVisibility(View.VISIBLE);
             upChev.setAlpha(0f);
             upChev.setTranslationY(u(26));
-            upChev.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(300).setInterpolator(ease).start();
+            upChev.animate().alpha(1f).translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
         } else {
-            tabHost.animate().alpha(1f).translationY(0f).setStartDelay(100).setDuration(300).setInterpolator(ease).start();
-            upChev.animate().alpha(0f).translationY(u(26)).setStartDelay(0).setDuration(200).setInterpolator(ease)
+            tabHost.animate().alpha(1f).translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            upChev.animate().alpha(0f).translationY(u(26)).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease)
                     .withEndAction(() -> { if (!pageOpen) upChev.setVisibility(View.GONE); }).start();
         }
     }
@@ -1843,7 +1846,7 @@ public class HomeActivity extends Activity {
             shelf.setVisibility(View.VISIBLE);
             shelf.setPage(1f, false);
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(1f, 0f);
-            va.setDuration(360);
+            va.setDuration(PAGE_MS);
             va.setInterpolator(ease);
             va.addUpdateListener(a -> { if (!pageOpen) shelf.setPage((Float) a.getAnimatedValue(), false); });
             va.start();

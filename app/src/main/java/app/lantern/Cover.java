@@ -146,15 +146,6 @@ final class Cover extends View {
             c.drawBitmap(art, null, artBox, artPaint);
         }
 
-        // System chip, top left.
-        String chip = g.system.toUpperCase();
-        tp.setTextSize(20 * s);
-        float tw = tp.measureText(chip);
-        rect.set(16 * s, 16 * s, 16 * s + tw + 24 * s, 16 * s + 20 * s + 14 * s);
-        p.setColor(0x6B000000);
-        c.drawRoundRect(rect, 99 * s, 99 * s, p);
-        c.drawText(chip, rect.left + 12 * s, rect.top + 7 * s + 17 * s, tp);
-
         if (g.fav) {
             tp.setTextSize(38 * s);
             tp.setColor(AMBER);

@@ -57,6 +57,10 @@ public class HomeActivity extends Activity {
     private int actIdx;
     private Glow glow;
     private Shelf shelf;
+    private TextView playPill;
+    private FrameLayout.LayoutParams infoLp;
+    /** Recent's big first game has the focus, so A plays it straight away. */
+    private boolean heroFocused;
     private TextView title, when, chipView, sub, empty, banner, battery;
     private int tab = -1;
     private String lastId;
@@ -290,10 +294,33 @@ public class HomeActivity extends Activity {
         sp.topMargin = u(16);
         info.addView(sub, sp);
 
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(u(1700), -2, Gravity.TOP | Gravity.START);
-        ip.leftMargin = u(EDGE_L);
-        ip.topMargin = u(735);
-        stage.addView(info, ip);
+        playPill = label("", 36, 0xFF17131F, true);
+        playPill.setPadding(u(44), u(14), u(44), u(14));
+        GradientDrawable pd = new GradientDrawable();
+        pd.setCornerRadius(u(99));
+        pd.setColor(AMBER);
+        playPill.setBackground(pd);
+        playPill.setVisibility(View.GONE);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-2, -2);
+        pp.topMargin = u(34);
+        info.addView(playPill, pp);
+
+        infoLp = new FrameLayout.LayoutParams(u(1700), -2, Gravity.TOP | Gravity.START);
+        stage.addView(info, infoLp);
+        placeInfo(false);
+    }
+
+    /** The info block sits under the grid, or (Recent) beside the big first game. */
+    private void placeInfo(boolean hero) {
+        infoLp.leftMargin = u(hero ? 620 : EDGE_L);
+        infoLp.topMargin = u(hero ? 170 : 866);
+        infoLp.width = u(hero ? 1230 : 1700);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * FONT * s);
+        title.setSingleLine(!hero);
+        title.setMaxLines(hero ? 3 : 1);
+        LinearLayout.LayoutParams mp = (LinearLayout.LayoutParams) ((View) chipView.getParent()).getLayoutParams();
+        mp.topMargin = u(hero ? 18 : 6);
+        infoBlock.requestLayout();
     }
 
     private void buildHints() {
@@ -407,7 +434,10 @@ public class HomeActivity extends Activity {
                 shelf.move(1);
                 return true;
             case KeyEvent.KEYCODE_DPAD_UP:
+                shelf.moveRow(-1);
+                return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
+                shelf.moveRow(1);
                 return true;
             case KeyEvent.KEYCODE_BUTTON_L1:
                 if (first) setTab(tab - 1);
@@ -448,6 +478,8 @@ public class HomeActivity extends Activity {
             filter = g.sysId;
             lastId = null;
             refresh(false);
+        } else if (shelf.mode() == Shelf.HERO && shelf.getIndex() == 0) {
+            open(g, Library.resumeTime(g) > 0); // Recent's first game: one press and it is playing
         } else {
             openPage();
         }
@@ -485,6 +517,7 @@ public class HomeActivity extends Activity {
         shown.clear();
         boolean searching = query != null;
         boolean systemTiles = !searching && tab == TAB_SYSTEMS && filter == null;
+        boolean hero = !searching && tab == 0 && filter == null;
         if (searching) {
             shown.addAll(matches(query));
         } else if (systemTiles) {
@@ -497,7 +530,10 @@ public class HomeActivity extends Activity {
                 if (filter == null && tab == 1 && !g.fav) continue;
                 shown.add(g);
             }
-            if (filter == null && tab == 0) Collections.sort(shown, (a, b) -> Long.compare(b.lastPlayed, a.lastPlayed));
+            if (filter == null && tab == 0) {
+                Collections.sort(shown, (a, b) -> Long.compare(b.lastPlayed, a.lastPlayed));
+                while (shown.size() > Shelf.HERO_COUNT) shown.remove(shown.size() - 1);
+            }
         }
 
         for (int i = 0; i < tabViews.size(); i++) {
@@ -520,7 +556,9 @@ public class HomeActivity extends Activity {
         if (want != null) {
             for (int i = 0; i < shown.size(); i++) if (shown.get(i).id.equals(want)) { restore = i; break; }
         }
-        shelf.setItems(new ArrayList<>(shown), systemTiles);
+        placeInfo(hero);
+        heroFocused = hero;
+        shelf.setItems(new ArrayList<>(shown), hero ? Shelf.HERO : systemTiles ? Shelf.SYSTEMS : Shelf.GRID);
         shelf.setIndex(restore, false);
         setHints(pageOpen);
 
@@ -531,6 +569,7 @@ public class HomeActivity extends Activity {
             when.setText("");
             chipView.setVisibility(View.GONE);
             sub.setText("");
+            playPill.setVisibility(View.GONE);
             glow.to(0xFF2A2438, 0xFF14121C);
         }
     }
@@ -586,6 +625,7 @@ public class HomeActivity extends Activity {
                     : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
                     : "No emulator core for this system yet");
             glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
+            compactInfo();
             return;
         }
         title.setText(g.title);
@@ -596,6 +636,30 @@ public class HomeActivity extends Activity {
         sub.setText(g.isRom() && !Cores.has(this, g.sysId) ? "No emulator core for " + g.system + " yet"
                 : saved > 0 ? "Resume available · saved " + ago(saved) : "Ready to play");
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
+        compactInfo();
+        if (shelf.mode() == Shelf.HERO) {
+            boolean h = index == 0;
+            playPill.setVisibility(h ? View.VISIBLE : View.GONE);
+            playPill.setText(saved > 0 ? "\u25B6  Resume" : "\u25B6  Play");
+            if (h != heroFocused) {
+                heroFocused = h;
+                if (!pageOpen && !searchOpen && !drawerOpen) setHints(false);
+            }
+        } else {
+            playPill.setVisibility(View.GONE);
+        }
+    }
+
+    /** Under a grid there is one line for the game, so the status joins the "played" text. */
+    private void compactInfo() {
+        if (shelf.mode() == Shelf.HERO) {
+            sub.setVisibility(View.VISIBLE);
+            return;
+        }
+        String a = String.valueOf(when.getText()), b = String.valueOf(sub.getText());
+        when.setText(a.isEmpty() ? b : b.isEmpty() ? a : a + "  \u00B7  " + b);
+        sub.setText("");
+        sub.setVisibility(View.GONE);
     }
 
     // ---- actions ----
@@ -688,7 +752,7 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("R1", Color.WHITE, false), "Next");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
-            hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Open");
+            hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && heroFocused ? "Play" : "Open");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || query != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");

@@ -264,3 +264,13 @@ The built-in player's native host is a separate decision (see the plan).
 
 The Systems shelf shows an icon for each console, from libretro's retroarch-assets (CC BY 4.0). Attribution, source and
 licence text are in `licenses/system-icons.md`. Android apps and games use shapes drawn in code (`SystemArt.java`).
+
+### Home layouts
+
+Recent shows the last-played game very large with a Resume/Play button; pressing A on it starts the game straight away
+(from its resume point when it has one). Up to six earlier games sit in a small row below, reached with Right or Down;
+A on those opens the game page as before. Favourites, Systems, All games, a system's games and search results are
+a vertical grid (seven game tiles or six system tiles across) that scrolls a row at a time, with a peek of the next row;
+the focused game's name, system and status are one line under the grid. Tiles no longer carry the system chip (it is in
+that line). Touch: drag a grid up and down. Checked on the Pocket 6 with injected keys; the touch drag is not tried yet.
+

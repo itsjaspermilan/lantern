@@ -197,23 +197,23 @@ final class Cover extends View {
                 c.drawRect(0, 0, w, h, p);
                 p.setShader(null);
             }
-            float pad = (8 - 4 * weight) * s; // the box art uses nearly the whole height of the tile; the focused one rises a little
+            float pad = (8 - 4 * weight) * s / vs; // the box art uses nearly the whole height of the tile; the focused one rises a little
             float k = Math.min((w - 2 * pad) / art.getWidth(), (h - 2 * pad) / art.getHeight());
             float dw = art.getWidth() * k, dh = art.getHeight() * k;
             artBox.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);
             p.setStyle(Paint.Style.FILL);
             for (int i = 4; i >= 1; i--) { // a soft shadow from a few widening layers
-                float grow = i * 4 * s * (1 + weight * .6f);
-                rect.set(artBox.left - grow, artBox.top - grow + 6 * s, artBox.right + grow, artBox.bottom + grow + 6 * s);
+                float grow = i * 4 * s * (1 + weight * .6f) / vs; // like the ring: the same size on screen however the view is scaled
+                rect.set(artBox.left - grow, artBox.top - grow + 6 * s / vs, artBox.right + grow, artBox.bottom + grow + 6 * s / vs);
                 p.setColor(((int) (0x1C * (.7f + .5f * weight)) << 24));
-                c.drawRoundRect(rect, 8 * s + grow, 8 * s + grow, p);
+                c.drawRoundRect(rect, 8 * s / vs + grow, 8 * s / vs + grow, p);
             }
             c.drawBitmap(art, null, artBox, artPaint);
         }
 
         if (shot != null && shotA > .01f) drawShot(c, w, h);
         if (g.resume && shotA < .5f) { // a small amber play button: this game has a resume point
-            float rr = 15 * s, cx = 28 * s, cy = 28 * s;
+            float rr = 15 * s / vs, cx = 28 * s / vs, cy = 28 * s / vs;
             p.setStyle(Paint.Style.FILL);
             p.setColor(AMBER);
             c.drawCircle(cx, cy, rr, p);

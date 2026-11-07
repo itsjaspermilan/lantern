@@ -390,6 +390,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     /** Writes "<state file>.png" next to a state, through a temp file. */
     private void writePng(File state, Bitmap b) {
         File out = new File(state.getPath() + ".png"), tmp = new File(out.getPath() + ".tmp");
+        out.getParentFile().mkdirs();
         try (FileOutputStream f = new FileOutputStream(tmp)) {
             b.compress(Bitmap.CompressFormat.PNG, 100, f);
         } catch (java.io.IOException e) {

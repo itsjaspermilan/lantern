@@ -119,21 +119,23 @@ final class ArtFetcher {
     /** Fetches art for every ROM that has none and was not recently missing. Does nothing if already running. */
     synchronized void fetch(List<Game> games, final Listener l) {
         if (running) return;
-        final List<Game> todo = new ArrayList<>();
-        for (Game g : games) {
-            if (!g.isRom() || g.art != null || systemName(g) == null) continue;
-            File miss = missFile(ctx, g);
-            if (miss.exists() && System.currentTimeMillis() - miss.lastModified() < MISS_MS) continue;
-            todo.add(g);
-        }
-        if (todo.isEmpty()) return;
         running = true;
         cancelled = false;
+        final List<Game> snapshot = new ArrayList<>(games);
         worker.execute(() -> {
-            String base = baseUrl();
+            // Working out what still needs a picture looks at a file per game: that is for this thread, not the main one.
+            final List<Game> todo = new ArrayList<>();
+            for (Game g : snapshot) {
+                if (cancelled) break;
+                if (!g.isRom() || g.art != null || systemName(g) == null) continue;
+                File miss = missFile(ctx, g);
+                if (miss.exists() && System.currentTimeMillis() - miss.lastModified() < MISS_MS) continue;
+                todo.add(g);
+            }
+            String base = todo.isEmpty() ? null : baseUrl();
             int failures = 0;
             for (final Game g : todo) {
-                if (cancelled || failures >= 3) break;
+                if (cancelled || failures >= 3 || base == null) break;
                 switch (fetchOne(base, g)) {
                     case 1:
                         failures = 0;

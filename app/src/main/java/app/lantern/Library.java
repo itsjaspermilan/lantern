@@ -69,10 +69,6 @@ final class Library {
         return n == 1 ? w : w + "s";
     }
 
-    static boolean isAndroid(String sysId) {
-        return APPS.equals(sysId) || GAMES.equals(sysId);
-    }
-
     /** The full name of a system, for its tile on the Systems shelf. */
     static String systemTitle(String sysId) {
         if (GAMES.equals(sysId)) return "Android Games";
@@ -160,14 +156,30 @@ final class Library {
      * player writes: "<game>.state.auto", "<game>.state3". A screenshot sits next to it as "<file>.png".
      */
     static File stateFile(String sysId, File rom, String suffix) {
-        return new File(saveDir(sysId), baseName(rom) + ".state" + suffix);
+        // Not saveDir(): that creates the folder, and this is called just to look for a file (on the main thread, often).
+        return new File(new File(Environment.getExternalStorageDirectory(), "Lantern/saves/" + sysId), baseName(rom) + ".state" + suffix);
+    }
+
+    // What is read from files when a tile is focused is remembered until the app comes back to the front (the player is
+    // another process: it is what changes these), so moving across tiles does not touch the disk on the main thread.
+    private static final Map<String, Long> RESUME = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<String, Long> PLAYED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Forget the remembered file facts: call when the launcher returns to the front. */
+    static void forgetFileFacts() {
+        RESUME.clear();
+        PLAYED.clear();
     }
 
     /** When the resume point was saved (milliseconds), or 0 if there is none. */
     static long resumeTime(Game g) {
         if (!g.isRom()) return 0;
+        Long known = RESUME.get(g.id);
+        if (known != null) return known;
         File f = stateFile(g.sysId, g.file, ".auto");
-        return f.exists() ? f.lastModified() : 0;
+        long t = f.exists() ? f.lastModified() : 0;
+        RESUME.put(g.id, t);
+        return t;
     }
 
     /** Reading the shared storage folder needs "all files access" on Android 11 and later. */
@@ -208,6 +220,14 @@ final class Library {
 
     /** Total time spent in a game, in milliseconds. Kept in a small file because the player is another process. */
     static long playTime(Context c, String id) {
+        Long known = PLAYED.get(id);
+        if (known != null) return known;
+        long t = readPlayTime(c, id);
+        PLAYED.put(id, t);
+        return t;
+    }
+
+    private static long readPlayTime(Context c, String id) {
         try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(timeFile(c, id)))) {
             return Long.parseLong(r.readLine().trim());
         } catch (Exception e) {
@@ -218,7 +238,7 @@ final class Library {
     static void addPlayTime(Context c, String id, long ms) {
         if (ms < 3000) return;
         try (java.io.FileWriter w = new java.io.FileWriter(timeFile(c, id))) {
-            w.write(String.valueOf(playTime(c, id) + ms));
+            w.write(String.valueOf(readPlayTime(c, id) + ms)); // read afresh: this runs in the player process, whose memory is not Home's
         } catch (Exception e) {
             // not worth failing a game over
         }

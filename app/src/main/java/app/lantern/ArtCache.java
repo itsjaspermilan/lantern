@@ -8,6 +8,8 @@ import android.os.Looper;
 import android.util.LruCache;
 import android.view.View;
 
+import java.io.File;
+
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -26,7 +28,7 @@ final class ArtCache {
         void onDecoded(Game g);
     }
 
-    private static final int TARGET_HEIGHT = 700; // pixels; the largest a focused tile can be is about this
+    private static final int TARGET_HEIGHT = 520; // pixels: a little more than the tallest a cover is ever drawn (Recent's big tile)
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2);
     private static final Set<String> LOADING = new HashSet<>();
@@ -41,8 +43,18 @@ final class ArtCache {
     private static final LruCache<String, Bitmap> BACKDROPS = new LruCache<>(256);
     private static Listener listener;
 
+    /**
+     * The cache key for a game's cover. It includes the file's modified time (so a replaced picture is not served from
+     * the cache), which costs a disk call, so it is worked out once per file and kept on the game, not on every draw.
+     */
     private static String key(Game g) {
-        return g.art.getPath() + "@" + g.art.lastModified();
+        File f = g.art;
+        if (f == null) return null;
+        if (g.artKeyFile != f || g.artKey == null) {
+            g.artKey = f.getPath() + "@" + f.lastModified();
+            g.artKeyFile = f;
+        }
+        return g.artKey;
     }
 
     /** The blurred backdrop for a game's cover if it has been made (it is made together with the cover), else null. */
@@ -50,44 +62,39 @@ final class ArtCache {
         return g.art == null ? null : BACKDROPS.get(key(g));
     }
 
-    private static final java.util.HashMap<String, Float> ASPECTS = new java.util.HashMap<>();
-
-    /** Width over height of a game's cover, read from the file header only. 1 for an app icon, 0 if there is nothing. */
-    static float aspect(Game g) {
-        if (g.art == null) return g.icon != null ? 1f : 0f;
-        String k = key(g);
-        Float known = ASPECTS.get(k);
-        if (known != null) return known;
-        BitmapFactory.Options o = new BitmapFactory.Options();
-        o.inJustDecodeBounds = true;
-        BitmapFactory.decodeFile(g.art.getPath(), o);
-        float a = o.outWidth > 0 && o.outHeight > 0 ? (float) o.outWidth / o.outHeight : 0f;
-        ASPECTS.put(k, a);
-        return a;
-    }
-
     private static final LruCache<String, Bitmap> SHOTS = new LruCache<>(6);
-    private static final java.util.HashMap<String, java.io.File> SHOT_FILES = new java.util.HashMap<>();
+    private static final java.util.Map<String, java.io.File> SHOT_FILES = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Screenshots being read, and ones known not to exist (until the next clearShots). */
+    private static final Set<String> SHOT_BUSY = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final Set<String> SHOT_NONE = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    /** The screenshot saved with a game's resume point (small, so it is read on the spot), or null. */
-    static Bitmap shot(Game g) {
+    /**
+     * The screenshot saved with a game's resume point, or null if it is not ready (or there is none). It is read off the
+     * main thread; when it arrives, ready runs on the main thread so the caller can draw it.
+     */
+    static Bitmap shot(final Game g, final Runnable ready) {
         if (g == null || !g.isRom() || !g.resume) return null;
         Bitmap b = SHOTS.get(g.id);
         if (b != null) return b;
-        java.io.File f = SHOT_FILES.get(g.id);
-        if (f == null) {
-            f = new java.io.File(Library.stateFile(g.sysId, g.file, ".auto").getPath() + ".png");
-            SHOT_FILES.put(g.id, f);
-        }
-        if (!f.exists()) return null;
-        b = BitmapFactory.decodeFile(f.getPath());
-        if (b != null) SHOTS.put(g.id, b);
-        return b;
+        if (SHOT_NONE.contains(g.id) || !SHOT_BUSY.add(g.id)) return null;
+        POOL.execute(() -> {
+            java.io.File f = SHOT_FILES.get(g.id);
+            if (f == null) {
+                f = new java.io.File(Library.stateFile(g.sysId, g.file, ".auto").getPath() + ".png");
+                SHOT_FILES.put(g.id, f);
+            }
+            Bitmap d = f.exists() ? BitmapFactory.decodeFile(f.getPath()) : null;
+            if (d != null) SHOTS.put(g.id, d); else SHOT_NONE.add(g.id);
+            SHOT_BUSY.remove(g.id);
+            if (d != null) MAIN.post(ready);
+        });
+        return null;
     }
 
     /** Forget the screenshots: a game may have saved a new resume point. */
     static void clearShots() {
         SHOTS.evictAll();
+        SHOT_NONE.clear();
     }
 
     static void setListener(Listener l) {
@@ -109,7 +116,7 @@ final class ArtCache {
             }
         }
         POOL.execute(() -> {
-            Bitmap decoded = decode(g);
+            Bitmap decoded = decode(g, key);
             if (decoded != null) CACHE.put(key, decoded);
             final java.util.List<View> waiting;
             synchronized (LOADING) {
@@ -125,7 +132,7 @@ final class ArtCache {
         return null;
     }
 
-    private static Bitmap decode(Game g) {
+    private static Bitmap decode(Game g, String key) {
         BitmapFactory.Options o = new BitmapFactory.Options();
         o.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(g.art.getPath(), o);
@@ -137,7 +144,7 @@ final class ArtCache {
         Bitmap b = BitmapFactory.decodeFile(g.art.getPath(), o);
         if (b != null) {
             g.hue = dominantHue(b, g.hue);
-            BACKDROPS.put(key(g), blurred(b));
+            BACKDROPS.put(key, blurred(b));
         }
         return b;
     }

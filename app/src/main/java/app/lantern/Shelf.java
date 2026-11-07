@@ -49,6 +49,7 @@ final class Shelf extends ViewGroup {
     static final int HERO_COUNT = 12;
 
     private final float s;
+    private final Rect clipRect = new Rect();
     private final SparseArray<Cover> attached = new SparseArray<>();
     private final ArrayList<Cover> pool = new ArrayList<>();
     private List<Game> items = Collections.emptyList();
@@ -324,6 +325,19 @@ final class Shelf extends ViewGroup {
     }
 
     @Override
+    protected void onDetachedFromWindow() {
+        // Animators outlive a view that is taken down (the breathing one never ends by itself).
+        for (ValueAnimator a : new ValueAnimator[]{anim, spring, enter, breathAnim, heroFadeAnim}) if (a != null) a.cancel();
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        startBreath();
+    }
+
+    @Override
     protected void onWindowVisibilityChanged(int v) {
         super.onWindowVisibilityChanged(v);
         if (breathAnim != null) {
@@ -368,7 +382,11 @@ final class Shelf extends ViewGroup {
             first = Math.max(0, (int) Math.floor(Math.max(0f, heroPos - 1f)));
             last = Math.min(n - 1, first + 8);
         } else {
-            setClipBounds(new Rect(0, Math.round((GRID_TOP - 20) * s), r - l, Math.round((GRID_BOTTOM + 10) * s)));
+            int ct = Math.round((GRID_TOP - 20) * s), cb = Math.round((GRID_BOTTOM + 10) * s);
+            if (getClipBounds() == null || clipRect.top != ct || clipRect.bottom != cb || clipRect.right != r - l) { // not on every frame of a scroll
+                clipRect.set(0, ct, r - l, cb);
+                setClipBounds(clipRect);
+            }
             int c = cols();
             float pitch = cellH() + GAP;
             first = Math.max(0, (int) Math.floor(scroll / pitch)) * c;
@@ -464,7 +482,7 @@ final class Shelf extends ViewGroup {
             c.setLabel(0f);
             c.setWeight(1f);
             c.setAlpha(heroHide ? 0f : alphas[k]);
-            c.setShot(ArtCache.shot(games[k]), 1f); // a screenshot of where it was left
+            c.setShot(ArtCache.shot(games[k], this::requestLayout), 1f); // a screenshot of where it was left
             c.setZ(3f);
             c.measure(View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(ph, View.MeasureSpec.EXACTLY));
             c.layout(px, py, px + pw, py + ph);

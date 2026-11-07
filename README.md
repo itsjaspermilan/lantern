@@ -272,6 +272,11 @@ Movement matches the direction you pressed, so the screen feels like one space.
 - **Recent**: the info text slides a little the way you moved; dots under the big tile show where you are in the list, and small arrows at the edges of the row show there is more that way. **Details**: At the first or last tile (or the top or bottom row) the whole screen stretches like a rubber band and springs back: the tiles move most, the text and dots a little less.
 - **L1/R1** slide the next tab in from the side it sits on: R1 brings it in from the right, L1 from the left. The tiles inside arrive in a wave that starts on that side, each one sliding in a little behind the one before. **A** on a system makes its games rise in from below; **B** brings the systems back down from above.
 
+## Tests and audit
+
+`./test.sh` runs the plain-logic tests on the computer (21 checks, no device needed). `AUDIT.md` has the November 2026
+code quality and performance audit: what was measured, what was fixed, and what is recommended next.
+
 ## Build
 
 No Gradle. `build.sh` runs javac, d8, aapt2, zipalign and apksigner from the Android SDK, and builds the

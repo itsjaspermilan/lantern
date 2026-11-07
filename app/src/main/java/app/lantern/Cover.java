@@ -34,6 +34,10 @@ final class Cover extends View {
     private final Path shape = new Path();
     private final RectF rect = new RectF();
     private float weight;
+    /** The tile's background gradient: built once per size and colour pair, not on every draw. */
+    private LinearGradient bg;
+    private float bgW, bgH;
+    private int bgC1, bgC2;
     private android.graphics.Bitmap shot;
     private float shotA;
     /** Height of the strip under the tile that holds the title, in pixels (0: no title). */
@@ -66,6 +70,17 @@ final class Cover extends View {
         lastHue = g.hue;
         c1 = Color.HSVToColor(new float[]{g.hue, .55f, .62f});
         c2 = Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .26f});
+    }
+
+    private LinearGradient bgShader(float w, float h) {
+        if (bg == null || w != bgW || h != bgH || c1 != bgC1 || c2 != bgC2) {
+            bg = new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP);
+            bgW = w;
+            bgH = h;
+            bgC1 = c1;
+            bgC2 = c2;
+        }
+        return bg;
     }
 
     /** Makes room for the title under the picture. The picture is drawn in what is left above it. */
@@ -152,11 +167,15 @@ final class Cover extends View {
         c.save();
         c.clipPath(clip);
 
+        // A tile with a real cover paints its own background below, so the generated one is only for the others.
+        Bitmap art = g.systemTile ? null : ArtCache.get(g, this);
         p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.WHITE); // the paint is shared: an old translucent colour would fade the gradient
-        p.setShader(new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP));
-        c.drawRect(0, 0, w, h, p);
-        p.setShader(null);
+        if (art == null) {
+            p.setColor(Color.WHITE); // the paint is shared: an old translucent colour would fade the gradient
+            p.setShader(bgShader(w, h));
+            c.drawRect(0, 0, w, h, p);
+            p.setShader(null);
+        }
 
         if (g.systemTile) {
             drawSystem(c, w, h);
@@ -168,7 +187,7 @@ final class Cover extends View {
 
         c.save();
         c.scale(w / 300f, h / 400f);
-        if (weight < .5f) drawMotif(c); // the selected tile has no pale pattern over it: its ring is enough
+        if (weight < .5f && art == null) drawMotif(c); // the selected tile has no pale pattern over it: its ring is enough
         c.restore();
 
         if (g.icon == null && g.art == null) drawMonogram(c, w, h);
@@ -181,7 +200,6 @@ final class Cover extends View {
 
         // A real cover replaces the generated art and the title. It is fitted inside the tile, never cropped;
         // the rest of the tile is a soft blur of the cover itself, and the cover floats on a shadow.
-        Bitmap art = ArtCache.get(g, this);
         if (art != null && (float) art.getWidth() / art.getHeight() >= 1.35f) {
             // Landscape art (a banner, or what Nova Studio makes) fills the whole tile, cropped a little to fit.
             fillCrop(c, art, w, h);
@@ -193,7 +211,7 @@ final class Cover extends View {
                 c.drawColor(0x66000000); // dim it so the sharp cover stands out
             } else {
                 p.setColor(Color.WHITE);
-                p.setShader(new LinearGradient(0, 0, w * .45f, h, c1, c2, Shader.TileMode.CLAMP));
+                p.setShader(bgShader(w, h));
                 c.drawRect(0, 0, w, h, p);
                 p.setShader(null);
             }

@@ -31,11 +31,23 @@ final class Cores {
         }
     }
 
+    /** The cores bundled with the app do not change while it runs, so each is looked for once. */
+    private static final java.util.Map<String, File> FOUND = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Set<String> ABSENT = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     static File file(Context c, String systemFolder) {
         String lib = libFor(systemFolder);
         if (lib == null) return null;
+        File known = FOUND.get(lib);
+        if (known != null) return known;
+        if (ABSENT.contains(lib)) return null;
         File f = new File(c.getApplicationInfo().nativeLibraryDir, "lib" + lib + ".so");
-        return f.exists() ? f : null;
+        if (f.exists()) {
+            FOUND.put(lib, f);
+            return f;
+        }
+        ABSENT.add(lib);
+        return null;
     }
 
     static boolean has(Context c, String systemFolder) {

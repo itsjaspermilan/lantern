@@ -693,10 +693,20 @@ public class HomeActivity extends Activity {
     }
 
     @Override
+    protected void onDestroy() {
+        // The tab-name marquee repeats for ever; none of these may keep the destroyed activity's views alive.
+        stopMarquee();
+        for (android.animation.ValueAnimator a : new android.animation.ValueAnimator[]{weightAnim, coverAnim, pillAnim}) if (a != null) a.cancel();
+        ArtCache.setListener(null);
+        super.onDestroy();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         if (marquee != null) marquee.resume();
         ArtCache.clearShots();
+        Library.forgetFileFacts(); // the player (another process) may have saved a resume point or added play time
         unveil(true);
         Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if (b != null) {

@@ -47,15 +47,27 @@ an app. Press A and you are playing. There are no menus to dig through, and ever
 
 ## Status
 
-Early (version 0.0.1). It is built and tested on a **Retroid Pocket 6** (Android 13, 1920x1080, landscape). It should
+Early (version 0.1). It is built and tested on a **Retroid Pocket 6** (Android 13, 1920x1080, landscape). It should
 run on other 64-bit ARM Android devices (Android 8 or newer) but has not been tried on them, and the layout assumes a
-16:9 landscape screen. It is a sideloaded debug build: there is no release APK yet, no Play Store listing and no
-auto-update. Emulation covers software-rendered cores only (Game Boy, GBA, NES, SNES, Mega Drive and friends); there are
+16:9 landscape screen. It is sideloaded: there is an APK on the [Releases](https://github.com/itsjaspermilan/lantern/releases)
+page, but no Play Store listing and no auto-update. Emulation covers software-rendered cores only (Game Boy, GBA, NES, SNES, Mega Drive and friends); there are
 no N64, PlayStation, DS or PSP cores yet. See [TODO.md](TODO.md).
+
+## Quick install
+
+1. On the handheld, download `lantern-0.1.0.apk` from the
+   [Releases](https://github.com/itsjaspermilan/lantern/releases) page and open it (Android asks you to allow installs
+   from your browser or file manager).
+2. Open Lantern, press **Select**, and allow file access if it asks; put your games in folders as in
+   [step 3](#3-give-it-access-to-your-games).
+3. Add emulators in the app (*Select > Emulators*, see [step 4](#4-add-emulators)), and optionally make it your home
+   screen ([step 5](#5-make-it-your-home-screen-optional)).
+
+The release APK contains no emulators: they are downloaded in the app, from libretro, when you ask.
 
 ## Set it up
 
-You need a computer to build Lantern, and the handheld to run it. Setup has five parts: build, install, give it access
+To build it yourself instead: you need a computer to build Lantern, and the handheld to run it. Setup has five parts: build, install, give it access
 to your games, add the emulators you want (in the app), and (optionally) make it your home screen.
 
 ### 1. Build it
@@ -215,6 +227,26 @@ a resume point, so **Resume** puts you back exactly where you were.
 - **No cover art.** Turn Cover art on in the menu, make sure the file names are in the usual "Game Name (Region)" form, or
   add your own picture to `art/<system>/`.
 - **The build fails on `android-36` or the NDK.** Check `ANDROID_HOME` and `ANDROID_NDK_HOME` point where you think.
+
+## Making a release
+
+For the author (or anyone publishing their own build). A release is signed with a key that only its author has, so
+that updates install over earlier versions. Make the key once, outside the repository, and keep a backup of it and its
+password: without them, later versions cannot update an installed one.
+
+```sh
+keytool -genkeypair -keystore ~/lantern-release.jks -storetype PKCS12 -alias lantern -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Your Name"
+```
+
+Then raise `VERSION_NAME` and `VERSION_CODE` at the top of `build.sh`, and:
+
+```sh
+./build.sh release      # build/lantern-<version>.apk: no emulator cores, signed with ~/lantern-release.jks (asks for its password)
+```
+
+`LANTERN_KEYSTORE` points it at a key somewhere else. The release build leaves out anything in `native/cores/` and stops
+if a core ends up in the APK anyway. A release APK cannot be installed over a debug build (different keys): uninstall
+the debug build first.
 
 ## Contributing
 

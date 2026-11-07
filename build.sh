@@ -1,9 +1,14 @@
 #!/bin/bash
-# Gradle-free debug build: javac -> d8 -> aapt2 -> zipalign -> apksigner.
+# Gradle-free build: javac -> d8 -> aapt2 -> zipalign -> apksigner.
 # Needs a JDK on PATH and the Android SDK (ANDROID_HOME, default ~/Library/Android/sdk).
 #   ./build.sh            build build/lantern-debug.apk
 #   ./build.sh install    build, install on the connected device or emulator
+#   ./build.sh release    build build/lantern-<version>.apk for sharing: no emulator cores, signed with your own
+#                         release key (LANTERN_KEYSTORE, default ~/lantern-release.jks); asks for its password.
 set -euo pipefail
+VERSION_NAME=0.1.0
+VERSION_CODE=2
+MODE=${1:-}
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 cd "$ROOT"
 
@@ -22,7 +27,7 @@ javac -source 11 -target 11 -Xlint:-options -classpath "$JAR" -d "$OUT/classes" 
 "$BT/d8" --lib "$JAR" --min-api 26 --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
 "$BT/aapt2" compile --dir app/src/main/res -o "$OUT/res.zip"
 "$BT/aapt2" link -o "$OUT/base.apk" --manifest app/src/main/AndroidManifest.xml "$OUT/res.zip" \
-    -A app/src/main/assets -I "$JAR" --min-sdk-version 26 --target-sdk-version 34 --version-code 1 --version-name 0.0.1
+    -A app/src/main/assets -I "$JAR" --min-sdk-version 26 --target-sdk-version 34 --version-code "$VERSION_CODE" --version-name "$VERSION_NAME"
 (cd "$OUT/dex" && zip -q "$OUT/base.apk" classes.dex)
 
 # Native code: the player host and the test core, built with the NDK for 64-bit ARM.
@@ -37,6 +42,7 @@ CFLAGS="-shared -fPIC -O2 -Wall -Wextra -Inative/third_party/libretro"
 # mgba_libretro_android.so is packaged as libmgba.so, because Android only unpacks lib*.so files.
 CORES=0
 for core in native/cores/*_libretro_android.so; do
+    [ "$MODE" != release ] || break # a build to share never contains a core: people add them in the app
     [ -f "$core" ] || continue
     name=$(basename "$core" _libretro_android.so)
     cp "$core" "$LIBDIR/lib$name.so"
@@ -50,6 +56,21 @@ fi
 (cd "$OUT" && zip -q -0 -r base.apk lib)
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
 
+if [ "$MODE" = release ]; then
+    # The release key is the author's own, kept outside the repository; apksigner asks for its password.
+    KS=${LANTERN_KEYSTORE:-$HOME/lantern-release.jks}
+    [ -f "$KS" ] || { echo "build: no release key at $KS (see README, 'Making a release')" >&2; exit 1; }
+    APK="$OUT/lantern-$VERSION_NAME.apk"
+    "$BT/apksigner" sign --ks "$KS" --ks-key-alias lantern --out "$APK" "$OUT/aligned.apk"
+    "$BT/apksigner" verify "$APK"
+    if unzip -l "$APK" | grep -E 'lib/arm64-v8a/lib' | grep -vE 'liblanternplayer|libtestcore' >/dev/null; then
+        echo "build: an emulator core ended up in the release APK" >&2; rm -f "$APK"; exit 1
+    fi
+    shasum -a 256 "$APK"
+    echo "built $APK"
+    exit 0
+fi
+
 # A throwaway debug key, generated here and never committed (build/ is ignored).
 KEYSTORE="$OUT/debug.keystore"
 [ -f "$KEYSTORE" ] || keytool -genkeypair -keystore "$KEYSTORE" -storepass android -keypass android \
@@ -58,6 +79,6 @@ KEYSTORE="$OUT/debug.keystore"
     --out "$OUT/lantern-debug.apk" "$OUT/aligned.apk"
 echo "built $OUT/lantern-debug.apk"
 
-if [ "${1:-}" = install ]; then
+if [ "$MODE" = install ]; then
     "$SDK/platform-tools/adb" install -r "$OUT/lantern-debug.apk"
 fi

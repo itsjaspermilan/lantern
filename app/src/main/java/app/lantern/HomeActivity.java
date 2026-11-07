@@ -1796,6 +1796,7 @@ public class HomeActivity extends Activity {
             va.addUpdateListener(a -> shelf.setPage((Float) a.getAnimatedValue(), true));
             va.start();
         } else {
+            shelf.setHiddenTile(shelf.getIndex()); // the cover flying to the page is this tile: do not leave a copy behind
             pageCol.setAlpha(0f);
             pageCol.animate().alpha(1f).setStartDelay(100).setDuration(PAGE_MS).setInterpolator(ease).start();
             shelf.animate().cancel();
@@ -1887,6 +1888,7 @@ public class HomeActivity extends Activity {
         pageChrome(false);
         updateChevrons();
         if (pageCover == null) {
+            shelf.setHiddenTile(-1);
             pageView.setVisibility(View.GONE);
             pageView.removeAllViews();
             shelf.setVisibility(View.VISIBLE);
@@ -1905,6 +1907,7 @@ public class HomeActivity extends Activity {
                     if (pageOpen) return; // opened again meanwhile
                     pageView.setVisibility(View.GONE);
                     pageView.removeAllViews();
+                    shelf.setHiddenTile(-1); // the tile shows again exactly where the cover landed
                     if (hero) {
                         // The page's copy and the real tile and title are at the same place now: swap in the same frame.
                         shelf.setPage(0f, false);

@@ -77,6 +77,8 @@ final class Shelf extends ViewGroup {
     private float heroFade = 1f;
     private ValueAnimator heroFadeAnim;
     private boolean heroHide;
+    /** The grid tile whose copy is flying to or from the details page: it is not drawn meanwhile (-1: none). */
+    private int hiddenIndex = -1;
     private Listener listener;
     private float downY, lastY;
     private boolean dragging;
@@ -274,6 +276,11 @@ final class Shelf extends ViewGroup {
                 animate().translationX(0f).translationY(0f).setDuration(220).setInterpolator(new OvershootInterpolator(3f)).start()).start();
     }
 
+    void setHiddenTile(int i) {
+        hiddenIndex = i;
+        requestLayout();
+    }
+
     void setPage(float t, boolean hideHero) {
         pageT = t;
         heroHide = hideHero;
@@ -399,7 +406,7 @@ final class Shelf extends ViewGroup {
                 float grow = 1f + .06f * Math.max(0f, i == index ? focusT : i == prevIndex ? 1f - focusT : 0f);
                 float order = Math.max(0, row - (int) Math.floor(scroll / (cellH() + GAP))) * .10f + col * .05f;
                 float kk = Math.max(0f, Math.min(1f, (enterT - order) / .45f));
-                ek = kk;
+                ek = i == hiddenIndex ? 0f : kk;
                 ty = (1f - kk) * 28f * s;
                 float cx = x0 + col * (cellW() + GAP) + cellW() / 2f, cy = GRID_TOP + row * (cellH() + GAP) - scroll + cellH() / 2f;
                 w = cellW() * grow; h = cellH() * grow;

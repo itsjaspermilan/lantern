@@ -37,7 +37,7 @@ final class Shelf extends ViewGroup {
     // Picture sizes; each tile also has a LABEL strip under it for the title.
     private static final float GAME_W = 198, GAME_H = 270, SYS_W = 230, SYS_H = 230, LABEL = 42;
     // The hero tile and the small row beside and below it.
-    private static final float HERO_W = 480, HERO_H = 660, HERO_Y = 150;
+    private static final float HERO_W = 430, HERO_H = 620, HERO_Y = 170; // the same size and place as the cover on the details page
     private static final float SMALL_X = 620, SMALL_W = 180, SMALL_H = 262, SMALL_GAP = 20, SMALL_BOTTOM = 956;
     /** How many recent games the hero layout carries. The focused one is large; the next six show beside it. */
     static final int HERO_COUNT = 12;

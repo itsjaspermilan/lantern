@@ -200,8 +200,8 @@ public class HomeActivity extends Activity {
         lbp.topMargin = u(200);
         stage.addView(letterBadge, lbp);
         buildInfo();
-        chevL = chevron("\u2039", 250, -1);
-        chevR = chevron("\u203A", 410, 1);
+        chevL = chevron("\u2039", 225, -1);
+        chevR = chevron("\u203A", 385, 1);
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
@@ -350,7 +350,7 @@ public class HomeActivity extends Activity {
         v.setOnClickListener(x2 -> shelf.move(dir));
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(76), u(76), Gravity.TOP | Gravity.START);
         p.leftMargin = u(x - 38 + 0);
-        p.topMargin = u(856);
+        p.topMargin = u(826);
         stage.addView(v, p);
         return v;
     }
@@ -1322,9 +1322,9 @@ public class HomeActivity extends Activity {
     private void heroCoverPose(boolean atHero) {
         pageCover.setPivotX(0f);
         pageCover.setPivotY(0f);
-        pageCover.setScaleX(atHero ? 480f / 430f : 1f);
-        pageCover.setScaleY(atHero ? 660f / 620f : 1f);
-        pageCover.setTranslationY(atHero ? -u(20) : 0f);
+        pageCover.setScaleX(1f); // Recent's cover is the page cover's size and place, so it does not need to move
+        pageCover.setScaleY(1f);
+        pageCover.setTranslationY(0f);
     }
 
     private void closePage() {
@@ -1335,7 +1335,7 @@ public class HomeActivity extends Activity {
             android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
             pageCover.setPivotX(0f);
             pageCover.setPivotY(0f);
-            pageCover.animate().scaleX(480f / 430f).scaleY(660f / 620f).translationY(-u(20)).setDuration(280).setInterpolator(ease).start();
+            pageCover.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(280).setInterpolator(ease).start();
             pageCol.animate().alpha(0f).translationY(u(70)).setStartDelay(0).setDuration(220).setInterpolator(ease)
                     .withEndAction(() -> {
                         if (pageOpen) return; // opened again meanwhile

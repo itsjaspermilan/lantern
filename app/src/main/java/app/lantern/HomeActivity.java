@@ -126,6 +126,10 @@ public class HomeActivity extends Activity {
             root.post(this::recompute);
             return ins;
         });
+        // Nothing here takes the system's keyboard focus: keys are handled by onKeyDown, and a focused view would
+        // get Android's default focus highlight, a pale rectangle drawn over it.
+        root.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        root.setDefaultFocusHighlightEnabled(false);
         setContentView(root);
     }
 

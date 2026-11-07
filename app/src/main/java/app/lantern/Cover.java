@@ -42,6 +42,8 @@ final class Cover extends View {
         this.s = s;
         tp.setTypeface(Typeface.DEFAULT_BOLD);
         tp.setColor(Color.WHITE);
+        setFocusable(View.NOT_FOCUSABLE); // never the system's focus: it would draw a pale highlight rectangle
+        setDefaultFocusHighlightEnabled(false);
         setAlpha(.6f); // an idle tile is dimmed; setWeight skips work when the weight is unchanged
     }
 

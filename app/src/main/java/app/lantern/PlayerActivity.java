@@ -129,6 +129,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 return ins;
             });
         }
+        root.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        root.setDefaultFocusHighlightEnabled(false);
         setContentView(root);
         surface.getHolder().addCallback(this);
         applyOptions();

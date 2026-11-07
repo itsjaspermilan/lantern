@@ -10,14 +10,12 @@ import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.TextClock;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -40,11 +38,10 @@ public class HomeActivity extends Activity {
 
     private final List<Game> all = new ArrayList<>();
     private final List<Game> shown = new ArrayList<>();
-    private final List<TextView> tabViews = new ArrayList<>();
 
     private float s = 1f;
     /** Text is drawn this much larger than the mockup's sizes, and the side margins are tighter (EDGE_L, EDGE_R). */
-    private static final float FONT = 1.1f;
+    static final float FONT = 1.1f;
     static final int EDGE_L = 90, EDGE_R = 70;
     private boolean loaded;
     private String batteryText = "";
@@ -61,27 +58,17 @@ public class HomeActivity extends Activity {
     private Shelf shelf;
     private TextView playPill;
     /** The highlight behind the active tab: it glides from tab to tab and grows or shrinks with the label. */
-    private View tabPill;
-    private LinearLayout tabBar;
-    private TextClock clock;
-    private GradientDrawable pillBg;
     private TextView eyebrow;
     private Game lastFocused;
     private int lastHeroIndex = -1;
     /** Top of the details text column on screen, in pixels: it is centred on the screen like the cover. */
     private int pageColTop;
-    private android.animation.ValueAnimator marquee;
-    private TextView marqueeTab;
     private View veil;
     private View dots, upChev;
     /** Length of the moves that open and close the details page: tab bar, chevron and row all take this long. */
     private static final long PAGE_MS = 320;
     private int dotsN, dotsAt;
-    private float[] tabNat;
     private boolean clock24;
-    private FrameLayout tabHost;
-    private android.animation.ValueAnimator pillAnim;
-    private int pillX, pillW;
     /** The page's big cover and its text column, kept so Recent's game can fly into place and back. */
     private View pageCover, pageCol, pageRest;
     private View chevL, chevR;
@@ -90,7 +77,8 @@ public class HomeActivity extends Activity {
     private boolean heroFocused;
     /** Recent's selected tile is the "All games" one, so A opens it and there are no details. */
     private boolean heroAll;
-    private TextView title, when, chipView, sub, empty, banner, battery;
+    private TabBar topBar;
+    private TextView title, when, chipView, sub, empty, banner;
     private int tab = -1;
     private String lastId;
     /** The search being shown on the shelf (all games that match), or null. */
@@ -174,7 +162,6 @@ public class HomeActivity extends Activity {
 
     private void buildUi() {
         safe.removeAllViews();
-        tabViews.clear();
         glow.to(0xFF2A2438, 0xFF14121C);
         stage = new FrameLayout(this);
         stage.setClipChildren(false); // on screens wider than 16:9 the row may run past the layout box
@@ -198,7 +185,9 @@ public class HomeActivity extends Activity {
             }
         });
         stage.addView(shelf, new FrameLayout.LayoutParams(-1, -1));
-        buildTopBar();
+        clock24 = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("clock24", android.text.format.DateFormat.is24HourFormat(this));
+        topBar = new TabBar(this, tabBarHost, TABS, clock24);
+        stage.addView(topBar.view(), new FrameLayout.LayoutParams(-1, u(120), Gravity.TOP));
         crumb = label("", 28, 0xCCFFFFFF, false);
         crumb.setVisibility(View.GONE);
         FrameLayout.LayoutParams cr = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
@@ -286,192 +275,10 @@ public class HomeActivity extends Activity {
         menu = new MenuPanel(this, menuHost);
         stage.addView(menu.view(), new FrameLayout.LayoutParams(-1, -1));
 
-        battery.setText(batteryText);
+        topBar.setBattery(batteryText);
         if (loaded) {
             refresh(true);
         }
-    }
-
-    private void buildTopBar() {
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(u(EDGE_L), 0, u(EDGE_R), 0);
-
-        LanternLogo logo = new LanternLogo(this);
-        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(u(80), u(80));
-        fp.rightMargin = u(22);
-        top.addView(logo, fp);
-        // Spaced capitals with a lantern-lit gradient; the first letter is the warmest.
-        TextView word = label("LANTERN", 30, Color.WHITE, true);
-        word.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        word.setLetterSpacing(0.3f);
-        word.setShadowLayer(u(12), 0, 0, 0x55FFB454);
-        word.post(() -> word.getPaint().setShader(new android.graphics.LinearGradient(0, 0, word.getWidth(), 0,
-                new int[]{0xFFFFC46B, 0xFFFFFFFF, 0xFFFFE9C4}, new float[]{0f, .35f, 1f}, android.graphics.Shader.TileMode.CLAMP)));
-        top.addView(word);
-
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setGravity(Gravity.CENTER_VERTICAL);
-        tabBar = tabs;
-        tabHost = new FrameLayout(this);
-        tabPill = new View(this);
-        pillBg = new GradientDrawable();
-        pillBg.setCornerRadius(u(99));
-        pillBg.setColor(0x2EFFFFFF);
-        tabPill.setBackground(pillBg);
-        pillX = pillW = 0;
-        tabHost.addView(tabPill, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
-        tabHost.addView(tabs, new FrameLayout.LayoutParams(-1, -2));
-        // A fixed width: the bar never grows into the battery and the clock. Tabs share it by weight (see applyTabWeights).
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(u(1000), -2);
-        tp.leftMargin = u(60);
-        top.addView(tabHost, tp);
-        tabs.addView(glyph("L1", Color.WHITE, false));
-        for (String name : TABS) {
-            TextView t = label(name, 32, Color.WHITE, false);
-            t.setPadding(u(18), u(8), u(18), u(8));
-            t.setSingleLine(true);
-            t.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            t.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
-            lp.leftMargin = u(11);
-            lp.rightMargin = u(11);
-            tabs.addView(t, lp);
-            tabViews.add(t);
-        }
-        tabs.addView(glyph("R1", Color.WHITE, false));
-        tabNat = new float[TABS.length];
-        android.graphics.Paint bold = new android.graphics.Paint(tabViews.get(0).getPaint());
-        bold.setTypeface(Typeface.DEFAULT_BOLD);
-        for (int i = 0; i < TABS.length; i++) tabNat[i] = bold.measureText(TABS[i]);
-        applyTabWeights(-1);
-
-        top.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-        battery = label("", 30, Color.WHITE, false);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
-        bp.rightMargin = u(26);
-        top.addView(battery, bp);
-        clock = new TextClock(this);
-        clock24 = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("clock24", android.text.format.DateFormat.is24HourFormat(this));
-        applyClock();
-        clock.setTextColor(Color.WHITE);
-        clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30 * FONT * s);
-        top.addView(clock);
-        stage.addView(top, new FrameLayout.LayoutParams(-1, u(120), Gravity.TOP));
-    }
-
-    private void stopMarquee() {
-        if (marquee != null) marquee.cancel();
-        marquee = null;
-        if (marqueeTab != null) marqueeTab.setScrollX(0);
-        marqueeTab = null;
-    }
-
-    /** A system name too long for its place in the tab bar slides slowly to its end and back, pausing at each end. */
-    private void startMarquee(TextView t) {
-        if (t == null || tab < 0 || tab >= tabViews.size() || tabViews.get(tab) != t || t.getWidth() == 0) return;
-        stopMarquee();
-        float avail = t.getWidth() - t.getTotalPaddingLeft() - t.getTotalPaddingRight();
-        float over = t.getPaint().measureText(String.valueOf(t.getText())) - avail;
-        if (over < 4f) return;
-        marqueeTab = t;
-        marquee = android.animation.ValueAnimator.ofFloat(0f, over + u(6));
-        marquee.setDuration(Math.max(2600L, (long) (over / s / 40f * 1000f))); // about 40 mockup pixels a second
-        marquee.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-        marquee.setRepeatMode(android.animation.ValueAnimator.REVERSE);
-        marquee.setInterpolator(x -> {
-            float f = Math.max(0f, Math.min(1f, (x - .18f) / .64f)); // rests at both ends
-            return f * f * (3f - 2f * f);
-        });
-        marquee.addUpdateListener(a -> t.setScrollX(Math.round((Float) a.getAnimatedValue())));
-        marquee.start();
-    }
-
-    private void applyClock() {
-        String f = clock24 ? "HH:mm" : "h:mm a";
-        clock.setFormat24Hour(f);
-        clock.setFormat12Hour(f);
-    }
-
-    /**
-     * The tabs share a fixed width by weight, so the bar is always the same size. Inside a system or a search the
-     * tab that holds the breadcrumb (crumb, or -1) takes the room the others give up by tightening their padding.
-     */
-    private float[] curW, curM, curP;
-    private android.animation.ValueAnimator weightAnim;
-
-    private void applyTabWeights(int crumb) {
-        int n = tabViews.size();
-        float total = 0, others = 0;
-        for (int i = 0; i < tabNat.length; i++) {
-            total += tabNat[i] + u(58);
-            if (i != crumb) others += tabNat[i] + u(24);
-        }
-        final float[] tw = new float[n], tm = new float[n], tp = new float[n];
-        for (int i = 0; i < n; i++) {
-            boolean tight = crumb >= 0 && i != crumb;
-            tw[i] = crumb < 0 ? tabNat[i] + u(58) : i == crumb ? total - others : tabNat[i] + u(24);
-            tm[i] = tight ? u(4) : u(11);
-            tp[i] = tight ? u(8) : u(18);
-        }
-        if (curW == null) { // the first time: just set it
-            curW = tw.clone();
-            curM = tm.clone();
-            curP = tp.clone();
-            applyTabValues();
-            return;
-        }
-        if (weightAnim != null) weightAnim.cancel();
-        final float[] fw = curW.clone(), fm = curM.clone(), fp = curP.clone();
-        boolean same = true;
-        for (int i = 0; i < n; i++) if (Math.abs(fw[i] - tw[i]) > .5f || Math.abs(fm[i] - tm[i]) > .5f) same = false;
-        if (same) return;
-        // The tabs slide aside to make room for the breadcrumb (or back together), and the highlight follows.
-        weightAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
-        weightAnim.setDuration(340);
-        weightAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
-        weightAnim.addUpdateListener(a -> {
-            float f = (Float) a.getAnimatedValue();
-            for (int i = 0; i < n; i++) {
-                curW[i] = fw[i] + (tw[i] - fw[i]) * f;
-                curM[i] = fm[i] + (tm[i] - fm[i]) * f;
-                curP[i] = fp[i] + (tp[i] - fp[i]) * f;
-            }
-            applyTabValues();
-        });
-        weightAnim.start();
-    }
-
-    private void applyTabValues() {
-        for (int i = 0; i < tabViews.size(); i++) {
-            TextView v = tabViews.get(i);
-            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
-            lp.weight = curW[i];
-            lp.leftMargin = lp.rightMargin = Math.round(curM[i]);
-            v.setPadding(Math.round(curP[i]), u(8), Math.round(curP[i]), u(8));
-            v.setLayoutParams(lp);
-        }
-        if (weightAnim != null && weightAnim.isRunning()) movePill();
-    }
-
-    /** While the tabs slide, the highlight is placed from the same numbers the layout uses, so it never lags behind. */
-    private void movePill() {
-        if (tab < 0 || tab >= tabViews.size() || tabPill == null || pillW == 0) return;
-        float sumW = 0, sumM = 0;
-        for (int i = 0; i < curW.length; i++) {
-            sumW += curW[i];
-            sumM += 2 * curM[i];
-        }
-        float host = tabHost.getWidth() > 0 ? tabHost.getWidth() : u(1000);
-        float avail = host - 2 * u(52) - sumM, x = u(52);
-        for (int j = 0; j < tab; j++) x += 2 * curM[j] + avail * curW[j] / sumW;
-        x += curM[tab];
-        pillX = Math.round(x);
-        pillW = Math.round(avail * curW[tab] / sumW);
-        FrameLayout.LayoutParams l2 = (FrameLayout.LayoutParams) tabPill.getLayoutParams();
-        l2.width = pillW;
-        tabPill.setTranslationX(pillX);
-        tabPill.setLayoutParams(l2);
     }
 
     private void buildInfo() {
@@ -594,50 +401,6 @@ public class HomeActivity extends Activity {
         dots.invalidate();
     }
 
-    /** Moves the highlight to the active tab once the bar has been laid out with its new labels. */
-    private void glidePill() {
-        if (tabHost == null) return;
-        tabHost.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
-            @Override
-            public boolean onPreDraw() {
-                tabHost.getViewTreeObserver().removeOnPreDrawListener(this);
-                if (weightAnim != null && weightAnim.isRunning()) return true; // the sliding tabs place the highlight themselves
-                if (tab < 0 || tab >= tabViews.size()) return true;
-                TextView t = tabViews.get(tab);
-                if (t.getWidth() == 0) return true;
-                final int toX = t.getLeft(), toW = t.getWidth(), toY = t.getTop(), toH = t.getHeight();
-                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) tabPill.getLayoutParams();
-                lp.height = toH;
-                tabPill.setTranslationY(toY);
-                if (pillAnim != null) pillAnim.cancel();
-                if (pillW == 0) { // first time: just put it there
-                    pillX = toX;
-                    pillW = toW;
-                    lp.width = toW;
-                    tabPill.setTranslationX(toX);
-                    tabPill.setLayoutParams(lp);
-                    return true;
-                }
-                final int fromX = pillX, fromW = pillW;
-                pillAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
-                pillAnim.setDuration(300);
-                pillAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
-                pillAnim.addUpdateListener(a -> {
-                    float f = (Float) a.getAnimatedValue();
-                    pillX = Math.round(fromX + (toX - fromX) * f);
-                    pillW = Math.round(fromW + (toW - fromW) * f);
-                    FrameLayout.LayoutParams l2 = (FrameLayout.LayoutParams) tabPill.getLayoutParams();
-                    l2.width = pillW;
-                    tabPill.setTranslationX(pillX);
-                    tabPill.setLayoutParams(l2);
-                });
-                pillAnim.start();
-                return true;
-            }
-        });
-        tabBar.invalidate();
-    }
-
     private void buildHints() {
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
@@ -672,14 +435,14 @@ public class HomeActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (marquee != null) marquee.pause();
+        if (topBar != null) topBar.pause(true);
     }
 
     @Override
     protected void onDestroy() {
         // The tab-name marquee repeats for ever; none of these may keep the destroyed activity's views alive.
-        stopMarquee();
-        for (android.animation.ValueAnimator a : new android.animation.ValueAnimator[]{weightAnim, coverAnim, pillAnim}) if (a != null) a.cancel();
+        if (topBar != null) topBar.stop();
+        if (coverAnim != null) coverAnim.cancel();
         ArtCache.setListener(null);
         super.onDestroy();
     }
@@ -687,7 +450,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (marquee != null) marquee.resume();
+        if (topBar != null) topBar.pause(false);
         ArtCache.clearShots();
         Library.forgetFileFacts(); // the player (another process) may have saved a resume point or added play time
         unveil(true);
@@ -695,6 +458,7 @@ public class HomeActivity extends Activity {
         if (b != null) {
             int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
             batteryText = level >= 0 ? (level * 100 / scale) + "%" : "";
+            if (topBar != null) topBar.setBattery(batteryText);
         }
         // When a cover finishes decoding, its colour may change the glow behind the focused game.
         ArtCache.setListener(g -> {
@@ -931,53 +695,12 @@ public class HomeActivity extends Activity {
             }
         }
 
-        int crumbAt = -1;
-        for (int i = 0; i < tabViews.size(); i++) {
-            TextView t = tabViews.get(i);
-            // A search is shown in the All games tab, since it looks through everything.
-            boolean on = i == tab;
-            String before = String.valueOf(t.getText());
-            // The tab bar is the breadcrumb: inside a system, "Systems" becomes the system's name with a back arrow
-            // and the number of games; a search becomes "back arrow, the words, the number of results".
-            boolean back = on && ((i == TAB_SEARCH && searching) || (i == TAB_SYSTEMS && filter != null));
-            if (back) crumbAt = i;
-            if (back && searching) t.setText("\u201C" + query + "\u201D  \u00B7  " + shown.size());
-            else if (back) t.setText(Library.systemTitle(filter));
-            else t.setText(TABS[i]);
-            if (back) {
-                android.graphics.Bitmap arrow = UiIcons.get(this, "arrow_left");
-                if (arrow != null) {
-                    android.graphics.drawable.BitmapDrawable ad = new android.graphics.drawable.BitmapDrawable(getResources(), arrow);
-                    ad.setBounds(0, 0, u(34), u(34));
-                    t.setCompoundDrawables(ad, null, null, null);
-                    t.setCompoundDrawablePadding(u(12));
-                }
-            } else {
-                t.setCompoundDrawables(null, null, null, null);
-            }
-            t.setGravity(back ? Gravity.START | Gravity.CENTER_VERTICAL : Gravity.CENTER); // scrolling text starts at the left
-            t.setEllipsize(back ? null : android.text.TextUtils.TruncateAt.END); // a long name scrolls instead of being cut (see startMarquee)
-            if (!back && t == marqueeTab) stopMarquee();
-            t.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-            float want = on ? 1f : 0.55f;
-            t.setBackground(null); // the shared pill behind the tabs does the highlighting
-            t.animate().cancel();
-            if (!before.equals(String.valueOf(t.getText())) && !before.isEmpty()) {
-                t.setAlpha(0f); // a changed label fades in
-                t.animate().alpha(want).setDuration(220).start();
-            } else {
-                t.animate().alpha(want).setDuration(180).start();
-            }
-        }
-        if (crumbAt >= 0) {
-            final TextView ct = tabViews.get(crumbAt);
-            stopMarquee();
-            ct.postDelayed(() -> startMarquee(ct), 450); // after the tabs have settled into their new widths
-        }
-        int sysHue = filter == null ? -1 : Library.baseHue(filter); // inside a system the highlight takes its colour
-        pillBg.setColor(sysHue >= 0 && tab == TAB_SYSTEMS ? (0x55000000 | (0xFFFFFF & Color.HSVToColor(new float[]{sysHue, .45f, 1f}))) : 0x2EFFFFFF);
-        applyTabWeights(crumbAt);
-        glidePill();
+        // The tab bar is the breadcrumb: inside a system, "Systems" becomes the system's name with a back arrow; a search
+        // becomes "back arrow, the words, the number of results".
+        boolean crumb = (tab == TAB_SEARCH && searching) || (tab == TAB_SYSTEMS && filter != null);
+        String crumbText = !crumb ? null : searching ? "\u201C" + query + "\u201D  \u00B7  " + shown.size() : Library.systemTitle(filter);
+        int sysHue = filter == null || tab != TAB_SYSTEMS ? -1 : Library.baseHue(filter); // inside a system the highlight takes its colour
+        topBar.update(tab, crumb ? tab : -1, crumbText, sysHue);
 
         // Work out which tile to come back to first: setItems announces item 0, which overwrites lastId.
         final String want = keepFocus ? lastId : null;
@@ -1265,6 +988,29 @@ public class HomeActivity extends Activity {
         return showApps || Library.APPS.equals(filter);
     }
 
+    /** What the tab bar asks of the launcher. */
+    private final TabBar.Host tabBarHost = new TabBar.Host() {
+        @Override
+        public int px(float mockupPx) {
+            return u(mockupPx);
+        }
+
+        @Override
+        public float scale() {
+            return s;
+        }
+
+        @Override
+        public TextView text(String text, float mockupPx, int color, boolean bold) {
+            return label(text, mockupPx, color, bold);
+        }
+
+        @Override
+        public View glyph(String name, int color, boolean round) {
+            return HomeActivity.this.glyph(name, color, round);
+        }
+    };
+
     // ---- menu (Select) ----
 
     private boolean menuOpen() {
@@ -1326,7 +1072,7 @@ public class HomeActivity extends Activity {
         public void toggleClock() {
             clock24 = !clock24;
             getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("clock24", clock24).apply();
-            applyClock();
+            topBar.setClock24(clock24);
         }
 
         @Override
@@ -1553,10 +1299,9 @@ public class HomeActivity extends Activity {
     private void pageChrome(boolean open, boolean chevron) {
         // The tab bar and the chevron are one crossfade: same start, same length, same easing.
         android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
-        tabHost.animate().cancel();
         upChev.animate().cancel();
         if (open) {
-            tabHost.animate().alpha(0f).translationY(-u(44)).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            topBar.away(true, PAGE_MS);
             if (!chevron) {
                 upChev.setVisibility(View.GONE);
                 return;
@@ -1566,7 +1311,7 @@ public class HomeActivity extends Activity {
             upChev.setTranslationY(u(26));
             upChev.animate().alpha(1f).translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
         } else {
-            tabHost.animate().alpha(1f).translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            topBar.away(false, PAGE_MS);
             upChev.animate().alpha(0f).translationY(u(26)).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease)
                     .withEndAction(() -> { if (!pageOpen) upChev.setVisibility(View.GONE); }).start();
         }

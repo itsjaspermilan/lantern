@@ -41,7 +41,7 @@ final class Shelf extends ViewGroup {
     // The hero tile and the small row beside and below it.
     // The big tile and the row under it are the same landscape shape as the grid tiles (about 1.65 : 1).
     private static final float HERO_W = 720, HERO_H = 436, HERO_Y = 150; // the same size and place as the cover on the details page
-    private static final float SMALL_X = 90, SMALL_W = 300, SMALL_H = 182, SMALL_GAP = 24, SMALL_BOTTOM = 882;
+    private static final float SMALL_X = 90, SMALL_W = 336, SMALL_H = 204, SMALL_GAP = 24, SMALL_BOTTOM = 932;
     /** How many recent games the hero layout carries. The focused one is large; the next six show beside it. */
     static final int HERO_COUNT = 12;
 

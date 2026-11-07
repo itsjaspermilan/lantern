@@ -138,7 +138,7 @@ final class ArtCache {
      * tile, bilinear filtering turns the few pixels into a smooth blur of the cover's own colours.
      */
     private static Bitmap blurred(Bitmap b) {
-        float aspect = 0.72f; // a tile is about 400 x 555
+        float aspect = 1.65f; // a tile is a landscape rectangle, about 330 x 200
         int cw = b.getWidth(), ch = Math.round(cw / aspect);
         if (ch > b.getHeight()) { ch = b.getHeight(); cw = Math.round(ch * aspect); }
         Bitmap cur = Bitmap.createBitmap(b, (b.getWidth() - cw) / 2, (b.getHeight() - ch) / 2, cw, ch);

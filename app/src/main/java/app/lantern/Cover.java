@@ -83,6 +83,22 @@ final class Cover extends View {
         invalidate();
     }
 
+    /** Draws a picture over the whole w x h area, cropping the centre to the same shape. */
+    private void fillCrop(Canvas c, Bitmap b, float w, float h) {
+        int sw = b.getWidth(), sh = b.getHeight();
+        float sa = (float) sw / sh, ta = w / h;
+        android.graphics.Rect src;
+        if (sa > ta) {
+            int cw = Math.round(sh * ta);
+            src = new android.graphics.Rect((sw - cw) / 2, 0, (sw + cw) / 2, sh);
+        } else {
+            int ch = Math.round(sw / ta);
+            src = new android.graphics.Rect(0, (sh - ch) / 2, sw, (sh + ch) / 2);
+        }
+        rect.set(0, 0, w, h);
+        c.drawBitmap(b, src, rect, artPaint);
+    }
+
     private void drawShot(Canvas c, float w, float h) {
         int sw = shot.getWidth(), sh = shot.getHeight();
         float sa = (float) sw / sh, ta = w / h;
@@ -163,7 +179,10 @@ final class Cover extends View {
         // A real cover replaces the generated art and the title. It is fitted inside the tile, never cropped;
         // the rest of the tile is a soft blur of the cover itself, and the cover floats on a shadow.
         Bitmap art = ArtCache.get(g, this);
-        if (art != null) {
+        if (art != null && (float) art.getWidth() / art.getHeight() >= 1.35f) {
+            // Landscape art (a banner, or what Nova Studio makes) fills the whole tile, cropped a little to fit.
+            fillCrop(c, art, w, h);
+        } else if (art != null) {
             Bitmap back = ArtCache.backdrop(g);
             if (back != null) {
                 rect.set(0, 0, w, h);
@@ -175,7 +194,7 @@ final class Cover extends View {
                 c.drawRect(0, 0, w, h, p);
                 p.setShader(null);
             }
-            float pad = (16 - 8 * weight) * s; // the focused cover rises a little
+            float pad = (8 - 4 * weight) * s; // the box art uses nearly the whole height of the tile; the focused one rises a little
             float k = Math.min((w - 2 * pad) / art.getWidth(), (h - 2 * pad) / art.getHeight());
             float dw = art.getWidth() * k, dh = art.getHeight() * k;
             artBox.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);

@@ -437,7 +437,7 @@ public class HomeActivity extends Activity {
         v.setOnClickListener(x2 -> shelf.move(dir));
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(76), u(76), Gravity.TOP | Gravity.START);
         p.leftMargin = u(x - 38 + 0);
-        p.topMargin = u(604);
+        p.topMargin = u(620);
         stage.addView(v, p);
         return v;
     }

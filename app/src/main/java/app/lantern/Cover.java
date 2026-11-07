@@ -34,9 +34,6 @@ final class Cover extends View {
     private final Path shape = new Path();
     private final RectF rect = new RectF();
     private float weight;
-    private android.animation.ValueAnimator marquee;
-    private float marqueeX;
-    private Runnable startRun;
     private android.graphics.Bitmap shot;
     private float shotA;
     /** Height of the strip under the tile that holds the title, in pixels (0: no title). */
@@ -59,7 +56,6 @@ final class Cover extends View {
     /** Points this tile at another game or system. */
     void setGame(Game game) {
         g = game;
-        stopMarquee();
         motif = (game.id.hashCode() & 0x7fffffff) % 6;
         setColours();
         invalidate();
@@ -140,7 +136,6 @@ final class Cover extends View {
         weight = w;
         setAlpha(.6f + .4f * w);
         invalidate();
-        updateMarquee();
     }
 
     @Override
@@ -251,81 +246,11 @@ final class Cover extends View {
         tp.setColor(Color.WHITE);
     }
 
-    // ---- a long title on the focused tile slides slowly to its end and back ----
-
-    private float labelSize() {
-        return Math.min(labelPx * .62f, 26 * s);
-    }
-
-    private void updateMarquee() {
-        if (weight < .5f || labelPx <= 0 || g == null || g.systemTile && false) {
-            stopMarquee();
-            return;
-        }
-        if (marquee != null || startRun != null) return;
-        startRun = () -> {
-            startRun = null;
-            beginMarquee();
-        };
-        postDelayed(startRun, 700); // not while the cursor is still moving across tiles
-    }
-
-    private void beginMarquee() {
-        if (g == null || weight < .5f || labelPx <= 0 || getWidth() == 0) return;
-        tp.setTextSize(labelSize());
-        tp.setTypeface(Typeface.DEFAULT_BOLD);
-        float over = tp.measureText(g.title) - (getWidth() - 8 * s);
-        if (over < 4f) return;
-        marquee = android.animation.ValueAnimator.ofFloat(0f, over + 6 * s);
-        marquee.setDuration(Math.max(2600L, (long) (over / s / 40f * 1000f)));
-        marquee.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-        marquee.setRepeatMode(android.animation.ValueAnimator.REVERSE);
-        marquee.setInterpolator(x -> {
-            float f = Math.max(0f, Math.min(1f, (x - .18f) / .64f)); // rests at both ends
-            return f * f * (3f - 2f * f);
-        });
-        marquee.addUpdateListener(a -> {
-            marqueeX = (Float) a.getAnimatedValue();
-            invalidate();
-        });
-        marquee.start();
-    }
-
-    private void stopMarquee() {
-        if (startRun != null) removeCallbacks(startRun);
-        startRun = null;
-        if (marquee != null) marquee.cancel();
-        marquee = null;
-        if (marqueeX != 0f) {
-            marqueeX = 0f;
-            invalidate();
-        }
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        stopMarquee();
-        super.onDetachedFromWindow();
-    }
-
-    @Override
-    protected void onWindowVisibilityChanged(int v) {
-        super.onWindowVisibilityChanged(v);
-        if (v != View.VISIBLE) stopMarquee(); else updateMarquee();
-    }
-
-    /** The title under the picture, on one line (or, on the focused tile when it is too long, sliding). */
+    /** The title under the picture, on one line. */
     private void drawLabel(Canvas c, float w, float artH) {
         if (labelPx <= 0 || g == null) return;
-        tp.setTextSize(labelSize());
+        tp.setTextSize(Math.min(labelPx * .62f, 26 * s));
         tp.setColor(Color.WHITE);
-        if (marquee != null) {
-            c.save();
-            c.clipRect(0, artH, w, artH + labelPx);
-            c.drawText(g.title, 4 * s - marqueeX, artH + labelPx * .72f, tp);
-            c.restore();
-            return;
-        }
         CharSequence t = TextUtils.ellipsize(g.title, tp, Math.max(1f, w - 8 * s), TextUtils.TruncateAt.END);
         c.drawText(t, 0, t.length(), 4 * s, artH + labelPx * .72f, tp);
     }

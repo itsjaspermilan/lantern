@@ -185,6 +185,7 @@ final class SearchPanel {
                 }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_B:
+            case KeyEvent.KEYCODE_BACK:
             case KeyEvent.KEYCODE_ESCAPE:
                 if (first) close();
                 return true;

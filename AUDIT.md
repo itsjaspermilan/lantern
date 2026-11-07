@@ -47,16 +47,22 @@ statistics were re-measured after the last one (same as before: 0.6% janky).
 |---|---|---|
 | `SearchPanel` | the on-screen keyboard, what is typed, the live results, their keys | 280 |
 | `MenuPanel` | the Select menu: rows, switches, keys | 240 |
-| `TabBar` | logo, tabs, the sliding highlight, the breadcrumb and its marquee, battery, clock | 330 |
+| `TabBar` | logo, tabs, the sliding highlight, the breadcrumb and its marquee, battery, clock | 360 |
+| `DetailsPage` | a game's page: the cover's flight to and from its tile, the text column, the actions, their keys | 480 |
 
-One small fix came with it: the battery percentage was only read on resume and never shown until the screen was
-rebuilt; it is now updated on resume.
+Small fixes that came with it: the battery percentage was only read on resume and not shown until the screen was
+rebuilt (it now updates on resume); the system Back key now closes the details page, the search and the menu (it was
+swallowed or ignored: only the B button worked); and an unused "file details" mode of the page was removed.
+
+A note on the frame numbers: the same build measured 5 ms and 18 ms median frame time on different runs on the Pocket
+6 (the device's display or power state changes between runs), so the median is not a reliable comparison here. The share
+of janky frames stayed under 1% every time. Compare like with like (same state, several runs) before trusting a change.
 
 ## Recommended next (not done: larger than a fix)
 
-1. **Finish splitting `HomeActivity.java`.** It was about 2,200 lines; three pieces have been moved out (see below) and it is
-   now about 1,670. What is left is mostly the details page (about 480 lines: the cover's flight, the text column, the
-   action list), the launch animation and the hints. Take the details page next, with a device check after each step.
+1. **Keep `HomeActivity.java` shrinking.** It was about 2,200 lines and is now about 1,340. What is left is the shelf and
+   screen wiring: building the screen, the refresh of what is shown, the key handling, the info block beside Recent's
+   big tile, the launch animation and the hints. The info block and the launch animation are the next natural pieces.
 2. **Cover decoding.** Decoding a cover per visible tile is fine today; a grid of several hundred large pictures on a
    weaker device would want the decode size chosen per tile size, not one size for all.
 3. **A build that can lint.** The Gradle-free build has no Android Lint, no CI and no instrumented tests. Adding Lint

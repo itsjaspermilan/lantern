@@ -45,15 +45,14 @@ public class HomeActivity extends Activity {
     static final int EDGE_L = 90, EDGE_R = 70;
     private boolean loaded;
     private String batteryText = "";
-    private FrameLayout root, safe, stage, pageView;
+    private FrameLayout root, safe, stage;
     private LinearLayout infoBlock, hintsRow;
-    private boolean pageOpen, infoOpen;
+    private DetailsPage details;
     private ArtFetcher fetcher;
     private boolean artOn;
     /** When set, the shelf shows only this system's games (opened from the Systems shelf). */
     private String filter;
     private int loadGeneration;
-    private int actIdx;
     private Glow glow;
     private Shelf shelf;
     private TextView playPill;
@@ -61,16 +60,10 @@ public class HomeActivity extends Activity {
     private TextView eyebrow;
     private Game lastFocused;
     private int lastHeroIndex = -1;
-    /** Top of the details text column on screen, in pixels: it is centred on the screen like the cover. */
-    private int pageColTop;
     private View veil;
-    private View dots, upChev;
-    /** Length of the moves that open and close the details page: tab bar, chevron and row all take this long. */
-    private static final long PAGE_MS = 320;
+    private View dots;
     private int dotsN, dotsAt;
     private boolean clock24;
-    /** The page's big cover and its text column, kept so Recent's game can fly into place and back. */
-    private View pageCover, pageCol, pageRest;
     private View chevL, chevR;
     private FrameLayout.LayoutParams infoLp;
     /** Recent's big first game has the focus, so A plays it straight away. */
@@ -235,40 +228,16 @@ public class HomeActivity extends Activity {
         dlp.leftMargin = u(EDGE_L);
         dlp.topMargin = u(604);
         stage.addView(dots, dlp);
-        // On the details page the tab bar slips away and a wide chevron says that Up goes back.
-        upChev = new View(this) {
-            private final android.graphics.Paint cp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            private final android.graphics.Path path = new android.graphics.Path();
-
-            @Override
-            protected void onDraw(android.graphics.Canvas c) {
-                float w = getWidth(), h = getHeight();
-                cp.setStyle(android.graphics.Paint.Style.STROKE);
-                cp.setStrokeWidth(7 * s);
-                cp.setStrokeCap(android.graphics.Paint.Cap.ROUND);
-                cp.setStrokeJoin(android.graphics.Paint.Join.ROUND);
-                cp.setColor(0xCCFFFFFF);
-                path.reset();
-                path.moveTo(.08f * w, .78f * h);
-                path.lineTo(.5f * w, .24f * h);
-                path.lineTo(.92f * w, .78f * h);
-                c.drawPath(path, cp);
-            }
-        };
-        upChev.setVisibility(View.GONE);
-        upChev.setOnClickListener(x -> { if (pageOpen) closePage(); });
+        details = new DetailsPage(this, detailsHost);
         FrameLayout.LayoutParams ucp = new FrameLayout.LayoutParams(u(170), u(44), Gravity.TOP | Gravity.START);
         ucp.leftMargin = u(960 - 85);
         ucp.topMargin = u(38);
-        stage.addView(upChev, ucp);
+        stage.addView(details.chevron(), ucp);
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
         stage.addView(empty, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-        pageOpen = false;
-        pageView = new FrameLayout(this);
-        pageView.setVisibility(View.GONE);
-        stage.addView(pageView, new FrameLayout.LayoutParams(-1, -1));
+        stage.addView(details.view(), new FrameLayout.LayoutParams(-1, -1));
         search = new SearchPanel(this, searchHost);
         stage.addView(search.view(), new FrameLayout.LayoutParams(-1, -1));
         buildHints();
@@ -391,7 +360,7 @@ public class HomeActivity extends Activity {
     /** Shows each arrow only while there is something in that direction. */
     private void updateChevrons() {
         if (chevL == null || shelf == null) return;
-        boolean hero = shelf.mode() == Shelf.HERO && !pageOpen && !shown.isEmpty();
+        boolean hero = shelf.mode() == Shelf.HERO && !pageOpen() && !shown.isEmpty();
         int rowStart = Math.max(0, shelf.getIndex() - 1); // the row keeps the focused game one tile in from its left edge
         chevL.setVisibility(hero && rowStart > 0 ? View.VISIBLE : View.GONE);
         chevR.setVisibility(hero && rowStart + 5 < shelf.size() ? View.VISIBLE : View.GONE);
@@ -442,7 +411,7 @@ public class HomeActivity extends Activity {
     protected void onDestroy() {
         // The tab-name marquee repeats for ever; none of these may keep the destroyed activity's views alive.
         if (topBar != null) topBar.stop();
-        if (coverAnim != null) coverAnim.cancel();
+        if (details != null) details.stop();
         ArtCache.setListener(null);
         super.onDestroy();
     }
@@ -518,7 +487,7 @@ public class HomeActivity extends Activity {
         if (shelf == null) return super.onKeyDown(keyCode, event); // not built yet
         if (searchOpen()) return search.key(keyCode, event, first);
         if (menuOpen()) return menu.key(keyCode, first);
-        if (pageOpen) return pageKey(keyCode, first);
+        if (pageOpen()) return details.key(keyCode, first);
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_X:
                 if (first) openSearch(0);
@@ -538,7 +507,7 @@ public class HomeActivity extends Activity {
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (shelf.mode() == Shelf.HERO) {
-                    if (first && shelf.size() > 0) openPage(); // Recent: A plays at once, Down slides up the game's page
+                    if (first && shelf.size() > 0) details.open(); // Recent: A plays at once, Down slides up the game's page
                 } else {
                     shelf.moveRow(1);
                 }
@@ -571,7 +540,7 @@ public class HomeActivity extends Activity {
     @Override
     public void onBackPressed() {
         // A launcher has nowhere to go back to, except out of a game page or a system.
-        if (searchOpen()) search.close(); else if (menuOpen()) menu.close(); else if (pageOpen) closePage(); else leaveSystem();
+        if (searchOpen()) search.close(); else if (menuOpen()) menu.close(); else if (pageOpen()) details.close(); else leaveSystem();
     }
 
     /** A on the shelf: a system tile opens that system's games, a game tile opens its page. */
@@ -588,7 +557,7 @@ public class HomeActivity extends Activity {
         } else if (shelf.mode() == Shelf.HERO) {
             open(g, Library.resumeTime(g) > 0); // Recent: the big game is the selected one; one press and it is playing
         } else {
-            openPage();
+            details.open();
         }
     }
 
@@ -713,7 +682,7 @@ public class HomeActivity extends Activity {
         heroAll = false;
         shelf.setItems(new ArrayList<>(shown), hero ? Shelf.HERO : systemTiles ? Shelf.SYSTEMS : Shelf.GRID);
         shelf.setIndex(restore, false);
-        setHints(pageOpen);
+        setHints(pageOpen());
 
         updateCrumb();
         updateChevrons();
@@ -773,7 +742,7 @@ public class HomeActivity extends Activity {
         updateChevrons();
         if (shelf.mode() == Shelf.HERO && g.systemTile != heroAll) {
             heroAll = g.systemTile;
-            if (!pageOpen && !searchOpen() && !menuOpen()) setHints(false);
+            if (!pageOpen() && !searchOpen() && !menuOpen()) setHints(false);
         }
         if (g.systemTile) {
             title.setText(g.title);
@@ -814,7 +783,7 @@ public class HomeActivity extends Activity {
         glow.art(ArtCache.backdrop(g));
         compactInfo();
         if (shelf.mode() == Shelf.HERO) {
-            if (g != lastFocused && !pageOpen && infoBlock.getVisibility() == View.VISIBLE && lastHeroIndex >= 0) {
+            if (g != lastFocused && !pageOpen() && infoBlock.getVisibility() == View.VISIBLE && lastHeroIndex >= 0) {
                 infoBlock.animate().cancel(); // the text slides a little the way you moved
                 infoBlock.setTranslationX((index > lastHeroIndex ? 1 : -1) * u(50));
                 infoBlock.animate().translationX(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
@@ -829,7 +798,7 @@ public class HomeActivity extends Activity {
             playPill.setText(saved > 0 ? "\u25B6  Resume" : "\u25B6  Play");
             if (h != heroFocused) {
                 heroFocused = h;
-                if (!pageOpen && !searchOpen() && !menuOpen()) setHints(false);
+                if (!pageOpen() && !searchOpen() && !menuOpen()) setHints(false);
             }
         } else {
             playPill.setVisibility(View.GONE);
@@ -861,7 +830,7 @@ public class HomeActivity extends Activity {
             root.addView(veil, new FrameLayout.LayoutParams(-1, -1));
         }
         veil.setVisibility(View.VISIBLE);
-        boolean hero = shelf.mode() == Shelf.HERO && !pageOpen;
+        boolean hero = shelf.mode() == Shelf.HERO && !pageOpen();
         stage.setPivotX(u(hero ? 450 : 960));
         stage.setPivotY(u(hero ? 368 : 540));
         stage.animate().scaleX(1.16f).scaleY(1.16f).setDuration(260).setInterpolator(new android.view.animation.AccelerateInterpolator(1.4f)).start();
@@ -884,7 +853,7 @@ public class HomeActivity extends Activity {
 
     /** Y on Recent: takes the big game off the list (its saves stay; playing it again puts it back). */
     private void removeRecent() {
-        if (shelf == null || shelf.mode() != Shelf.HERO || pageOpen || searchOpen() || menuOpen()) return;
+        if (shelf == null || shelf.mode() != Shelf.HERO || pageOpen() || searchOpen() || menuOpen()) return;
         int i = shelf.getIndex();
         if (i < 0 || i >= shown.size() || shown.get(i).systemTile) return;
         Game g = shown.get(i);
@@ -934,7 +903,7 @@ public class HomeActivity extends Activity {
         getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("art", artOn).apply();
         Toast.makeText(this, artOn ? "Fetching cover art from " + ArtFetcher.baseUrl() : "Cover art fetching is off",
                 Toast.LENGTH_LONG).show();
-        setHints(pageOpen);
+        setHints(pageOpen());
         if (artOn) startArt(); else fetcher.cancel();
     }
 
@@ -1091,7 +1060,7 @@ public class HomeActivity extends Activity {
 
         @Override
         public void menuVisible(boolean visible) {
-            setHints(visible ? false : pageOpen);
+            setHints(visible ? false : pageOpen());
         }
 
         @Override
@@ -1218,7 +1187,7 @@ public class HomeActivity extends Activity {
         @Override
         public void searchVisible(boolean visible) {
             empty.setVisibility(visible ? View.GONE : View.VISIBLE); // the keyboard has the screen: the empty-search hint would show through its dim layer
-            setHints(visible ? false : pageOpen);
+            setHints(visible ? false : pageOpen());
         }
 
         @Override
@@ -1227,400 +1196,97 @@ public class HomeActivity extends Activity {
         }
     };
 
-    // ---- game page ----
+    private boolean pageOpen() {
+        return details != null && details.isOpen();
+    }
 
-    /** One row in the page's action list. */
-    private static final class Act {
-        final String icon, label, hint;
-
-        Act(String icon, String label, String hint) {
-            this.icon = icon;
-            this.label = label;
-            this.hint = hint;
+    /** What the details page asks of the launcher. */
+    private final DetailsPage.Host detailsHost = new DetailsPage.Host() {
+        @Override
+        public int px(float mockupPx) {
+            return u(mockupPx);
         }
-    }
 
-    private List<Act> actionsFor(Game g) {
-        List<Act> a = new ArrayList<>();
-        long saved = Library.resumeTime(g);
-        if (saved > 0) a.add(new Act("⟲", "Resume", "Saved " + ago(saved)));
-        a.add(new Act("▶", saved > 0 ? "Play from the start" : "Play", g.isRom() ? (Cores.has(this, g.sysId) ? "Built-in player" : "No core yet") : "Android app"));
-        if (!g.isRom()) a.add(new Act("⚙", "App settings", "Android settings"));
-        return a;
-    }
-
-    private void openPage() {
-        int i = shelf.getIndex();
-        if (i < 0 || i >= shown.size()) return;
-        if (shown.get(i).systemTile) return;
-        pageOpen = true;
-        infoOpen = false;
-        if (chevL != null) { chevL.setVisibility(View.GONE); chevR.setVisibility(View.GONE); dots.setVisibility(View.GONE); }
-        pageChrome(true, shelf.mode() == Shelf.HERO); // the chevron is for Recent's page only
-        actIdx = 0;
-        renderPage();
-        pageView.setVisibility(View.VISIBLE);
-        boolean fromHero = shelf.mode() == Shelf.HERO;
-        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
-        // The cover starts where it was (Recent's big tile, or the grid tile) and moves to its place on the page,
-        // centred on the screen.
-        placeCoverAtSource();
-        moveCover(1f, 1f, 0f, 0f, null);
-        pageView.setAlpha(1f);
-        pageView.setTranslationY(0f);
-        if (fromHero) {
-            // The line above the title and the title start where they are on Recent and move down with the cover.
-            pageCol.setTranslationY(u(150) - pageColTop);
-            pageCol.animate().translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
-            // Down moves the screen down: the row under the big tile slides away, and the details drop in from above.
-            pageRest.setAlpha(0f);
-            pageRest.setTranslationY(-u(70));
-            pageRest.animate().alpha(1f).translationY(0f).setStartDelay(110).setDuration(340).setInterpolator(ease).start();
-            shelf.setPage(0f, true);
-            android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
-            va.setDuration(PAGE_MS);
-            va.setInterpolator(ease);
-            va.addUpdateListener(a -> shelf.setPage((Float) a.getAnimatedValue(), true));
-            va.start();
-        } else {
-            shelf.setHiddenTile(shelf.getIndex()); // the cover flying to the page is this tile: do not leave a copy behind
-            pageCol.setAlpha(0f);
-            pageCol.animate().alpha(1f).setStartDelay(100).setDuration(PAGE_MS).setInterpolator(ease).start();
-            shelf.animate().cancel();
-            shelf.animate().alpha(0f).setDuration(PAGE_MS).withEndAction(() -> {
-                if (pageOpen) shelf.setVisibility(View.INVISIBLE);
-            }).start();
+        @Override
+        public float scale() {
+            return s;
         }
-        setInfoVisibility(View.INVISIBLE);
-        setHints(true);
-    }
 
-    /** With the details open the tab bar fades up and away and a wide chevron takes its place; closing reverses it. */
-    private void pageChrome(boolean open, boolean chevron) {
-        // The tab bar and the chevron are one crossfade: same start, same length, same easing.
-        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
-        upChev.animate().cancel();
-        if (open) {
-            topBar.away(true, PAGE_MS);
-            if (!chevron) {
-                upChev.setVisibility(View.GONE);
-                return;
+        @Override
+        public TextView text(String text, float mockupPx, int color, boolean bold) {
+            return label(text, mockupPx, color, bold);
+        }
+
+        @Override
+        public Shelf shelf() {
+            return shelf;
+        }
+
+        @Override
+        public android.view.ViewGroup info() {
+            return infoBlock;
+        }
+
+        @Override
+        public TabBar tabBar() {
+            return topBar;
+        }
+
+        @Override
+        public Game game() {
+            int i = shelf.getIndex();
+            return i >= 0 && i < shown.size() ? shown.get(i) : null;
+        }
+
+        @Override
+        public String eyebrow() {
+            return String.valueOf(HomeActivity.this.eyebrow.getText());
+        }
+
+        @Override
+        public void infoVisible(boolean visible) {
+            setInfoVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        }
+
+        @Override
+        public void listChromeVisible(boolean visible) {
+            if (visible) {
+                updateChevrons();
+            } else if (chevL != null) {
+                chevL.setVisibility(View.GONE);
+                chevR.setVisibility(View.GONE);
+                dots.setVisibility(View.GONE);
             }
-            upChev.setVisibility(View.VISIBLE);
-            upChev.setAlpha(0f);
-            upChev.setTranslationY(u(26));
-            upChev.animate().alpha(1f).translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
-        } else {
-            topBar.away(false, PAGE_MS);
-            upChev.animate().alpha(0f).translationY(u(26)).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease)
-                    .withEndAction(() -> { if (!pageOpen) upChev.setVisibility(View.GONE); }).start();
-        }
-    }
-
-    /** Where the page's cover came from: Recent's big tile, or the tile in the grid. */
-    private float[] sourceRect() {
-        if (shelf.mode() == Shelf.HERO) return Shelf.heroBox(null);
-        float[] r = shelf.tileRect(shelf.getIndex());
-        return r != null ? r : Shelf.heroBox(null);
-    }
-
-    private android.animation.ValueAnimator coverAnim;
-
-    /**
-     * Moves the page's cover to a scale and place. It is driven by hand, not by a property animator, so the cover is
-     * redrawn on every frame and its white ring can keep the same thickness on screen the whole way.
-     */
-    private void moveCover(float tsx, float tsy, float ttx, float tty, Runnable end) {
-        if (coverAnim != null) coverAnim.cancel();
-        final View c = pageCover;
-        final float fsx = c.getScaleX(), fsy = c.getScaleY(), ftx = c.getTranslationX(), fty = c.getTranslationY();
-        coverAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
-        coverAnim.setDuration(PAGE_MS);
-        coverAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
-        coverAnim.addUpdateListener(a -> {
-            float f = (Float) a.getAnimatedValue();
-            c.setScaleX(fsx + (tsx - fsx) * f);
-            c.setScaleY(fsy + (tsy - fsy) * f);
-            c.setTranslationX(ftx + (ttx - ftx) * f);
-            c.setTranslationY(fty + (tty - fty) * f);
-            c.invalidate();
-        });
-        if (end != null) {
-            coverAnim.addListener(new android.animation.AnimatorListenerAdapter() {
-                private boolean cancelled;
-
-                @Override
-                public void onAnimationCancel(android.animation.Animator an) {
-                    cancelled = true;
-                }
-
-                @Override
-                public void onAnimationEnd(android.animation.Animator an) {
-                    if (!cancelled) end.run();
-                }
-            });
-        }
-        coverAnim.start();
-    }
-
-    private void placeCoverAtSource() {
-        float[] src = sourceRect(), pb = Shelf.pageBox();
-        pageCover.setPivotX(0f);
-        pageCover.setPivotY(0f);
-        pageCover.setScaleX(src[2] / pb[2]);
-        pageCover.setScaleY(src[3] / pb[3]);
-        pageCover.setTranslationX(u(src[0] - pb[0]));
-        pageCover.setTranslationY(u(src[1] - pb[1]));
-    }
-
-    private void closePage() {
-        pageOpen = false;
-        pageChrome(false, false);
-        updateChevrons();
-        if (pageCover == null) {
-            shelf.setHiddenTile(-1);
-            pageView.setVisibility(View.GONE);
-            pageView.removeAllViews();
-            shelf.setVisibility(View.VISIBLE);
-            setInfoVisibility(View.VISIBLE);
-            setHints(false);
-            shelf.redraw();
-            return;
-        }
-        final boolean hero = shelf.mode() == Shelf.HERO;
-        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
-        // The cover goes back to where it came from, and the page is taken down once it has landed.
-        float[] src = sourceRect(), pb = Shelf.pageBox();
-        pageCover.setPivotX(0f);
-        pageCover.setPivotY(0f);
-        moveCover(src[2] / pb[2], src[3] / pb[3], u(src[0] - pb[0]), u(src[1] - pb[1]), () -> {
-                    if (pageOpen) return; // opened again meanwhile
-                    pageView.setVisibility(View.GONE);
-                    pageView.removeAllViews();
-                    shelf.setHiddenTile(-1); // the tile shows again exactly where the cover landed
-                    if (hero) {
-                        // The page's copy and the real tile and title are at the same place now: swap in the same frame.
-                        shelf.setPage(0f, false);
-                        for (int ci = 0; ci < 2 && ci < infoBlock.getChildCount(); ci++) infoBlock.getChildAt(ci).setAlpha(1f); // the line above the title, and the title
-                    }
-                });
-        shelf.animate().cancel();
-        shelf.setVisibility(View.VISIBLE);
-        if (hero) {
-            // Up moves the screen back up: the details lift away, the row slides back in from below, and the info returns.
-            // The big tile and the real title stay hidden while the page's cover and title travel back (so nothing
-            // shows twice); both come back in the frame the page goes.
-            shelf.setAlpha(1f);
-            shelf.setPage(1f, true);
-            // The rest of the info (chips, status, the Play button) comes back with the row sliding in, not after it.
-            infoBlock.animate().cancel();
-            infoBlock.setAlpha(1f);
-            setInfoVisibility(View.VISIBLE);
-            for (int ci = 0; ci < infoBlock.getChildCount(); ci++) {
-                View cv = infoBlock.getChildAt(ci);
-                cv.animate().cancel();
-                cv.setAlpha(0f);
-                if (ci >= 2) cv.animate().alpha(1f).setStartDelay(120).setDuration(PAGE_MS - 120).start();
-            }
-            android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(1f, 0f);
-            va.setDuration(PAGE_MS);
-            va.setInterpolator(ease);
-            va.addUpdateListener(a -> { if (!pageOpen) shelf.setPage((Float) a.getAnimatedValue(), (Float) a.getAnimatedValue() > 0f); });
-            va.start();
-            pageRest.animate().alpha(0f).translationY(-u(70)).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
-            pageCol.animate().translationY(u(150) - pageColTop).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
-        } else {
-            shelf.setAlpha(0f);
-            shelf.animate().alpha(1f).setStartDelay(PAGE_MS / 2).setDuration(PAGE_MS / 2).start(); // under the landing cover
-            pageCol.animate().alpha(0f).setStartDelay(0).setDuration(PAGE_MS / 2).start();
-            infoBlock.animate().cancel();
-            infoBlock.setAlpha(0f);
-            setInfoVisibility(View.VISIBLE);
-            infoBlock.animate().alpha(1f).setStartDelay(120).setDuration(260).start();
-        }
-        setHints(false);
-        shelf.redraw();
-    }
-
-    private void renderPage() {
-        Game g = shown.get(shelf.getIndex());
-        pageView.removeAllViews();
-
-        Cover big = new Cover(this, s);
-        big.setGame(g);
-        big.setWeight(1f);
-        float[] hb = Shelf.pageBox(); // the same size as Recent's big cover, centred on the screen
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(hb[2]), u(hb[3]), Gravity.TOP | Gravity.START);
-        cp.leftMargin = u(hb[0]);
-        cp.topMargin = u(hb[1]);
-        pageView.addView(big, cp);
-        pageCover = big;
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        // The line above the title and the title are the same size and in the same place as on Recent, so they
-        // do not move when the page opens; only what is below them slides in.
-        if (shelf.mode() == Shelf.HERO) {
-            TextView eb = label(String.valueOf(eyebrow.getText()), 24, AMBER, true);
-            eb.setLetterSpacing(.16f);
-            eb.setSingleLine(true);
-            LinearLayout.LayoutParams ebp = new LinearLayout.LayoutParams(-2, -2);
-            ebp.bottomMargin = u(8);
-            col.addView(eb, ebp);
-        }
-        float tk = shelf.mode() == Shelf.HERO ? Math.max(.62f, Math.min(1f, 24f / Math.max(1, g.title.length()))) : 1f;
-        TextView t = label(g.title, 84 * tk, Color.WHITE, true);
-        t.setMaxLines(3);
-        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        col.addView(t);
-
-        LinearLayout rest = new LinearLayout(this);
-        rest.setOrientation(LinearLayout.VERTICAL);
-        col.addView(rest, new LinearLayout.LayoutParams(-1, -2));
-        pageRest = rest;
-
-        LinearLayout meta = new LinearLayout(this);
-        meta.setGravity(Gravity.CENTER_VERTICAL);
-        TextView chip = label(g.system.toUpperCase(), 26, Color.WHITE, true);
-        GradientDrawable cd = new GradientDrawable();
-        cd.setCornerRadius(u(99));
-        cd.setColor(0x29FFFFFF);
-        chip.setBackground(cd);
-        chip.setPadding(u(18), u(4), u(18), u(4));
-        meta.addView(chip);
-        TextView when = label(g.lastPlayed == 0 ? "Never played" : "Played " + ago(g.lastPlayed), 30, 0xC7FFFFFF, false);
-        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-2, -2);
-        wp.leftMargin = u(22);
-        meta.addView(when, wp);
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
-        mp.topMargin = u(14);
-        rest.addView(meta, mp);
-
-        TextView blurb = label(infoOpen ? details(g) : summary(g), infoOpen ? 22 : 30, 0xBFFFFFFF, false);
-        blurb.setLineSpacing(0, infoOpen ? 1.15f : 1.25f);
-        blurb.setMaxLines(infoOpen ? 6 : 4);
-        blurb.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(u(infoOpen ? 1100 : 900), -2);
-        bp.topMargin = u(22);
-        bp.bottomMargin = u(30);
-        rest.addView(blurb, bp);
-
-        List<Act> acts = actionsFor(g);
-        actIdx = Math.max(0, Math.min(actIdx, acts.size() - 1));
-        for (int i = 0; i < acts.size(); i++) {
-            Act a = acts.get(i);
-            boolean on = i == actIdx;
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(u(30), 0, u(30), 0);
-            GradientDrawable rd = new GradientDrawable();
-            rd.setCornerRadius(u(16));
-            rd.setColor(on ? Color.WHITE : 0x14FFFFFF);
-            row.setBackground(rd);
-            if (on) row.setTranslationX(u(14));
-            int ink = on ? 0xFF17131F : Color.WHITE;
-            TextView ic = label(a.icon, 30, ink, true);
-            ic.setGravity(Gravity.CENTER);
-            row.addView(ic, new LinearLayout.LayoutParams(u(46), -2));
-            row.addView(label(a.label, 34, ink, true));
-            row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-            row.addView(label(a.hint, 24, on ? 0xBF17131F : 0xB3FFFFFF, false));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(760), u(82));
-            rp.bottomMargin = u(14);
-            rest.addView(row, rp);
         }
 
-        FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(u(980), -2, Gravity.TOP | Gravity.START);
-        colp.leftMargin = u(870);
-        col.measure(View.MeasureSpec.makeMeasureSpec(u(980), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-        pageColTop = Math.max(u(120), (u(1080) - col.getMeasuredHeight()) / 2); // centred on the screen, like the cover
-        colp.topMargin = pageColTop;
-        pageView.addView(col, colp);
-        pageCol = col;
-    }
-
-    private boolean pageKey(int keyCode, boolean first) {
-        List<Act> acts = actionsFor(shown.get(shelf.getIndex()));
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-                if (actIdx > 0) { actIdx--; renderPage(); }
-                else if (first && shelf.mode() == Shelf.HERO) closePage(); // top of Recent's page: back up (the grid's page goes back with B)
-                return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (actIdx < acts.size() - 1) { actIdx++; renderPage(); }
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_B:
-                if (first) closePage();
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_A:
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                if (first) activate(shown.get(shelf.getIndex()), acts.get(actIdx));
-                return true;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-            case KeyEvent.KEYCODE_BUTTON_L1: // the details are for this game only; the tabs and the list are not reachable from here
-            case KeyEvent.KEYCODE_BUTTON_R1:
-            case KeyEvent.KEYCODE_BUTTON_START:
-                return true;
-            default:
-                return false;
+        @Override
+        public void hints(boolean page) {
+            setHints(page);
         }
-    }
 
-    private void activate(Game g, Act a) {
-        if (a.label.equals("Resume")) {
-            open(g, true);
-        } else if (a.label.equals("Play") || a.label.equals("Play from the start")) {
-            open(g, false);
-        } else if (a.label.endsWith("details")  || a.label.equals("Details")) {
-            infoOpen = !infoOpen;
-            renderPage();
-        } else if (a.label.equals("App settings")) {
+        @Override
+        public void play(Game g, boolean resume) {
+            open(g, resume);
+        }
+
+        @Override
+        public void appSettings(Game g) {
             try {
                 startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + g.pkg)));
             } catch (RuntimeException e) {
-                Toast.makeText(this, "Settings could not be opened.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(HomeActivity.this, "Settings could not be opened.", Toast.LENGTH_SHORT).show();
             }
         }
-    }
 
-    private String summary(Game g) {
-        if (g.isRom()) {
-            return "A " + g.system + " game from your ROM folder. "
-                    + (Cores.has(this, g.sysId) ? "It opens in Lantern's own player."
-                    : "No emulator core is bundled for this system yet.");
+        @Override
+        public String ago(long time) {
+            return HomeActivity.ago(time);
         }
-        return "An installed Android app. It opens as it normally does, and Home brings you back here.";
-    }
-
-    private String details(Game g) {
-        StringBuilder b = new StringBuilder();
-        if (g.isRom()) {
-            b.append("File    ").append(g.file.getName()).append('\n');
-            b.append("Folder  ").append(g.file.getParent()).append('\n');
-            b.append("Size    ").append(size(g.file.length())).append('\n');
-            b.append("Added   ").append(java.text.DateFormat.getDateInstance().format(new java.util.Date(g.file.lastModified())));
-        } else {
-            b.append("Package  ").append(g.pkg).append('\n');
-            try {
-                b.append("Version  ").append(getPackageManager().getPackageInfo(g.pkg, 0).versionName);
-            } catch (Exception e) {
-                b.append("Version  unknown");
-            }
-        }
-        return b.toString();
-    }
-
-    private static String size(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";
-        return String.format(java.util.Locale.US, "%.1f MB", bytes / 1048576.0);
-    }
+    };
 
     // ---- helpers ----
 
-    private static String ago(long t) {
+    static String ago(long t) {
         long m = (System.currentTimeMillis() - t) / 60000;
         if (m < 1) return "just now";
         if (m < 60) return m + " min ago";

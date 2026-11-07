@@ -169,6 +169,7 @@ final class MenuPanel {
                 if (first) choose(items.get(index));
                 return true;
             case KeyEvent.KEYCODE_BUTTON_B:
+            case KeyEvent.KEYCODE_BACK:
             case KeyEvent.KEYCODE_BUTTON_SELECT:
                 if (first) close();
                 return true;

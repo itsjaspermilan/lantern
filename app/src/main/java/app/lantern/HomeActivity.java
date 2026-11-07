@@ -382,21 +382,81 @@ public class HomeActivity extends Activity {
      * The tabs share a fixed width by weight, so the bar is always the same size. Inside a system or a search the
      * tab that holds the breadcrumb (crumb, or -1) takes the room the others give up by tightening their padding.
      */
+    private float[] curW, curM, curP;
+    private android.animation.ValueAnimator weightAnim;
+
     private void applyTabWeights(int crumb) {
+        int n = tabViews.size();
         float total = 0, others = 0;
         for (int i = 0; i < tabNat.length; i++) {
             total += tabNat[i] + u(58);
             if (i != crumb) others += tabNat[i] + u(24);
         }
+        final float[] tw = new float[n], tm = new float[n], tp = new float[n];
+        for (int i = 0; i < n; i++) {
+            boolean tight = crumb >= 0 && i != crumb;
+            tw[i] = crumb < 0 ? tabNat[i] + u(58) : i == crumb ? total - others : tabNat[i] + u(24);
+            tm[i] = tight ? u(4) : u(11);
+            tp[i] = tight ? u(8) : u(18);
+        }
+        if (curW == null) { // the first time: just set it
+            curW = tw.clone();
+            curM = tm.clone();
+            curP = tp.clone();
+            applyTabValues();
+            return;
+        }
+        if (weightAnim != null) weightAnim.cancel();
+        final float[] fw = curW.clone(), fm = curM.clone(), fp = curP.clone();
+        boolean same = true;
+        for (int i = 0; i < n; i++) if (Math.abs(fw[i] - tw[i]) > .5f || Math.abs(fm[i] - tm[i]) > .5f) same = false;
+        if (same) return;
+        // The tabs slide aside to make room for the breadcrumb (or back together), and the highlight follows.
+        weightAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        weightAnim.setDuration(340);
+        weightAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+        weightAnim.addUpdateListener(a -> {
+            float f = (Float) a.getAnimatedValue();
+            for (int i = 0; i < n; i++) {
+                curW[i] = fw[i] + (tw[i] - fw[i]) * f;
+                curM[i] = fm[i] + (tm[i] - fm[i]) * f;
+                curP[i] = fp[i] + (tp[i] - fp[i]) * f;
+            }
+            applyTabValues();
+        });
+        weightAnim.start();
+    }
+
+    private void applyTabValues() {
         for (int i = 0; i < tabViews.size(); i++) {
             TextView v = tabViews.get(i);
-            boolean tight = crumb >= 0 && i != crumb;
             LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
-            lp.weight = crumb < 0 ? tabNat[i] + u(58) : i == crumb ? total - others : tabNat[i] + u(24);
-            lp.leftMargin = lp.rightMargin = tight ? u(4) : u(11);
-            v.setPadding(tight ? u(8) : u(18), u(8), tight ? u(8) : u(18), u(8));
+            lp.weight = curW[i];
+            lp.leftMargin = lp.rightMargin = Math.round(curM[i]);
+            v.setPadding(Math.round(curP[i]), u(8), Math.round(curP[i]), u(8));
             v.setLayoutParams(lp);
         }
+        if (weightAnim != null && weightAnim.isRunning()) movePill();
+    }
+
+    /** While the tabs slide, the highlight is placed from the same numbers the layout uses, so it never lags behind. */
+    private void movePill() {
+        if (tab < 0 || tab >= tabViews.size() || tabPill == null || pillW == 0) return;
+        float sumW = 0, sumM = 0;
+        for (int i = 0; i < curW.length; i++) {
+            sumW += curW[i];
+            sumM += 2 * curM[i];
+        }
+        float host = tabHost.getWidth() > 0 ? tabHost.getWidth() : u(1000);
+        float avail = host - 2 * u(52) - sumM, x = u(52);
+        for (int j = 0; j < tab; j++) x += 2 * curM[j] + avail * curW[j] / sumW;
+        x += curM[tab];
+        pillX = Math.round(x);
+        pillW = Math.round(avail * curW[tab] / sumW);
+        FrameLayout.LayoutParams l2 = (FrameLayout.LayoutParams) tabPill.getLayoutParams();
+        l2.width = pillW;
+        tabPill.setTranslationX(pillX);
+        tabPill.setLayoutParams(l2);
     }
 
     private void buildInfo() {
@@ -525,6 +585,7 @@ public class HomeActivity extends Activity {
             @Override
             public boolean onPreDraw() {
                 tabHost.getViewTreeObserver().removeOnPreDrawListener(this);
+                if (weightAnim != null && weightAnim.isRunning()) return true; // the sliding tabs place the highlight themselves
                 if (tab < 0 || tab >= tabViews.size()) return true;
                 TextView t = tabViews.get(tab);
                 if (t.getWidth() == 0) return true;

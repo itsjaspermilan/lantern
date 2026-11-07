@@ -71,7 +71,7 @@ public class HomeActivity extends Activity {
     private android.animation.ValueAnimator marquee;
     private TextView marqueeTab;
     private View veil;
-    private View dots;
+    private View dots, upChev;
     private int dotsN, dotsAt;
     private float[] tabNat;
     private boolean clock24;
@@ -253,6 +253,32 @@ public class HomeActivity extends Activity {
         dlp.leftMargin = u(EDGE_L);
         dlp.topMargin = u(604);
         stage.addView(dots, dlp);
+        // On the details page the tab bar slips away and a wide chevron says that Up goes back.
+        upChev = new View(this) {
+            private final android.graphics.Paint cp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            private final android.graphics.Path path = new android.graphics.Path();
+
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                float w = getWidth(), h = getHeight();
+                cp.setStyle(android.graphics.Paint.Style.STROKE);
+                cp.setStrokeWidth(7 * s);
+                cp.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+                cp.setStrokeJoin(android.graphics.Paint.Join.ROUND);
+                cp.setColor(0xCCFFFFFF);
+                path.reset();
+                path.moveTo(.08f * w, .78f * h);
+                path.lineTo(.5f * w, .24f * h);
+                path.lineTo(.92f * w, .78f * h);
+                c.drawPath(path, cp);
+            }
+        };
+        upChev.setVisibility(View.GONE);
+        upChev.setOnClickListener(x -> { if (pageOpen) closePage(); });
+        FrameLayout.LayoutParams ucp = new FrameLayout.LayoutParams(u(170), u(44), Gravity.TOP | Gravity.START);
+        ucp.leftMargin = u(960 - 85);
+        ucp.topMargin = u(38);
+        stage.addView(upChev, ucp);
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
@@ -1221,8 +1247,6 @@ public class HomeActivity extends Activity {
         } else if (page) {
             hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Confirm");
-            hint(hintsRow, glyph("L1", Color.WHITE, false), "Previous");
-            hint(hintsRow, glyph("R1", Color.WHITE, false), "Next");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && !heroAll ? "Play" : "Open");
@@ -1740,7 +1764,8 @@ public class HomeActivity extends Activity {
         if (shown.get(i).systemTile) return;
         pageOpen = true;
         infoOpen = false;
-        if (chevL != null) { chevL.setVisibility(View.GONE); chevR.setVisibility(View.GONE); }
+        if (chevL != null) { chevL.setVisibility(View.GONE); chevR.setVisibility(View.GONE); dots.setVisibility(View.GONE); }
+        pageChrome(true);
         actIdx = 0;
         renderPage();
         pageView.setVisibility(View.VISIBLE);
@@ -1777,6 +1802,24 @@ public class HomeActivity extends Activity {
         setHints(true);
     }
 
+    /** With the details open the tab bar fades up and away and a wide chevron takes its place; closing reverses it. */
+    private void pageChrome(boolean open) {
+        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+        tabHost.animate().cancel();
+        upChev.animate().cancel();
+        if (open) {
+            tabHost.animate().alpha(0f).translationY(-u(44)).setDuration(260).setInterpolator(ease).start();
+            upChev.setVisibility(View.VISIBLE);
+            upChev.setAlpha(0f);
+            upChev.setTranslationY(u(26));
+            upChev.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(300).setInterpolator(ease).start();
+        } else {
+            tabHost.animate().alpha(1f).translationY(0f).setStartDelay(100).setDuration(300).setInterpolator(ease).start();
+            upChev.animate().alpha(0f).translationY(u(26)).setStartDelay(0).setDuration(200).setInterpolator(ease)
+                    .withEndAction(() -> { if (!pageOpen) upChev.setVisibility(View.GONE); }).start();
+        }
+    }
+
     /** Puts the page's cover where Recent's big cover is (or, with false, back in its page place). */
     private void heroCoverPose(boolean atHero) {
         pageCover.setPivotX(0f);
@@ -1788,6 +1831,7 @@ public class HomeActivity extends Activity {
 
     private void closePage() {
         pageOpen = false;
+        pageChrome(false);
         updateChevrons();
         if (shelf.mode() == Shelf.HERO && pageCover != null) {
             // The cover flies back to Recent's big tile; the shelf shows again once it has landed.
@@ -1938,22 +1982,6 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_BUTTON_B:
                 if (first) closePage();
                 return true;
-            case KeyEvent.KEYCODE_BUTTON_L1:
-            case KeyEvent.KEYCODE_BUTTON_R1:
-                if (first) {
-                    shelf.setIndex(shelf.getIndex() + (keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1), false);
-                    actIdx = 0;
-                    infoOpen = false;
-                    renderPage();
-                    int sd = keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1; // the next game slides in from its side
-                    android.view.animation.DecelerateInterpolator easeP = new android.view.animation.DecelerateInterpolator(2f);
-                    for (View pv : new View[]{pageCover, pageCol}) {
-                        pv.setAlpha(0f);
-                        pv.setTranslationX(sd * u(90));
-                        pv.animate().alpha(1f).translationX(0f).setDuration(260).setInterpolator(easeP).start();
-                    }
-                }
-                return true;
             case KeyEvent.KEYCODE_BUTTON_A:
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -1961,6 +1989,8 @@ public class HomeActivity extends Activity {
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_BUTTON_L1: // the details are for this game only; the tabs and the list are not reachable from here
+            case KeyEvent.KEYCODE_BUTTON_R1:
             case KeyEvent.KEYCODE_BUTTON_START:
                 return true;
             default:

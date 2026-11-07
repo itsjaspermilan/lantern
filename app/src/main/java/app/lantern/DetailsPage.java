@@ -136,7 +136,7 @@ final class DetailsPage {
         List<Act> a = new ArrayList<>();
         long saved = Library.resumeTime(g);
         if (saved > 0) a.add(new Act("⟲", "Resume", "Saved " + host.ago(saved)));
-        a.add(new Act("▶", saved > 0 ? "Play from the start" : "Play", g.isRom() ? (Cores.has(ctx, g.sysId) ? "Built-in player" : "No core yet") : "Android app"));
+        a.add(new Act("▶", saved > 0 ? "Play from the start" : "Play", g.isRom() ? (Cores.has(ctx, g.sysId) ? "Built-in player" : Cores.infoFor(g.sysId) != null ? "Add the emulator first" : "No emulator yet") : "Android app"));
         if (!g.isRom()) a.add(new Act("⚙", "App settings", "Android settings"));
         return a;
     }
@@ -477,7 +477,8 @@ final class DetailsPage {
         if (g.isRom()) {
             return "A " + g.system + " game from your ROM folder. "
                     + (Cores.has(ctx, g.sysId) ? "It opens in Lantern's own player."
-                    : "No emulator core is bundled for this system yet.");
+                    : Cores.infoFor(g.sysId) != null ? "Its emulator is not added yet: Play opens the list to download it."
+                    : "Lantern has no emulator for this system yet.");
         }
         return "An installed Android app. It opens as it normally does, and Home brings you back here.";
     }

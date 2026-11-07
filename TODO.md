@@ -5,10 +5,11 @@ but never confirmed on a device.
 
 ## Release
 
-- **Cores at run time, for a release APK.** Today cores are packaged into the APK at build time from `native/cores/`,
-  so a downloaded release could not play retro games: people would have to build it themselves. Add an in-app "Add
-  emulator" step that shows a core's licence, downloads it (person's choice) into app storage and loads it from there;
-  `Cores.file()` would look there as well as in the APK. This also keeps Lantern from redistributing any core.
+- Build the release APK with an empty `native/cores/` (people add emulators in the app: *Select > Emulators*).
+  Consider making `build.sh release` refuse to package cores.
+- Emulator downloads: the libretro nightlies change under the same name and are not signed. Options: pin known
+  hashes per core, or show the core's version after download. Also "update" for an installed core, and a check of a
+  failed download path on the device (only success, removal and Play-opens-the-list were tried).
 - Release signing with a key the author keeps (never committed), so updates install over earlier versions; then GitHub
   Releases with the APK. Only a debug build exists now.
 - GitHub: turn on Issues, add topics (android, launcher, retro-gaming, libretro).

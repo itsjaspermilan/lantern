@@ -15,8 +15,10 @@ and tool details: read it too.
   (`ANDROID_NDK_HOME`, or the newest in `$ANDROID_HOME/ndk`).
 - Always read the build output: a failed compile can leave an older APK in `build/`, and installing that hides the
   failure.
-- Emulator cores are never in the repository. People put their own in the git-ignored `native/cores/`
-  (`scripts/fetch-cores.sh` downloads them, after asking); `build.sh` packages whatever is there.
+- Emulator cores are never in the repository. People download them in the app (*Select > Emulators*,
+  `CoreInstaller.java`, into `files/cores/`), or put their own in the git-ignored `native/cores/` for `build.sh` to
+  package (`scripts/fetch-cores.sh` downloads them there, after asking). A packaged core wins over a downloaded one.
+  To test the in-app download on a device whose build has cores, build once with `native/cores` renamed aside.
 
 ## Code map
 
@@ -26,6 +28,7 @@ and tool details: read it too.
 | `Shelf.java` | The tiles: grid layouts (vertical, row-snapped, recycled views) and Recent's big tile with the row under it. |
 | `Cover.java` | One tile: cover art fitted on a blur of itself, generated art, the ring, the resume badge. |
 | `TabBar.java`, `SearchPanel.java`, `MenuPanel.java`, `DetailsPage.java` | Pieces split out of `HomeActivity`; each talks to it through a small `Host` interface. |
+| `Cores.java`, `CoreInstaller.java` | Which core plays which system and where it is; downloading and removing cores in the app (the Emulators page is part of `MenuPanel`). |
 | `Library.java` | Finds games (ROM folders, installed apps), play history, play time, file facts (cached until resume). |
 | `ArtCache.java`, `ArtFetcher.java` | Decoding covers off the main thread; optional fetching from the libretro thumbnail server. |
 | `PlayerActivity.java`, `PlayerMenu.java`, `Controls.java`, `native/player/player.c` | The player (its own process, `:player`), its menu, button remapping, and the native host that loads a core. |

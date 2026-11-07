@@ -383,7 +383,7 @@ final class PlayerMenu extends FrameLayout {
         if (m < 60) return m + " min ago";
         long h = m / 60;
         if (h < 24) return h + " h ago";
-        return (h / 24) + " days ago";
+        return h < 48 ? "yesterday" : (h / 24) + " days ago";
     }
 
     private int u(float mockupPx) {

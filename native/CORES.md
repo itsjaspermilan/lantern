@@ -1,7 +1,16 @@
 # Emulator cores
 
-**Lantern does not include any emulator core.** A person who builds it adds the cores they want to `native/cores/`
-(git-ignored, never committed), and `build.sh` packages them. This file records which cores Lantern has been used
+**Lantern does not include any emulator core.** There are two ways a core gets onto a device:
+
+1. **Downloaded in the app** (the normal way, and the only way for a release APK): *Select > Emulators*, or pressing
+   Play on a game whose system has no core yet. `CoreInstaller.java` downloads the core the person chose from
+   libretro's build server (address below) into the app's own storage (`files/cores/`), checks that it is a zip
+   holding a 64-bit ARM shared library of a sane size, and the player loads it from there. Each person downloads
+   their own copy from libretro, so Lantern never passes a core on. The list shows each core's licence first.
+2. **Packaged at build time**: someone who builds Lantern can put cores in `native/cores/` (git-ignored, never
+   committed), and `build.sh` packages them. A packaged core wins over a downloaded one.
+
+This file records which cores Lantern has been used
 with, where they come from and what licence applies, so the terms are not forgotten.
 
 The cores Lantern's author uses were downloaded on 2026-11-05 from libretro's nightly Android build server,
@@ -20,6 +29,8 @@ needs only libc, libm and libdl. None of them was scanned or reviewed beyond tha
 ## What this means
 
 - On your own device, for your own use, none of this is a problem.
+- A release APK must be built with an empty `native/cores/`, so that it contains no core; people then download the
+  ones they want in the app.
 - **Do not redistribute an APK that contains Snes9x or Genesis Plus GX** (their licences are non-commercial only). Lantern's repository and any release built from it contain no cores.
 - Sharing an APK with GPL cores (Gambatte, FCEUmm) means offering their source and the GPL text with it. Whether
   Lantern itself then has to be GPL depends on how the cores are combined with it (they are separate shared
@@ -31,6 +42,6 @@ needs only libc, libm and libdl. None of them was scanned or reviewed beyond tha
 
 ## Systems and folders
 
-`Cores.java` maps a folder under `Lantern/roms/` to a core: gba to mGBA; gb and gbc to Gambatte; nes to FCEUmm;
+`Cores.java` lists the downloadable cores (`CATALOG`, with the licence shown in the app) and maps a folder under `Lantern/roms/` to a core: gba to mGBA; gb and gbc to Gambatte; nes to FCEUmm;
 snes to Snes9x; md, mastersystem and gamegear to Genesis Plus GX. Other folders (n64, psx, psp, ps2, dc, saturn,
 nds) have no core yet. BIOS files are the person's own; none is bundled or needed for the systems above.

@@ -756,7 +756,8 @@ public class HomeActivity extends Activity {
                     : g.sysId.equals(Library.APPS) ? "Installed Android apps"
                     : g.sysId.equals(Library.GAMES) ? "Installed Android games"
                     : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
-                    : "No emulator core for this system yet");
+                    : Cores.infoFor(g.sysId) != null ? "Add its emulator from the menu (Select)"
+                    : "No emulator for this system yet");
             glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
             glow.art(null);
             compactInfo();
@@ -777,7 +778,8 @@ public class HomeActivity extends Activity {
             g.resume = saved > 0;
             shelf.redraw();
         }
-        sub.setText(g.isRom() && !Cores.has(this, g.sysId) ? "No emulator core for " + g.system + " yet"
+        sub.setText(g.isRom() && !Cores.has(this, g.sysId)
+                ? (Cores.infoFor(g.sysId) != null ? "Press A to add the emulator for " + g.system : "No emulator for " + g.system + " yet")
                 : saved > 0 ? "Resume available · saved " + ago(saved) : "Ready to play");
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
         glow.art(ArtCache.backdrop(g));
@@ -869,7 +871,9 @@ public class HomeActivity extends Activity {
         if (g.isRom()) {
             java.io.File core = Cores.file(this, g.sysId);
             if (core == null) {
-                Toast.makeText(this, "No emulator core for " + g.system + " yet.", Toast.LENGTH_SHORT).show();
+                Cores.Info add = Cores.infoFor(g.sysId);
+                if (add != null && !menuOpen()) menu.openCores(add.lib); // the emulator it needs, ready to download
+                else Toast.makeText(this, "No emulator for " + g.system + " yet.", Toast.LENGTH_SHORT).show();
                 return;
             }
             Library.markPlayed(this, g);
@@ -1042,6 +1046,11 @@ public class HomeActivity extends Activity {
             clock24 = !clock24;
             getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("clock24", clock24).apply();
             topBar.setClock24(clock24);
+        }
+
+        @Override
+        public void coresChanged() {
+            if (!shown.isEmpty()) onFocused(shelf.getIndex());
         }
 
         @Override
@@ -1292,7 +1301,7 @@ public class HomeActivity extends Activity {
         if (m < 60) return m + " min ago";
         long h = m / 60;
         if (h < 24) return h + " h ago";
-        return (h / 24) + " days ago";
+        return h < 48 ? "yesterday" : (h / 24) + " days ago";
     }
 
     /** Mockup pixels to screen pixels. */

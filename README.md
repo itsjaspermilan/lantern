@@ -49,14 +49,14 @@ an app. Press A and you are playing. There are no menus to dig through, and ever
 
 Early (version 0.0.1). It is built and tested on a **Retroid Pocket 6** (Android 13, 1920x1080, landscape). It should
 run on other 64-bit ARM Android devices (Android 8 or newer) but has not been tried on them, and the layout assumes a
-16:9 landscape screen. It is a sideloaded debug build: there is no release APK, no Play Store listing and no
+16:9 landscape screen. It is a sideloaded debug build: there is no release APK yet, no Play Store listing and no
 auto-update. Emulation covers software-rendered cores only (Game Boy, GBA, NES, SNES, Mega Drive and friends); there are
 no N64, PlayStation, DS or PSP cores yet. See [TODO.md](TODO.md).
 
 ## Set it up
 
 You need a computer to build Lantern, and the handheld to run it. Setup has five parts: build, install, give it access
-to your games, add the emulator cores you want, and (optionally) make it your home screen.
+to your games, add the emulators you want (in the app), and (optionally) make it your home screen.
 
 ### 1. Build it
 
@@ -134,23 +134,23 @@ Other folders under `/sdcard/Lantern/` (all optional):
 | `art/androidgames/<package>.png` | Cover for an Android game, named after its package (or its title). |
 | `cheats/<system>/<game>.cht` | Cheats in RetroArch's `.cht` format, named like the ROM. |
 
-### 4. Add emulator cores
+### 4. Add emulators
 
-Lantern plays games with **libretro cores**: separate emulator libraries you add yourself. None is included, because
-cores have their own licences (some are GPL, some are non-commercial only). That is the one step that needs care:
+Lantern plays games with **libretro cores**: separate emulator libraries. None is included, because cores have their
+own licences (some are GPL, some are non-commercial only). You add the ones you want **in the app**:
 
-```sh
-scripts/fetch-cores.sh --list                   # what Lantern can use, and each licence
-scripts/fetch-cores.sh mgba gambatte fceumm     # downloads into native/cores/ (asks first)
-./build.sh install                              # packages them into the APK and reinstalls
-```
+- Press **Select**, choose **Emulators**, pick one and press **A**. It shows what each plays and its licence, then
+  downloads it (about 0.4 to 1.1 MB each) from libretro's public build server, `buildbot.libretro.com`, into Lantern's
+  own storage. Press A twice on an installed one to remove it.
+- Or just press **Play** on a game: if its system has no emulator yet, the list opens on the one it needs.
 
-`scripts/fetch-cores.sh` downloads from libretro's public nightly build server. You can also drop your own
-`<name>_libretro_android.so` files (64-bit ARM) into `native/cores/`. They are packaged by `build.sh`, which warns you
-when it does. Read [native/CORES.md](native/CORES.md) before you start, and **keep an APK that contains cores to
-yourself**: the licences of some cores do not allow passing it on.
+The handheld needs an internet connection for this step only.
 
-Without a core, a system's games still show up, but pressing Play says the system has no core yet.
+**If you build Lantern yourself** you can instead package cores into the APK: put `<name>_libretro_android.so` files
+(64-bit ARM) in `native/cores/`, or let `scripts/fetch-cores.sh --list` / `scripts/fetch-cores.sh mgba gambatte`
+download them there (it asks first), then `./build.sh install`. A packaged core wins over a downloaded one. Read
+[native/CORES.md](native/CORES.md) first, and **keep an APK that contains cores to yourself**: the licences of some
+cores do not allow passing it on.
 
 ### 5. Make it your home screen (optional)
 
@@ -166,7 +166,8 @@ Or *Settings > Apps > Default apps > Home app*. To go back to the stock launcher
 
 Press **Select** and turn **Cover art** on. Lantern then looks up box art for games that have none, from the public
 [libretro thumbnails](https://github.com/libretro-thumbnails) server, once, and keeps what it finds in its own
-storage. This is the only thing Lantern uses the network for, and it is off until you turn it on. Names are matched to the
+storage. Apart from downloading the emulators you choose, this is the only thing Lantern uses the network for, and it is off
+until you turn it on. Names are matched to the
 ROM's file name (the usual "No-Intro" style, e.g. `Game Name (USA).gba`). To use a different mirror, put its address on
 the first line of `/sdcard/Lantern/art-source.txt`.
 
@@ -181,7 +182,7 @@ the first line of `/sdcard/Lantern/art-source.txt`.
 | **Y** | On Recent: take the big game off the list (its saves are kept). |
 | **L1 / R1** | Previous / next tab. |
 | **L2 / R2** | Jump to the previous / next letter in a grid. |
-| **Select** | The menu: Android apps, switches, clock. |
+| **Select** | The menu: Android apps, emulators, switches, clock. |
 
 Inside a game, the **Home/Mode** button, **Back**, or **Select + Start** open the game's menu: resume, save and load
 states (several slots), cheats, controls (remap any button, for this game or for the whole console), options (scaling,
@@ -197,7 +198,7 @@ a resume point, so **Resume** puts you back exactly where you were.
 | `native/testcore/` | A tiny libretro core that needs no game, used to test the player. |
 | `native/third_party/libretro/` | The libretro API header (MIT). |
 | `tests/`, `test.sh` | Checks of the plain logic, run on the computer. |
-| `scripts/fetch-cores.sh` | Optional helper that downloads emulator cores. |
+| `scripts/fetch-cores.sh` | Optional helper that downloads emulator cores to package into your own build. |
 | `docs/` | `development-notes.md` (a log of how it was built and measured), images. |
 | `AUDIT.md` | A code quality and performance audit, with measurements. |
 | `licenses/`, `THIRD_PARTY_NOTICES.md` | Licences of everything that is not Lantern's own. |
@@ -206,7 +207,9 @@ a resume point, so **Resume** puts you back exactly where you were.
 
 - **No games show up.** Check *All files access* is allowed, the folder names match the table (lower case), and the files
   have the right extensions.
-- **"No emulator core for ... yet."** Add a core (step 4) and reinstall.
+- **"Press A to add the emulator for ..."** The system's emulator is not added yet: see step 4.
+- **An emulator download fails.** Check the handheld is online; libretro's build server is sometimes slow or down, so
+  try again later. Systems marked "No emulator ... yet" (N64, PlayStation and others) have none in Lantern at all.
 - **A game does not start.** Some games need a BIOS file in `/sdcard/Lantern/bios/`; the cores above do not. Check
   the file is not damaged.
 - **No cover art.** Turn Cover art on in the menu, make sure the file names are in the usual "Game Name (Region)" form, or
@@ -227,8 +230,9 @@ prompts under CC0, and Google's Material "android" icon under Apache-2.0) is lis
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 - **Games and BIOS files are yours to supply.** Lantern includes none. Only use games you own or have the right to use.
-- **Emulator cores are not included** and have their own licences (GPL, MPL, and some non-commercial only). See
-  [native/CORES.md](native/CORES.md). An APK that contains cores should not be redistributed.
+- **Emulator cores are not included** and have their own licences (GPL, MPL, and some non-commercial only). The app
+  downloads them, when you ask, straight from libretro to your device. See [native/CORES.md](native/CORES.md). An APK
+  that contains cores should not be redistributed.
 - **Cover art** fetched from the thumbnail server belongs to its publishers and artists. Lantern only displays it on your
   device.
 - Console and platform names are trademarks of their owners. Lantern is independent and not affiliated with or endorsed

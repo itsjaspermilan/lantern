@@ -1778,7 +1778,7 @@ public class HomeActivity extends Activity {
         // The cover starts where it was (Recent's big tile, or the grid tile) and moves to its place on the page,
         // centred on the screen.
         placeCoverAtSource();
-        pageCover.animate().scaleX(1f).scaleY(1f).translationX(0f).translationY(0f).setDuration(PAGE_MS).setInterpolator(ease).start();
+        moveCover(1f, 1f, 0f, 0f, null);
         pageView.setAlpha(1f);
         pageView.setTranslationY(0f);
         if (fromHero) {
@@ -1833,6 +1833,45 @@ public class HomeActivity extends Activity {
         return r != null ? r : Shelf.heroBox(null);
     }
 
+    private android.animation.ValueAnimator coverAnim;
+
+    /**
+     * Moves the page's cover to a scale and place. It is driven by hand, not by a property animator, so the cover is
+     * redrawn on every frame and its white ring can keep the same thickness on screen the whole way.
+     */
+    private void moveCover(float tsx, float tsy, float ttx, float tty, Runnable end) {
+        if (coverAnim != null) coverAnim.cancel();
+        final View c = pageCover;
+        final float fsx = c.getScaleX(), fsy = c.getScaleY(), ftx = c.getTranslationX(), fty = c.getTranslationY();
+        coverAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        coverAnim.setDuration(PAGE_MS);
+        coverAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+        coverAnim.addUpdateListener(a -> {
+            float f = (Float) a.getAnimatedValue();
+            c.setScaleX(fsx + (tsx - fsx) * f);
+            c.setScaleY(fsy + (tsy - fsy) * f);
+            c.setTranslationX(ftx + (ttx - ftx) * f);
+            c.setTranslationY(fty + (tty - fty) * f);
+            c.invalidate();
+        });
+        if (end != null) {
+            coverAnim.addListener(new android.animation.AnimatorListenerAdapter() {
+                private boolean cancelled;
+
+                @Override
+                public void onAnimationCancel(android.animation.Animator an) {
+                    cancelled = true;
+                }
+
+                @Override
+                public void onAnimationEnd(android.animation.Animator an) {
+                    if (!cancelled) end.run();
+                }
+            });
+        }
+        coverAnim.start();
+    }
+
     private void placeCoverAtSource() {
         float[] src = sourceRect(), pb = Shelf.pageBox();
         pageCover.setPivotX(0f);
@@ -1862,8 +1901,7 @@ public class HomeActivity extends Activity {
         float[] src = sourceRect(), pb = Shelf.pageBox();
         pageCover.setPivotX(0f);
         pageCover.setPivotY(0f);
-        pageCover.animate().scaleX(src[2] / pb[2]).scaleY(src[3] / pb[3]).translationX(u(src[0] - pb[0])).translationY(u(src[1] - pb[1]))
-                .setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).withEndAction(() -> {
+        moveCover(src[2] / pb[2], src[3] / pb[3], u(src[0] - pb[0]), u(src[1] - pb[1]), () -> {
                     if (pageOpen) return; // opened again meanwhile
                     pageView.setVisibility(View.GONE);
                     pageView.removeAllViews();
@@ -1872,7 +1910,7 @@ public class HomeActivity extends Activity {
                         shelf.setPage(0f, false);
                         for (int ci = 0; ci < 2 && ci < infoBlock.getChildCount(); ci++) infoBlock.getChildAt(ci).setAlpha(1f); // the line above the title, and the title
                     }
-                }).start();
+                });
         shelf.animate().cancel();
         shelf.setVisibility(View.VISIBLE);
         if (hero) {

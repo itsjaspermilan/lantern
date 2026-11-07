@@ -142,7 +142,10 @@ final class Cover extends View {
     protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight() - labelPx;
         if (g == null || w <= 0 || h <= 0) return;
-        float r = 18 * s;
+        // The corners and the ring keep their size on screen when the view is scaled (the details cover flying to or
+        // from a tile), so they match the tile at both ends of the trip.
+        float vs = Math.max(.05f, getScaleX());
+        float r = 18 * s / vs;
         if (g.hue != lastHue) setColours();
         clip.reset();
         clip.addRoundRect(0, 0, w, h, r, r, Path.Direction.CW);
@@ -281,9 +284,10 @@ final class Cover extends View {
     private void ring(Canvas c, float w, float h, float r) {
         if (weight <= .02f) return;
         p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(6 * s);
+        float k = Math.max(.05f, getScaleX());
+        p.setStrokeWidth(6 * s / k);
         p.setColor(Color.argb((int) (255 * weight), 255, 255, 255));
-        c.drawRoundRect(3 * s, 3 * s, w - 3 * s, h - 3 * s, r, r, p);
+        c.drawRoundRect(3 * s / k, 3 * s / k, w - 3 * s / k, h - 3 * s / k, r, r, p);
     }
 
     /** Six simple shapes, one per game, drawn on a 300 x 400 sheet. */

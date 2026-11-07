@@ -7,7 +7,7 @@ import java.io.File;
 
 /** One tile on the shelf: an emulated ROM or an installed Android app. */
 final class Game {
-    /** Stable key: "rom:gba/Name.gba" or "app:com.example.pkg". Used for favourites and play history. */
+    /** Stable key: "rom:gba/Name.gba" or "app:com.example.pkg". Used for play history. */
     String id;
     String title;
     /** Short system name shown on the tile, for example "GBA" or "Android". */
@@ -27,7 +27,8 @@ final class Game {
     /** Colour for the tile and the glow; taken from the cover once it is known. */
     int hue;
     long lastPlayed;
-    boolean fav;
+    /** A resume point is saved for this ROM (shown as a small dot on its tile). */
+    boolean resume;
 
     /** True for a tile that stands for a whole system on the Systems shelf, not for a game. */
     boolean systemTile;

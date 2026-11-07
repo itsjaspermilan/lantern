@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,8 +35,9 @@ final class Shelf extends ViewGroup {
 
     // Mockup pixels. The grid lives between GRID_TOP and GRID_BOTTOM; the info line is under it.
     private static final float LEFT = 90, RIGHT = 70, GRID_TOP = 150, GRID_BOTTOM = 860, GAP = 24;
-    // Picture sizes; each tile also has a LABEL strip under it for the title.
-    private static final float DEF_W = 228, DEF_H = 300, SYS_W = 270, SYS_H = 270, LABEL = 42;
+    // Every grid tile, games and systems, is the same landscape rectangle (like SteamOS); covers are fitted inside it.
+    // Each tile also has a LABEL strip under it for the title.
+    private static final float DEF_W = 330, DEF_H = 200, SYS_W = 330, SYS_H = 200, LABEL = 42;
     // The hero tile and the small row beside and below it.
     private static final float HERO_W = 430, HERO_H = 620, HERO_Y = 170; // the same size and place as the cover on the details page
     private static final float SMALL_X = 620, SMALL_W = 180, SMALL_H = 262, SMALL_GAP = 20, SMALL_BOTTOM = 956;
@@ -55,6 +57,14 @@ final class Shelf extends ViewGroup {
     /** Where the hero layout is, as a game number that glides between whole numbers. */
     private float heroPos;
     private ValueAnimator anim;
+    /** Focus spring (grid): the focused tile eases up with a little overshoot, the one just left settles back. */
+    private ValueAnimator spring, enter, breathAnim;
+    private int prevIndex = -1;
+    private float focusT = 1f;
+    /** Tiles come in one after another when a new list appears: 0 to 1. */
+    private float enterT = 1f;
+    /** The big Recent cover slowly breathes: 0 to 1 and back. */
+    private float breath;
     private Listener listener;
     private float downY, lastY;
     private boolean dragging;
@@ -65,6 +75,21 @@ final class Shelf extends ViewGroup {
         this.s = s;
         slop = ViewConfiguration.get(c).getScaledTouchSlop();
         setClipChildren(false);
+    }
+
+    /**
+     * Where the big Recent cover sits, in mockup pixels: x, y, width, height. It keeps the cover's own shape inside
+     * the hero box, centred and standing on the box's bottom edge, so wide and square art need no blur bars.
+     * The details page uses the same box.
+     */
+    static float[] heroBox(Game g) {
+        float a = g == null || g.systemTile ? 0f : ArtCache.aspect(g);
+        float w = HERO_W, h = HERO_H;
+        if (a > 0f) {
+            a = Math.max(.5f, Math.min(1.6f, a));
+            if (a * HERO_H > HERO_W) h = HERO_W / a; else w = HERO_H * a;
+        }
+        return new float[]{LEFT + (HERO_W - w) / 2f, HERO_Y + HERO_H - h, w, h};
     }
 
     void setListener(Listener l) {
@@ -90,43 +115,35 @@ final class Shelf extends ViewGroup {
     /** Shows a new list from its first item, in the given layout. */
     void setItems(List<Game> list, int layout) {
         if (anim != null) anim.cancel();
+        if (spring != null) spring.cancel();
+        if (enter != null) enter.cancel();
+        // A list that is the same one again (a star toggled, back from a game) does not replay the entrance.
+        boolean fresh = layout != mode || list.size() != items.size() || (!list.isEmpty() && !items.isEmpty() && list.get(0) != items.get(0));
         for (int k = 0; k < attached.size(); k++) pool.add(attached.valueAt(k));
         attached.clear();
         removeAllViews();
         items = list;
         mode = layout;
-        if (layout == GRID) fitCells(list);
+        prevIndex = -1;
+        focusT = 1f;
+        enterT = 1f;
+        if (fresh && layout != HERO && !list.isEmpty()) {
+            enterT = 0f;
+            enter = ValueAnimator.ofFloat(0f, 1f);
+            enter.setDuration(760);
+            enter.setInterpolator(new DecelerateInterpolator(1.4f));
+            enter.addUpdateListener(v -> {
+                enterT = (Float) v.getAnimatedValue();
+                requestLayout();
+            });
+            enter.start();
+        }
+        startBreath();
         index = 0;
         scroll = 0;
         heroPos = 0;
         requestLayout();
         if (listener != null && !items.isEmpty()) listener.onFocus(0);
-    }
-
-    /**
-     * Sizes the tiles to the covers in this list: the middle cover shape wins, so a Game Boy Advance library
-     * gets squarer tiles and a PlayStation one gets tall ones. Tall tiles keep the default height (two rows
-     * must fit); wide ones get a little smaller in height and a little larger in width.
-     */
-    private void fitCells(List<Game> list) {
-        int n = list.size(), step = Math.max(1, n / 48);
-        ArrayList<Float> a = new ArrayList<>();
-        for (int i = 0; i < n; i += step) {
-            float x = ArtCache.aspect(list.get(i));
-            if (x > 0f) a.add(x);
-        }
-        gameW = DEF_W;
-        gameH = DEF_H;
-        if (a.size() < 3) return;
-        Collections.sort(a);
-        float asp = Math.max(.6f, Math.min(1.4f, a.get(a.size() / 2)));
-        if (asp < DEF_W / DEF_H) {
-            gameH = DEF_H;
-            gameW = Math.round(DEF_H * asp);
-        } else {
-            gameW = Math.round((float) Math.sqrt(DEF_W * DEF_H * asp));
-            gameH = Math.round(gameW / asp);
-        }
     }
 
     private int cols() {
@@ -163,7 +180,21 @@ final class Shelf extends ViewGroup {
         if (n == 0) return;
         i = Math.max(0, Math.min(n - 1, i));
         boolean changed = i != index;
+        int old = index;
         index = i;
+        if (changed && mode != HERO) {
+            prevIndex = old;
+            focusT = 0f;
+            if (spring != null) spring.cancel();
+            spring = ValueAnimator.ofFloat(0f, 1f);
+            spring.setDuration(380);
+            spring.setInterpolator(new OvershootInterpolator(2.6f));
+            spring.addUpdateListener(v -> {
+                focusT = (Float) v.getAnimatedValue();
+                requestLayout();
+            });
+            spring.start();
+        }
         if (anim != null) anim.cancel();
         if (mode == HERO) {
             anim = ValueAnimator.ofFloat(heroPos, i);
@@ -195,6 +226,39 @@ final class Shelf extends ViewGroup {
 
     void move(int d) {
         setIndex(index + d, true);
+    }
+
+    private void startBreath() {
+        if (breathAnim != null) breathAnim.cancel();
+        breathAnim = null;
+        breath = 0f;
+        if (mode != HERO) return;
+        breathAnim = ValueAnimator.ofFloat(0f, 1f);
+        breathAnim.setDuration(6000);
+        breathAnim.setRepeatCount(ValueAnimator.INFINITE);
+        breathAnim.setRepeatMode(ValueAnimator.REVERSE);
+        breathAnim.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+        breathAnim.addUpdateListener(v -> {
+            breath = (Float) v.getAnimatedValue();
+            Cover c = attached.get(index);
+            if (c != null && mode == HERO && Math.abs(heroPos - index) < .02f) applyBreath(c);
+        });
+        if (getWindowVisibility() == View.VISIBLE) breathAnim.start();
+    }
+
+    private void applyBreath(Cover c) {
+        c.setPivotX(c.getWidth() / 2f);
+        c.setPivotY(c.getHeight());
+        c.setScaleX(1f + .03f * breath);
+        c.setScaleY(1f + .03f * breath);
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int v) {
+        super.onWindowVisibilityChanged(v);
+        if (breathAnim != null) {
+            if (v == View.VISIBLE) { if (!breathAnim.isStarted()) breathAnim.start(); else breathAnim.resume(); } else breathAnim.pause();
+        }
     }
 
     /** Up (-1) or down (+1): a grid row at a time. The hero layout has one row, so nothing happens. */
@@ -257,7 +321,7 @@ final class Shelf extends ViewGroup {
             Game g = items.get(i);
             if (c.game() != g) c.setGame(g);
             boolean on = i == index;
-            float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = LABEL;
+            float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = LABEL, ek = 1f, ty = 0f;
             if (mode == HERO) {
                 // d is how far this game is from the hero spot. At 0 it is the big tile; from 1 on it sits in the
                 // small row, and between 0 and 1 it glides from one to the other. The game just left fades out.
@@ -265,10 +329,12 @@ final class Shelf extends ViewGroup {
                 float slotCx = SMALL_X + (Math.max(d, 1f) - 1) * (SMALL_W + SMALL_GAP) + SMALL_W / 2f;
                 float sx = slotCx - SMALL_W / 2f, sy = SMALL_BOTTOM - SMALL_H;
                 label = LABEL * k;
-                x = LEFT + (sx - LEFT) * k;
-                y = HERO_Y + (sy - HERO_Y) * k;
-                w = HERO_W + (SMALL_W - HERO_W) * k;
-                h = HERO_H + (SMALL_H - HERO_H) * k;
+                float[] hb = heroBox(g);
+                x = hb[0] + (sx - hb[0]) * k;
+                y = hb[1] + (sy - hb[1]) * k;
+                w = hb[2] + (SMALL_W - hb[2]) * k;
+                h = hb[3] + (SMALL_H - hb[3]) * k;
+                if (d >= 1f) ek = .3f + .7f * Math.max(0f, Math.min(1f, (1900f - x) / 240f)); // the row fades out at the right edge
                 wt = Math.max(0f, 1f - Math.abs(d));
                 alpha = d >= 1f ? .6f : d > 0f ? 1f - .4f * d : Math.max(0f, 1f + d);
                 z = d <= 0f ? (d > -1f ? 1f : 0f) : 0f;
@@ -277,19 +343,27 @@ final class Shelf extends ViewGroup {
             } else {
                 int cols = cols(), row = i / cols, col = i % cols;
                 float used = cols * (cellW() + GAP) - GAP, x0 = LEFT + (1920 - LEFT - RIGHT - used) / 2f;
-                float grow = on ? 1.06f : 1f;
+                float grow = 1f + .06f * Math.max(0f, i == index ? focusT : i == prevIndex ? 1f - focusT : 0f);
+                float order = Math.max(0, row - (int) Math.floor(scroll / (cellH() + GAP))) * .10f + col * .05f;
+                float kk = Math.max(0f, Math.min(1f, (enterT - order) / .45f));
+                ek = kk;
+                ty = (1f - kk) * 28f * s;
                 float cx = x0 + col * (cellW() + GAP) + cellW() / 2f, cy = GRID_TOP + row * (cellH() + GAP) - scroll + cellH() / 2f;
                 w = cellW() * grow; h = cellH() * grow;
                 x = cx - w / 2f; y = cy - h / 2f;
             }
             c.setLabel(label * s);
             c.setWeight(wt);
-            c.setAlpha(alpha >= 0f ? alpha : .6f + .4f * wt); // tiles are reused, so never inherit an old fade
+            c.setAlpha((alpha >= 0f ? alpha : .6f + .4f * wt) * ek); // tiles are reused, so never inherit an old fade
+            c.setTranslationY(ty);
+            c.setScaleX(1f);
+            c.setScaleY(1f);
             c.setZ(z);
             int pw = Math.round(w * s), ph = Math.round(h * s), px = Math.round(x * s), py = Math.round(y * s);
             c.measure(View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(ph, View.MeasureSpec.EXACTLY));
             c.layout(px, py, px + pw, py + ph);
+            if (mode == HERO && on && Math.abs(heroPos - index) < .02f) applyBreath(c);
         }
     }
 

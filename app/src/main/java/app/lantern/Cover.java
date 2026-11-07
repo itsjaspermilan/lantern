@@ -148,11 +148,18 @@ final class Cover extends View {
             c.drawBitmap(art, null, artBox, artPaint);
         }
 
-        if (g.fav) {
-            tp.setTextSize(38 * s);
-            tp.setColor(AMBER);
-            c.drawText("★", w - 16 * s - tp.measureText("★"), 46 * s, tp);
-            tp.setColor(Color.WHITE);
+        if (g.resume) { // a small amber play button: this game has a resume point
+            float rr = 15 * s, cx = 28 * s, cy = 28 * s;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(AMBER);
+            c.drawCircle(cx, cy, rr, p);
+            p.setColor(0xFF17131F);
+            shape.reset();
+            shape.moveTo(cx - rr * .28f, cy - rr * .5f);
+            shape.lineTo(cx + rr * .52f, cy);
+            shape.lineTo(cx - rr * .28f, cy + rr * .5f);
+            shape.close();
+            c.drawPath(shape, p);
         }
         c.restore();
         ring(c, w, h, r);
@@ -198,7 +205,7 @@ final class Cover extends View {
         if ("all".equals(g.sysId)) { // the "All games" tile: Kenney's grid icon
             Bitmap grid = UiIcons.get(getContext(), "menu_grid");
             if (grid != null) {
-                float half = w * .26f;
+                float half = Math.min(w, h) * .27f;
                 rect.set(cx - half, cy - half, cx + half, cy + half);
                 p.setAlpha(235);
                 c.drawBitmap(grid, null, rect, artPaint);
@@ -206,7 +213,7 @@ final class Cover extends View {
             }
             return;
         }
-        SystemArt.draw(getContext(), c, p, g.sysId, cx, cy, w * .52f);
+        SystemArt.draw(getContext(), c, p, g.sysId, cx, cy, Math.min(w, h) * .62f);
     }
 
     /** The white ring around the focused tile. */

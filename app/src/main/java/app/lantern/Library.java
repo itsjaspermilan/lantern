@@ -19,7 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** Finds the games (ROM folders and installed apps) and remembers favourites and play history. */
+/** Finds the games (ROM folders and installed apps) and remembers play history. */
 final class Library {
     private Library() {}
 
@@ -177,26 +177,51 @@ final class Library {
 
     static List<Game> load(Context c) {
         SharedPreferences sp = prefs(c);
-        Set<String> fav = new HashSet<>(sp.getStringSet("fav", Collections.<String>emptySet()));
         List<Game> out = new ArrayList<>();
         out.addAll(scanRoms());
         out.addAll(listApps(c));
         Map<String, Map<String, String>> ownArt = new HashMap<>(), fetchedArt = new HashMap<>();
+        Map<String, Set<String>> saves = new HashMap<>();
         for (Game g : out) {
             g.art = findArt(c, g, ownArt, fetchedArt);
-            g.fav = fav.contains(g.id);
             g.lastPlayed = sp.getLong("last:" + g.id, 0);
+            if (g.isRom()) {
+                Set<String> ss = saves.get(g.sysId);
+                if (ss == null) {
+                    ss = new HashSet<>();
+                    String[] l = new File(Environment.getExternalStorageDirectory(), "Lantern/saves/" + g.sysId).list();
+                    if (l != null) ss.addAll(Arrays.asList(l));
+                    saves.put(g.sysId, ss);
+                }
+                g.resume = ss.contains(baseName(g.file) + ".state.auto");
+            }
         }
         Collections.sort(out, (a, b) -> a.title.compareToIgnoreCase(b.title));
         return out;
     }
 
-    static void toggleFav(Context c, Game g) {
-        g.fav = !g.fav;
-        SharedPreferences sp = prefs(c);
-        Set<String> fav = new HashSet<>(sp.getStringSet("fav", Collections.<String>emptySet()));
-        if (g.fav) fav.add(g.id); else fav.remove(g.id);
-        sp.edit().putStringSet("fav", fav).apply();
+    private static File timeFile(Context c, String id) {
+        File d = new File(c.getFilesDir(), "time");
+        d.mkdirs();
+        return new File(d, id.replaceAll("[^A-Za-z0-9._-]", "_"));
+    }
+
+    /** Total time spent in a game, in milliseconds. Kept in a small file because the player is another process. */
+    static long playTime(Context c, String id) {
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(timeFile(c, id)))) {
+            return Long.parseLong(r.readLine().trim());
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    static void addPlayTime(Context c, String id, long ms) {
+        if (ms < 3000) return;
+        try (java.io.FileWriter w = new java.io.FileWriter(timeFile(c, id))) {
+            w.write(String.valueOf(playTime(c, id) + ms));
+        } catch (Exception e) {
+            // not worth failing a game over
+        }
     }
 
     static void markPlayed(Context c, Game g) {
@@ -275,6 +300,13 @@ final class Library {
 
     /** Each system has its own colour family; a game varies a little within it, so a shelf of games without art still looks organised. */
     private static int systemHue(String folder, String title) {
+        int base = baseHue(folder);
+        if (base < 0) return hue(title);
+        return (base + (title.hashCode() & 0x7fffffff) % 31 - 15 + 360) % 360;
+    }
+
+    /** A system's own colour (a hue, 0-359), or -1 for Android apps and anything without one. */
+    static int baseHue(String folder) {
         int base;
         switch (folder) {
             case "nes": base = 0; break;
@@ -292,9 +324,9 @@ final class Library {
             case "saturn": base = 345; break;
             case "dc": base = 18; break;
             case "ps2": base = 215; break;
-            default: return hue(title);
+            default: return -1;
         }
-        return (base + (title.hashCode() & 0x7fffffff) % 31 - 15 + 360) % 360;
+        return base;
     }
 
     private static int hue(String s) {

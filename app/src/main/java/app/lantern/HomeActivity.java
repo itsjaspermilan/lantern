@@ -29,12 +29,12 @@ import java.util.Map;
 
 /**
  * The home screen, laid out to the 1920 x 1080 mockup: three shelves switched with L1 and R1,
- * D-pad to browse, A to open, Y to favourite, X to search. Every size below is in mockup pixels, scaled to the screen.
+ * D-pad to browse, A to open, X to search. Every size below is in mockup pixels, scaled to the screen.
  */
 public class HomeActivity extends Activity {
     private static final int AMBER = 0xFFFFB454;
-    private static final String[] TABS = {"Recent", "Favourites", "Systems", "All games", "Search"};
-    private static final int TAB_SYSTEMS = 2, TAB_ALL = 3, TAB_SEARCH = 4;
+    private static final String[] TABS = {"Recent", "Systems", "All games", "Search"};
+    private static final int TAB_SYSTEMS = 1, TAB_ALL = 2, TAB_SEARCH = 3;
     /** The tab to go back to when the search is left with B. */
     private int tabBeforeSearch;
 
@@ -64,6 +64,12 @@ public class HomeActivity extends Activity {
     private View tabPill;
     private LinearLayout tabBar;
     private TextClock clock;
+    private GradientDrawable pillBg;
+    private LinearLayout resumeBox;
+    private android.widget.ImageView resumeImg;
+    private TextView resumeCap;
+    private boolean resumeWanted;
+    private Game lastFocused;
     private float[] tabNat;
     private boolean clock24;
     private FrameLayout tabHost;
@@ -260,7 +266,7 @@ public class HomeActivity extends Activity {
         tabBar = tabs;
         tabHost = new FrameLayout(this);
         tabPill = new View(this);
-        GradientDrawable pillBg = new GradientDrawable();
+        pillBg = new GradientDrawable();
         pillBg.setCornerRadius(u(99));
         pillBg.setColor(0x2EFFFFFF);
         tabPill.setBackground(pillBg);
@@ -376,6 +382,81 @@ public class HomeActivity extends Activity {
         infoLp = new FrameLayout.LayoutParams(u(1700), -2, Gravity.TOP | Gravity.START);
         stage.addView(info, infoLp);
         placeInfo(false);
+
+        // Recent: a screenshot of where the game was left, beside the title.
+        resumeBox = new LinearLayout(this);
+        resumeBox.setOrientation(LinearLayout.VERTICAL);
+        resumeCap = label("WHERE YOU LEFT OFF", 22, 0xB3FFFFFF, true);
+        resumeCap.setLetterSpacing(.12f);
+        resumeCap.setSingleLine(true);
+        resumeBox.addView(resumeCap);
+        resumeImg = new android.widget.ImageView(this);
+        resumeImg.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        GradientDrawable rb = new GradientDrawable();
+        rb.setCornerRadius(u(18));
+        rb.setColor(0x66000000);
+        rb.setStroke(u(3), 0x55FFFFFF);
+        resumeImg.setBackground(rb);
+        resumeImg.setClipToOutline(true);
+        resumeImg.setPadding(u(3), u(3), u(3), u(3));
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(u(460), u(259));
+        ip.topMargin = u(10);
+        resumeBox.addView(resumeImg, ip);
+        resumeBox.setVisibility(View.INVISIBLE);
+        stage.addView(resumeBox, new FrameLayout.LayoutParams(u(460), -2, Gravity.TOP | Gravity.START) {{
+            leftMargin = u(1390);
+            topMargin = u(372);
+        }});
+    }
+
+    /** Shows or hides the info text, and the resume screenshot with it when there is one. */
+    private void setInfoVisibility(int v) {
+        infoBlock.setVisibility(v);
+        if (resumeBox != null) resumeBox.setVisibility(v == View.VISIBLE && resumeWanted ? View.VISIBLE : View.INVISIBLE);
+    }
+
+    /** The screenshot of a game's resume point, if there is one to show (Recent only). */
+    private void updateResumeCard(Game g, long saved) {
+        boolean want = false;
+        if (g != null && shelf != null && shelf.mode() == Shelf.HERO && g.isRom() && saved > 0) {
+            java.io.File png = new java.io.File(Library.stateFile(g.sysId, g.file, ".auto").getPath() + ".png");
+            if (png.exists()) {
+                try {
+                    android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                    o.inSampleSize = 1;
+                    android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeFile(png.getPath(), o);
+                    if (b != null) {
+                        resumeImg.setImageBitmap(b);
+                        resumeCap.setText("LEFT OFF  \u00B7  " + ago(saved).toUpperCase());
+                        want = true;
+                    }
+                } catch (RuntimeException | OutOfMemoryError e) {
+                    want = false;
+                }
+            }
+        }
+        boolean was = resumeWanted;
+        resumeWanted = want;
+        if (infoBlock.getVisibility() == View.VISIBLE) {
+            resumeBox.setVisibility(want ? View.VISIBLE : View.INVISIBLE);
+            if (want && (!was || g != lastFocused)) {
+                resumeBox.setAlpha(0f);
+                resumeBox.animate().alpha(1f).setStartDelay(150).setDuration(320).start();
+            }
+        }
+    }
+
+    /** "45 min", "3 h 10 min". */
+    private static String span(long ms) {
+        long m = Math.max(1, ms / 60000);
+        return m < 60 ? m + " min" : (m / 60) + " h" + (m % 60 == 0 ? "" : " " + (m % 60) + " min");
+    }
+
+    /** Long titles get a smaller size on Recent so they stay on a line or two. */
+    private void fitTitle(String text) {
+        boolean hero = shelf != null && shelf.mode() == Shelf.HERO;
+        float k = hero ? Math.max(.62f, Math.min(1f, 24f / Math.max(1, text.length()))) : 1f;
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * k * FONT * s);
     }
 
     /** The info block sits under the grid, or (Recent) beside the big first game. */
@@ -596,9 +677,6 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_ENTER:
                 if (first) activateShelf();
                 return true;
-            case KeyEvent.KEYCODE_BUTTON_Y:
-                if (first) toggleFavourite();
-                return true;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
                 if (first) openDrawer();
                 return true;
@@ -680,7 +758,6 @@ public class HomeActivity extends Activity {
                 if (!listed(g)) continue;
                 if (filter != null && !filter.equals(g.sysId)) continue;
                 if (filter == null && tab == 0 && g.lastPlayed == 0) continue;
-                if (filter == null && tab == 1 && !g.fav) continue;
                 shown.add(g);
             }
             if (filter == null && tab == 0) {
@@ -737,6 +814,8 @@ public class HomeActivity extends Activity {
                 t.animate().alpha(want).setDuration(180).start();
             }
         }
+        int sysHue = filter == null ? -1 : Library.baseHue(filter); // inside a system the highlight takes its colour
+        pillBg.setColor(sysHue >= 0 && tab == TAB_SYSTEMS ? (0x55000000 | (0xFFFFFF & Color.HSVToColor(new float[]{sysHue, .45f, 1f}))) : 0x2EFFFFFF);
         applyTabWeights(crumbAt);
         glidePill();
 
@@ -764,6 +843,7 @@ public class HomeActivity extends Activity {
             playPill.setVisibility(View.GONE);
             glow.to(0xFF2A2438, 0xFF14121C);
             glow.art(null);
+            updateResumeCard(null, 0);
         }
     }
 
@@ -772,7 +852,6 @@ public class HomeActivity extends Activity {
         if (query != null) return "No games match \u201c" + query + "\u201d.\nPress B to clear the search.";
         if (filter != null) return "No games here.";
         if (tab == 0) return "Nothing played yet.\nOpen a game and it will show up here.";
-        if (tab == 1) return "No favourites yet.\nPress Y on a game to add one.";
         return Library.hasFileAccess()
                 ? "No games found.\nPut ROMs in Lantern/roms/<system> on the device,\nor install an Android game."
                 : "No games found yet.";
@@ -816,6 +895,9 @@ public class HomeActivity extends Activity {
         }
         if (g.systemTile) {
             title.setText(g.title);
+            fitTitle(g.title);
+            updateResumeCard(null, 0);
+            lastFocused = g;
             chipView.setVisibility(View.VISIBLE);
             chipView.setText((g.count + " " + Library.unit(g.sysId, g.count)).toUpperCase());
             when.setText("");
@@ -833,16 +915,27 @@ public class HomeActivity extends Activity {
             return;
         }
         title.setText(g.title);
+        fitTitle(g.title);
         chipView.setVisibility(View.VISIBLE);
         chipView.setText(g.system.toUpperCase());
-        when.setText(g.lastPlayed == 0 ? "Never played" : "Played " + ago(g.lastPlayed));
+        long total = g.isRom() ? Library.playTime(this, g.id) : 0;
+        when.setText((g.lastPlayed == 0 ? "Never played" : "Played " + ago(g.lastPlayed)) + (total >= 60000 ? "  \u00B7  " + span(total) + " in total" : ""));
         long saved = Library.resumeTime(g);
+        if (g.isRom()) {
+            g.resume = saved > 0;
+            shelf.redraw();
+        }
         sub.setText(g.isRom() && !Cores.has(this, g.sysId) ? "No emulator core for " + g.system + " yet"
                 : saved > 0 ? "Resume available · saved " + ago(saved) : "Ready to play");
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
         glow.art(ArtCache.backdrop(g));
         compactInfo();
+        updateResumeCard(g, saved);
         if (shelf.mode() == Shelf.HERO) {
+            if (g != lastFocused) { // the status line fades in on a new game
+                sub.setAlpha(0f);
+                sub.animate().alpha(1f).setStartDelay(120).setDuration(280).start();
+            }
             boolean h = true; // the selected game is always the big one
             playPill.setVisibility(View.VISIBLE);
             playPill.setText(saved > 0 ? "\u25B6  Resume" : "\u25B6  Play");
@@ -853,6 +946,7 @@ public class HomeActivity extends Activity {
         } else {
             playPill.setVisibility(View.GONE);
         }
+        lastFocused = g;
     }
 
     /** Under a grid there is one line for the game, so the status joins the "played" text. */
@@ -893,20 +987,6 @@ public class HomeActivity extends Activity {
             startActivity(g.launch);
         } catch (RuntimeException e) {
             // App was removed or is not launchable; the next resume rebuilds the shelf.
-        }
-    }
-
-    private void toggleFavourite() {
-        int i = shelf.getIndex();
-        if (i < 0 || i >= shown.size()) return;
-        if (shown.get(i).systemTile) return; // systems cannot be favourites
-        Library.toggleFav(this, shown.get(i));
-        if (tab == 1 && filter == null && query == null) {
-            lastId = null;
-            refresh(false);
-            shelf.setIndex(Math.min(i, shown.size() - 1), false);
-        } else {
-            shelf.redraw();
         }
     }
 
@@ -952,14 +1032,12 @@ public class HomeActivity extends Activity {
         } else if (page) {
             hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Confirm");
-            hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             hint(hintsRow, glyph("L1", Color.WHITE, false), "Previous");
             hint(hintsRow, glyph("R1", Color.WHITE, false), "Next");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && !heroAll ? "Play" : "Open");
             if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("▼", Color.WHITE, true), "Details");
-            hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || tab == TAB_SEARCH) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
             // Select opens the drawer: settings, file access and the Android apps list.
@@ -1423,7 +1501,6 @@ public class HomeActivity extends Activity {
         long saved = Library.resumeTime(g);
         if (saved > 0) a.add(new Act("⟲", "Resume", "Saved " + ago(saved)));
         a.add(new Act("▶", saved > 0 ? "Play from the start" : "Play", g.isRom() ? (Cores.has(this, g.sysId) ? "Built-in player" : "No core yet") : "Android app"));
-        a.add(new Act("★", g.fav ? "Remove from favourites" : "Add to favourites", ""));
         if (!g.isRom()) a.add(new Act("⚙", "App settings", "Android settings"));
         return a;
     }
@@ -1455,7 +1532,7 @@ public class HomeActivity extends Activity {
             pageView.animate().alpha(1f).setDuration(200).setInterpolator(ease).start();
         }
         shelf.setVisibility(View.INVISIBLE);
-        infoBlock.setVisibility(View.INVISIBLE);
+        setInfoVisibility(View.INVISIBLE);
         setHints(true);
     }
 
@@ -1483,24 +1560,16 @@ public class HomeActivity extends Activity {
                         pageView.setVisibility(View.GONE);
                         pageView.removeAllViews();
                         shelf.setVisibility(View.VISIBLE);
-                        infoBlock.setVisibility(View.VISIBLE);
+                        setInfoVisibility(View.VISIBLE);
                     }).start();
         } else {
             pageView.setVisibility(View.GONE);
             pageView.removeAllViews();
             shelf.setVisibility(View.VISIBLE);
-            infoBlock.setVisibility(View.VISIBLE);
+            setInfoVisibility(View.VISIBLE);
         }
         setHints(false);
-        int i = shelf.getIndex();
-        if (tab == 1 && filter == null && query == null) {
-            // A game un-favourited on its page leaves the Favourites shelf now.
-            lastId = null;
-            refresh(false);
-            shelf.setIndex(Math.min(i, shown.size() - 1), false);
-        } else {
-            shelf.redraw();
-        }
+        shelf.redraw();
     }
 
     private void renderPage() {
@@ -1510,9 +1579,10 @@ public class HomeActivity extends Activity {
         Cover big = new Cover(this, s);
         big.setGame(g);
         big.setWeight(1f);
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(430), u(620), Gravity.TOP | Gravity.START);
-        cp.leftMargin = u(EDGE_L);
-        cp.topMargin = u(170);
+        float[] hb = Shelf.heroBox(g); // the same box as Recent's big cover, so it can grow into the page
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(hb[2]), u(hb[3]), Gravity.TOP | Gravity.START);
+        cp.leftMargin = u(hb[0]);
+        cp.topMargin = u(hb[1]);
         pageView.addView(big, cp);
         pageCover = big;
 
@@ -1536,12 +1606,6 @@ public class HomeActivity extends Activity {
         LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-2, -2);
         wp.leftMargin = u(22);
         meta.addView(when, wp);
-        if (g.fav) {
-            TextView star = label("★ Favourite", 30, AMBER, false);
-            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
-            sp.leftMargin = u(22);
-            meta.addView(star, sp);
-        }
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
         mp.topMargin = u(14);
         col.addView(meta, mp);
@@ -1609,12 +1673,6 @@ public class HomeActivity extends Activity {
                     renderPage();
                 }
                 return true;
-            case KeyEvent.KEYCODE_BUTTON_Y:
-                if (first) {
-                    Library.toggleFav(this, shown.get(shelf.getIndex()));
-                    renderPage();
-                }
-                return true;
             case KeyEvent.KEYCODE_BUTTON_A:
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -1634,9 +1692,6 @@ public class HomeActivity extends Activity {
             open(g, true);
         } else if (a.label.equals("Play") || a.label.equals("Play from the start")) {
             open(g, false);
-        } else if (a.label.startsWith("Add to") || a.label.startsWith("Remove from")) {
-            Library.toggleFav(this, g);
-            renderPage();
         } else if (a.label.endsWith("details")  || a.label.equals("Details")) {
             infoOpen = !infoOpen;
             renderPage();

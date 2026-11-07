@@ -8,16 +8,16 @@ Plan, mockup and decisions: the "Lantern Launcher" artifact (https://claude.ai/a
 ## Status: M0 done, M1 started
 
 The home screen follows the mockup (1920x1080 layout numbers, scaled to the window): three shelves
-(Recent, Favourites, All games) on L1/R1, one row of covers where the focused cover grows, a glow behind
+(Recent, Systems, All games, Search) on L1/R1, one row of covers where the focused cover grows, a glow behind
 it in the game's colours, the title block, and the button hints.
 
 - Games come from ROM folders (`/sdcard/Lantern/roms/<system>/`, needs "all files access") and from installed Android apps.
-- D-pad browses, A opens a game's page, Y favourites, Start turns cover art fetching on or off (or opens the
+- D-pad browses, A opens a game's page, Start turns cover art fetching on or off (or opens the
   file-access setting first if that is missing).
-- Favourites and play history are kept in the app's preferences.
+- Play history is kept in the app's preferences, and play time in small files. (Favourites were removed: Recent covers it.)
 - Covers: your own picture, a fetched one, or a generated one (see Cover art below).
-- A opens the game's page: Play, add or remove favourite, Details (file or package facts), and for apps
-  Android's App settings. L1/R1 move to the previous or next game, Y favourites, B goes back.
+- A opens the game's page: Play, Details (file or package facts), and for apps
+  Android's App settings. L1/R1 move to the previous or next game, B goes back.
 
 ### On the real Retroid Pocket 6
 
@@ -249,6 +249,13 @@ motion events are not handled yet.
 
 The tab bar has a fixed width, so it never grows over the battery and the time. Tabs share it by weight; inside a system or a search the breadcrumb tab takes room from its neighbours and shortens long names with "...". The menu has a Clock row: 12 hour or 24 hour (it starts with the system's setting).
 
+## Recent, resume and grids
+
+- **Grids use one tile shape**: a landscape rectangle (330 x 200 mockup pixels), the same for games and systems, five across. Covers are fitted inside on a blur of themselves.
+- **Recent's big cover** keeps the cover's own shape and stands on a fixed baseline; the details page uses the same box. It breathes slowly (a 3% zoom over six seconds). The thumbnail row fades out at the right edge.
+- **Resume**: games with a resume point get a small amber play button on their tile, and Recent shows a screenshot of where you left off. The info line adds total play time, counted while the game runs in the player.
+- **Motion**: the focused grid tile springs up with a little overshoot, and a new grid's tiles come in one after another. Inside a system, the tab highlight takes that system's colour.
+
 ## Build
 
 No Gradle. `build.sh` runs javac, d8, aapt2, zipalign and apksigner from the Android SDK, and builds the
@@ -280,7 +287,7 @@ licence text are in `licenses/system-icons.md`. Android apps and games use shape
 Recent shows the selected game very large with a Resume/Play button; pressing A starts it straight away (from its
 resume point when it has one) and Down opens its game page (the big cover grows into its place while the text rises in; Up on the page's first row or B flies it back) (play from the start, details). Only the selected game is
 highlighted. Left and Right change the selection: the next game glides into the big spot and the six after it show in a
-small row. Up to twelve recent games are kept there, then a last "All games" tile that opens the All games tab. Small arrows under the big game show which ways you can go (the left one hides on the first game, the right one on the last). Titles are printed under each tile, not on it. The button hints at the bottom are right-aligned. Favourites, Systems, All games, a system's games and search results are
+small row. Up to twelve recent games are kept there, then a last "All games" tile that opens the All games tab. Small arrows under the big game show which ways you can go (the left one hides on the first game, the right one on the last). Titles are printed under each tile, not on it. The button hints at the bottom are right-aligned. Systems, All games, a system's games and search results are
 a vertical grid (seven game tiles or six system tiles across, two rows in view) that scrolls a row at a time, with a peek of the next row;
 the focused game's name, system and status are one line under the grid. Tiles no longer carry the system chip (it is in
 that line). Touch: drag a grid up and down. Checked on the Pocket 6 with injected keys; the touch drag is not tried yet.

@@ -45,6 +45,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private final Map<Integer, Bitmap> slotCache = new HashMap<>();
     private SharedPreferences prefs;
     private File romFile, cheatFile;
+    private long sessionStart;
     private Controls controls;
     /** Whether the last key came from a pad labelled the Nintendo way (the Retroid's own). */
     private boolean nintendoPad = true;
@@ -237,6 +238,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     @Override
     protected void onPause() {
         super.onPause();
+        if (sessionStart > 0) {
+            Library.addPlayTime(this, "rom:" + sysId + "/" + romFile.getName(), android.os.SystemClock.elapsedRealtime() - sessionStart);
+            sessionStart = 0;
+        }
         android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
         if ((screenOff || !pm.isInteractive()) && running && !failed && !isFinishing()) {
             // Sleep: keep the place and put the game away, but stay here so waking carries on playing.
@@ -255,6 +260,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     @Override
     protected void onResume() {
         super.onResume();
+        sessionStart = android.os.SystemClock.elapsedRealtime();
         screenOff = false;
         resumeSaved = failed; // a new run, so it can be saved again
     }

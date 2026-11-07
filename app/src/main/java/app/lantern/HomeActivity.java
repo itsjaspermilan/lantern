@@ -591,7 +591,7 @@ public class HomeActivity extends Activity {
         v.setOnClickListener(x2 -> shelf.move(dir));
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(58), u(58), Gravity.TOP | Gravity.START);
         p.leftMargin = u(x - 29);
-        p.topMargin = u(801); // level with the middle of the row of small tiles
+        p.topMargin = u(819); // level with the middle of the row of small tiles
         stage.addView(v, p);
         return v;
     }

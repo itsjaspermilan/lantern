@@ -173,15 +173,14 @@ final class Cover extends View {
         float cx = w / 2f, cy = h / 2f;
         for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
         p.setStyle(Paint.Style.FILL);
-        if ("all".equals(g.sysId)) { // the "All games" tile: a little grid of squares
-            float sq = w * .11f, gap = w * .045f, start = cx - (3 * sq + 2 * gap) / 2f;
-            p.setColor(0xE6FFFFFF);
-            for (int row = 0; row < 3; row++) {
-                for (int col = 0; col < 3; col++) {
-                    float x = start + col * (sq + gap), y = cy - (3 * sq + 2 * gap) / 2f + row * (sq + gap);
-                    rect.set(x, y, x + sq, y + sq);
-                    c.drawRoundRect(rect, sq * .22f, sq * .22f, p);
-                }
+        if ("all".equals(g.sysId)) { // the "All games" tile: Kenney's grid icon
+            Bitmap grid = UiIcons.get(getContext(), "menu_grid");
+            if (grid != null) {
+                float half = w * .26f;
+                rect.set(cx - half, cy - half, cx + half, cy + half);
+                p.setAlpha(235);
+                c.drawBitmap(grid, null, rect, artPaint);
+                p.setAlpha(255);
             }
             return;
         }

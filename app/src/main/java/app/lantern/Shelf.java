@@ -255,7 +255,7 @@ final class Shelf extends ViewGroup {
             }
             c.setLabel(label * s);
             c.setWeight(wt);
-            if (alpha >= 0f) c.setAlpha(alpha);
+            c.setAlpha(alpha >= 0f ? alpha : .6f + .4f * wt); // tiles are reused, so never inherit an old fade
             c.setZ(z);
             int pw = Math.round(w * s), ph = Math.round(h * s), px = Math.round(x * s), py = Math.round(y * s);
             c.measure(View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY),

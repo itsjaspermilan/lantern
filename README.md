@@ -275,3 +275,9 @@ a vertical grid (seven game tiles or six system tiles across) that scrolls a row
 the focused game's name, system and status are one line under the grid. Tiles no longer carry the system chip (it is in
 that line). Touch: drag a grid up and down. Checked on the Pocket 6 with injected keys; the touch drag is not tried yet.
 
+
+### Kenney icons
+
+The hint buttons (A, B, X, Y, L, R, Select, D-pad), the arrows under Recent's big game and the All games tile's grid icon
+are Kenney's Input Prompts and Game Icons (CC0, `app/src/main/assets/ui/`, notes in `licenses/kenney-ui.md`). Hints keep
+their colours by tinting the white pictures. Other drawn bits (the lantern, system art, stars) are unchanged.

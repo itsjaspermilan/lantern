@@ -57,7 +57,8 @@ public class HomeActivity extends Activity {
     private int actIdx;
     private Glow glow;
     private Shelf shelf;
-    private TextView playPill, chevL, chevR;
+    private TextView playPill;
+    private View chevL, chevR;
     private FrameLayout.LayoutParams infoLp;
     /** Recent's big first game has the focus, so A plays it straight away. */
     private boolean heroFocused;
@@ -328,10 +329,11 @@ public class HomeActivity extends Activity {
     }
 
     /** A small round arrow under Recent's big game, showing that there is more to the left or right. */
-    private TextView chevron(String glyph, int x, int dir) {
-        TextView v = label(glyph, 60, Color.WHITE, true);
-        v.setGravity(Gravity.CENTER);
-        v.setIncludeFontPadding(false);
+    private View chevron(String glyph, int x, int dir) {
+        android.widget.ImageView v = new android.widget.ImageView(this);
+        v.setImageBitmap(UiIcons.get(this, dir < 0 ? "arrow_left" : "arrow_right"));
+        v.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        v.setPadding(u(16), u(16), u(16), u(16)); // an image centres itself; the arrow sits in the middle of the circle
         GradientDrawable d = new GradientDrawable();
         d.setShape(GradientDrawable.OVAL);
         d.setStroke(u(3), 0xCCFFFFFF);
@@ -1513,7 +1515,17 @@ public class HomeActivity extends Activity {
     }
 
     /** A button glyph like the mockup's: an outlined circle (letters) or rounded box (shoulders, D-pad). */
-    private TextView glyph(String text, int color, boolean round) {
+    private View glyph(String text, int color, boolean round) {
+        String prompt = UiIcons.promptFor(text);
+        android.graphics.Bitmap pic = prompt == null ? null : UiIcons.get(this, prompt);
+        if (pic != null) { // Kenney's button prompt, tinted with the colour the hint has always had
+            android.widget.ImageView iv = new android.widget.ImageView(this);
+            iv.setImageBitmap(pic);
+            iv.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            iv.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN);
+            iv.setLayoutParams(new LinearLayout.LayoutParams(u(52), u(52)));
+            return iv;
+        }
         boolean one = text.length() == 1;
         TextView v = label(text, one ? 24 : 20, color, true);
         v.setGravity(Gravity.CENTER);

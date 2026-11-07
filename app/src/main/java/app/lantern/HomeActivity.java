@@ -196,6 +196,11 @@ public class HomeActivity extends Activity {
             public void onTap(int index) {
                 if (index == shelf.getIndex()) activateShelf(); else shelf.setIndex(index, true);
             }
+
+            @Override
+            public void onEdge(float dx, float dy) {
+                elastic(dx, dy);
+            }
         });
         stage.addView(shelf, new FrameLayout.LayoutParams(-1, -1));
         buildTopBar();
@@ -711,6 +716,25 @@ public class HomeActivity extends Activity {
         filter = null;
         refresh(true);
         slideIn(0, -80); // back out: the systems come down from above
+    }
+
+    /**
+     * At the end of a list the whole screen stretches a little the way you pushed and springs back, like a rubber
+     * band. The tiles move the most; the text lags behind them, which gives it depth.
+     */
+    private void elastic(float dx, float dy) {
+        View[] parts = {shelf, infoBlock, dots, chevL, chevR};
+        float[] amount = {1.6f, .9f, 1.2f, 1.6f, 1.6f};
+        for (int i = 0; i < parts.length; i++) {
+            View v = parts[i];
+            if (v == null || v.getVisibility() != View.VISIBLE) continue;
+            v.animate().cancel();
+            v.animate().translationX(-dx * amount[i]).translationY(-dy * amount[i]).setDuration(80) // pulled the way the list would have gone
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
+                    .withEndAction(() -> v.animate().translationX(0f).translationY(0f).setDuration(420)
+                            .setInterpolator(new android.view.animation.OvershootInterpolator(3.2f)).start())
+                    .start();
+        }
     }
 
     /** The shelf and the info text arrive from a direction (mockup pixels) and fade in, so a move reads as a move. */

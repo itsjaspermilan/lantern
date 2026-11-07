@@ -29,6 +29,9 @@ final class Shelf extends ViewGroup {
         void onFocus(int index);
 
         void onTap(int index);
+
+        /** Pushed against an end of the list: the whole screen can give a little (dx, dy in pixels). */
+        void onEdge(float dx, float dy);
     }
 
     static final int GRID = 0, SYSTEMS = 1, HERO = 2;
@@ -228,6 +231,10 @@ final class Shelf extends ViewGroup {
 
     /** A small push against the edge when there is nothing further in that direction. */
     private void nudge(float dx, float dy) {
+        if (listener != null) {
+            listener.onEdge(dx, dy);
+            return;
+        }
         animate().cancel();
         animate().translationX(dx).translationY(dy).setDuration(70).withEndAction(() ->
                 animate().translationX(0f).translationY(0f).setDuration(220).setInterpolator(new OvershootInterpolator(3f)).start()).start();

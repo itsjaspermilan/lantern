@@ -34,6 +34,8 @@ final class Cover extends View {
     private final Path shape = new Path();
     private final RectF rect = new RectF();
     private float weight;
+    private android.graphics.Bitmap shot;
+    private float shotA;
     /** Height of the strip under the tile that holds the title, in pixels (0: no title). */
     private float labelPx;
 
@@ -71,6 +73,45 @@ final class Cover extends View {
         if (px == labelPx) return;
         labelPx = px;
         invalidate();
+    }
+
+    /** Recent's big tile shows a screenshot of where the game was left, faded in by a (0 to 1). */
+    void setShot(android.graphics.Bitmap b, float a) {
+        if (b == shot && Math.abs(a - shotA) < .01f) return;
+        shot = b;
+        shotA = b == null ? 0f : a;
+        invalidate();
+    }
+
+    private void drawShot(Canvas c, float w, float h) {
+        int sw = shot.getWidth(), sh = shot.getHeight();
+        float sa = (float) sw / sh, ta = w / h;
+        android.graphics.Rect src;
+        if (sa > ta) {
+            int cw = Math.round(sh * ta);
+            src = new android.graphics.Rect((sw - cw) / 2, 0, (sw + cw) / 2, sh);
+        } else {
+            int ch = Math.round(sw / ta);
+            src = new android.graphics.Rect(0, (sh - ch) / 2, sw, (sh + ch) / 2);
+        }
+        rect.set(0, 0, w, h);
+        artPaint.setAlpha((int) (255 * Math.min(1f, shotA)));
+        c.drawBitmap(shot, src, rect, artPaint);
+        artPaint.setAlpha(255);
+        p.setStyle(Paint.Style.FILL);
+        p.setShader(new LinearGradient(0, h * .5f, 0, h, 0x00000000, Color.argb((int) (0x99 * shotA), 0, 0, 0), Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, w, h, p);
+        p.setShader(null);
+        float cx = w / 2f, cy = h / 2f, rr = Math.min(w, h) * .12f; // a play button: one press and you are back in
+        p.setColor(Color.argb((int) (230 * shotA), 255, 255, 255));
+        c.drawCircle(cx, cy, rr, p);
+        p.setColor(Color.argb((int) (255 * shotA), 0x17, 0x13, 0x1F));
+        shape.reset();
+        shape.moveTo(cx - rr * .28f, cy - rr * .42f);
+        shape.lineTo(cx + rr * .48f, cy);
+        shape.lineTo(cx - rr * .28f, cy + rr * .42f);
+        shape.close();
+        c.drawPath(shape, p);
     }
 
     /** 0 when idle, 1 when focused. */
@@ -148,7 +189,8 @@ final class Cover extends View {
             c.drawBitmap(art, null, artBox, artPaint);
         }
 
-        if (g.resume) { // a small amber play button: this game has a resume point
+        if (shot != null && shotA > .01f) drawShot(c, w, h);
+        if (g.resume && shotA < .5f) { // a small amber play button: this game has a resume point
             float rr = 15 * s, cx = 28 * s, cy = 28 * s;
             p.setStyle(Paint.Style.FILL);
             p.setColor(AMBER);

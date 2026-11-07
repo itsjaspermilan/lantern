@@ -39,8 +39,9 @@ final class Shelf extends ViewGroup {
     // Each tile also has a LABEL strip under it for the title.
     private static final float DEF_W = 330, DEF_H = 200, SYS_W = 330, SYS_H = 200, LABEL = 42;
     // The hero tile and the small row beside and below it.
-    private static final float HERO_W = 430, HERO_H = 620, HERO_Y = 170; // the same size and place as the cover on the details page
-    private static final float SMALL_X = 620, SMALL_W = 180, SMALL_H = 262, SMALL_GAP = 20, SMALL_BOTTOM = 956;
+    // The big tile and the row under it are the same landscape shape as the grid tiles (about 1.65 : 1).
+    private static final float HERO_W = 720, HERO_H = 436, HERO_Y = 150; // the same size and place as the cover on the details page
+    private static final float SMALL_X = 90, SMALL_W = 300, SMALL_H = 182, SMALL_GAP = 24, SMALL_BOTTOM = 882;
     /** How many recent games the hero layout carries. The focused one is large; the next six show beside it. */
     static final int HERO_COUNT = 12;
 
@@ -77,19 +78,9 @@ final class Shelf extends ViewGroup {
         setClipChildren(false);
     }
 
-    /**
-     * Where the big Recent cover sits, in mockup pixels: x, y, width, height. It keeps the cover's own shape inside
-     * the hero box, centred and standing on the box's bottom edge, so wide and square art need no blur bars.
-     * The details page uses the same box.
-     */
+    /** Where the big Recent tile sits, in mockup pixels: x, y, width, height. The details page cover uses the same box. */
     static float[] heroBox(Game g) {
-        float a = g == null || g.systemTile ? 0f : ArtCache.aspect(g);
-        float w = HERO_W, h = HERO_H;
-        if (a > 0f) {
-            a = Math.max(.5f, Math.min(1.6f, a));
-            if (a * HERO_H > HERO_W) h = HERO_W / a; else w = HERO_H * a;
-        }
-        return new float[]{LEFT + (HERO_W - w) / 2f, HERO_Y + HERO_H - h, w, h};
+        return new float[]{LEFT, HERO_Y, HERO_W, HERO_H};
     }
 
     void setListener(Listener l) {
@@ -356,6 +347,12 @@ final class Shelf extends ViewGroup {
             c.setWeight(wt);
             c.setAlpha((alpha >= 0f ? alpha : .6f + .4f * wt) * ek); // tiles are reused, so never inherit an old fade
             c.setTranslationY(ty);
+            if (mode == HERO) {
+                float dd = i - heroPos;
+                c.setShot(dd > -1f && dd < 1f ? ArtCache.shot(g) : null, 1f - Math.abs(dd)); // a screenshot of where it was left
+            } else {
+                c.setShot(null, 0f);
+            }
             c.setScaleX(1f);
             c.setScaleY(1f);
             c.setZ(z);

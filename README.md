@@ -252,8 +252,8 @@ The tab bar has a fixed width, so it never grows over the battery and the time. 
 ## Recent, resume and grids
 
 - **Grids use one tile shape**: a landscape rectangle (330 x 200 mockup pixels), the same for games and systems, five across. Covers are fitted inside on a blur of themselves.
-- **Recent's big cover** keeps the cover's own shape and stands on a fixed baseline; the details page uses the same box. It breathes slowly (a 3% zoom over six seconds). The thumbnail row fades out at the right edge.
-- **Resume**: games with a resume point get a small amber play button on their tile, and Recent shows a screenshot of where you left off. The info line adds total play time, counted while the game runs in the player.
+- **Recent** uses the same landscape shape: one big tile (720 x 436) with the row of next games under it. If the focused game has a resume point, the big tile shows its saved screenshot with a play button; otherwise the cover, fitted inside. A line above the title says "Pick up where you left off", "Jump back in" or "Recently played". The big tile breathes slowly (3% over six seconds), the details page uses the same box, and the row fades out at the right edge.
+- **Resume**: games with a resume point get a small amber play button on their tile, and Recent's big tile shows a screenshot of where you left off. The info line adds total play time, counted while the game runs in the player.
 - **Motion**: the focused grid tile springs up with a little overshoot, and a new grid's tiles come in one after another. Inside a system, the tab highlight takes that system's colour.
 
 ## Build

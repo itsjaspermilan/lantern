@@ -65,6 +65,30 @@ final class ArtCache {
         return a;
     }
 
+    private static final LruCache<String, Bitmap> SHOTS = new LruCache<>(6);
+    private static final java.util.HashMap<String, java.io.File> SHOT_FILES = new java.util.HashMap<>();
+
+    /** The screenshot saved with a game's resume point (small, so it is read on the spot), or null. */
+    static Bitmap shot(Game g) {
+        if (g == null || !g.isRom() || !g.resume) return null;
+        Bitmap b = SHOTS.get(g.id);
+        if (b != null) return b;
+        java.io.File f = SHOT_FILES.get(g.id);
+        if (f == null) {
+            f = new java.io.File(Library.stateFile(g.sysId, g.file, ".auto").getPath() + ".png");
+            SHOT_FILES.put(g.id, f);
+        }
+        if (!f.exists()) return null;
+        b = BitmapFactory.decodeFile(f.getPath());
+        if (b != null) SHOTS.put(g.id, b);
+        return b;
+    }
+
+    /** Forget the screenshots: a game may have saved a new resume point. */
+    static void clearShots() {
+        SHOTS.evictAll();
+    }
+
     static void setListener(Listener l) {
         listener = l;
     }

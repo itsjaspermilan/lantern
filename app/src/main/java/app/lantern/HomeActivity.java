@@ -65,10 +65,7 @@ public class HomeActivity extends Activity {
     private LinearLayout tabBar;
     private TextClock clock;
     private GradientDrawable pillBg;
-    private LinearLayout resumeBox;
-    private android.widget.ImageView resumeImg;
-    private TextView resumeCap;
-    private boolean resumeWanted;
+    private TextView eyebrow;
     private Game lastFocused;
     private float[] tabNat;
     private boolean clock24;
@@ -217,8 +214,8 @@ public class HomeActivity extends Activity {
         lbp.topMargin = u(200);
         stage.addView(letterBadge, lbp);
         buildInfo();
-        chevL = chevron("\u2039", 225, -1);
-        chevR = chevron("\u203A", 385, 1);
+        chevL = chevron("\u2039", 370, -1);
+        chevR = chevron("\u203A", 530, 1);
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
@@ -274,7 +271,7 @@ public class HomeActivity extends Activity {
         tabHost.addView(tabPill, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
         tabHost.addView(tabs, new FrameLayout.LayoutParams(-1, -2));
         // A fixed width: the bar never grows into the battery and the clock. Tabs share it by weight (see applyTabWeights).
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(u(1120), -2);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(u(1000), -2);
         tp.leftMargin = u(60);
         top.addView(tabHost, tp);
         tabs.addView(glyph("L1", Color.WHITE, false));
@@ -342,6 +339,13 @@ public class HomeActivity extends Activity {
         LinearLayout info = new LinearLayout(this);
         infoBlock = info;
         info.setOrientation(LinearLayout.VERTICAL);
+        eyebrow = label("", 24, AMBER, true);
+        eyebrow.setLetterSpacing(.16f);
+        eyebrow.setSingleLine(true);
+        eyebrow.setVisibility(View.GONE);
+        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-2, -2);
+        ep.bottomMargin = u(8);
+        info.addView(eyebrow, ep);
         title =label("", 76, Color.WHITE, true);
         title.setSingleLine(true);
         info.addView(title);
@@ -383,67 +387,11 @@ public class HomeActivity extends Activity {
         stage.addView(info, infoLp);
         placeInfo(false);
 
-        // Recent: a screenshot of where the game was left, beside the title.
-        resumeBox = new LinearLayout(this);
-        resumeBox.setOrientation(LinearLayout.VERTICAL);
-        resumeCap = label("WHERE YOU LEFT OFF", 22, 0xB3FFFFFF, true);
-        resumeCap.setLetterSpacing(.12f);
-        resumeCap.setSingleLine(true);
-        resumeBox.addView(resumeCap);
-        resumeImg = new android.widget.ImageView(this);
-        resumeImg.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-        GradientDrawable rb = new GradientDrawable();
-        rb.setCornerRadius(u(18));
-        rb.setColor(0x66000000);
-        rb.setStroke(u(3), 0x55FFFFFF);
-        resumeImg.setBackground(rb);
-        resumeImg.setClipToOutline(true);
-        resumeImg.setPadding(u(3), u(3), u(3), u(3));
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(u(460), u(259));
-        ip.topMargin = u(10);
-        resumeBox.addView(resumeImg, ip);
-        resumeBox.setVisibility(View.INVISIBLE);
-        stage.addView(resumeBox, new FrameLayout.LayoutParams(u(460), -2, Gravity.TOP | Gravity.START) {{
-            leftMargin = u(1390);
-            topMargin = u(372);
-        }});
     }
 
-    /** Shows or hides the info text, and the resume screenshot with it when there is one. */
+    /** Shows or hides the info text. */
     private void setInfoVisibility(int v) {
         infoBlock.setVisibility(v);
-        if (resumeBox != null) resumeBox.setVisibility(v == View.VISIBLE && resumeWanted ? View.VISIBLE : View.INVISIBLE);
-    }
-
-    /** The screenshot of a game's resume point, if there is one to show (Recent only). */
-    private void updateResumeCard(Game g, long saved) {
-        boolean want = false;
-        if (g != null && shelf != null && shelf.mode() == Shelf.HERO && g.isRom() && saved > 0) {
-            java.io.File png = new java.io.File(Library.stateFile(g.sysId, g.file, ".auto").getPath() + ".png");
-            if (png.exists()) {
-                try {
-                    android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
-                    o.inSampleSize = 1;
-                    android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeFile(png.getPath(), o);
-                    if (b != null) {
-                        resumeImg.setImageBitmap(b);
-                        resumeCap.setText("LEFT OFF  \u00B7  " + ago(saved).toUpperCase());
-                        want = true;
-                    }
-                } catch (RuntimeException | OutOfMemoryError e) {
-                    want = false;
-                }
-            }
-        }
-        boolean was = resumeWanted;
-        resumeWanted = want;
-        if (infoBlock.getVisibility() == View.VISIBLE) {
-            resumeBox.setVisibility(want ? View.VISIBLE : View.INVISIBLE);
-            if (want && (!was || g != lastFocused)) {
-                resumeBox.setAlpha(0f);
-                resumeBox.animate().alpha(1f).setStartDelay(150).setDuration(320).start();
-            }
-        }
     }
 
     /** "45 min", "3 h 10 min". */
@@ -461,9 +409,10 @@ public class HomeActivity extends Activity {
 
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
-        infoLp.leftMargin = u(hero ? 620 : EDGE_L);
-        infoLp.topMargin = u(hero ? 170 : 866);
-        infoLp.width = u(hero ? 1230 : 1700);
+        infoLp.leftMargin = u(hero ? 870 : EDGE_L);
+        infoLp.topMargin = u(hero ? 150 : 866);
+        infoLp.width = u(hero ? 980 : 1700);
+        eyebrow.setVisibility(hero ? View.VISIBLE : View.GONE);
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * FONT * s);
         title.setSingleLine(!hero);
         title.setMaxLines(hero ? 3 : 1);
@@ -488,7 +437,7 @@ public class HomeActivity extends Activity {
         v.setOnClickListener(x2 -> shelf.move(dir));
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(76), u(76), Gravity.TOP | Gravity.START);
         p.leftMargin = u(x - 38 + 0);
-        p.topMargin = u(826);
+        p.topMargin = u(604);
         stage.addView(v, p);
         return v;
     }
@@ -578,6 +527,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        ArtCache.clearShots();
         Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if (b != null) {
             int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
@@ -843,7 +793,6 @@ public class HomeActivity extends Activity {
             playPill.setVisibility(View.GONE);
             glow.to(0xFF2A2438, 0xFF14121C);
             glow.art(null);
-            updateResumeCard(null, 0);
         }
     }
 
@@ -896,7 +845,7 @@ public class HomeActivity extends Activity {
         if (g.systemTile) {
             title.setText(g.title);
             fitTitle(g.title);
-            updateResumeCard(null, 0);
+            eyebrow.setText("BROWSE YOUR WHOLE LIBRARY");
             lastFocused = g;
             chipView.setVisibility(View.VISIBLE);
             chipView.setText((g.count + " " + Library.unit(g.sysId, g.count)).toUpperCase());
@@ -921,6 +870,7 @@ public class HomeActivity extends Activity {
         long total = g.isRom() ? Library.playTime(this, g.id) : 0;
         when.setText((g.lastPlayed == 0 ? "Never played" : "Played " + ago(g.lastPlayed)) + (total >= 60000 ? "  \u00B7  " + span(total) + " in total" : ""));
         long saved = Library.resumeTime(g);
+        eyebrow.setText(index == 0 ? (saved > 0 ? "PICK UP WHERE YOU LEFT OFF" : "JUMP BACK IN") : "RECENTLY PLAYED");
         if (g.isRom()) {
             g.resume = saved > 0;
             shelf.redraw();
@@ -930,7 +880,6 @@ public class HomeActivity extends Activity {
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
         glow.art(ArtCache.backdrop(g));
         compactInfo();
-        updateResumeCard(g, saved);
         if (shelf.mode() == Shelf.HERO) {
             if (g != lastFocused) { // the status line fades in on a new game
                 sub.setAlpha(0f);
@@ -1644,9 +1593,9 @@ public class HomeActivity extends Activity {
             col.addView(row, rp);
         }
 
-        FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(u(1120), -2, Gravity.TOP | Gravity.START);
-        colp.leftMargin = u(EDGE_L + 520);
-        colp.topMargin = u(170);
+        FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(u(980), -2, Gravity.TOP | Gravity.START);
+        colp.leftMargin = u(870);
+        colp.topMargin = u(150);
         pageView.addView(col, colp);
         pageCol = col;
     }

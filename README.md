@@ -288,3 +288,9 @@ There is no separate breadcrumb line. Inside a system, the Systems tab becomes a
 its game count ("< Game Boy . 498"). Search is its own tab at the end of the bar: X from anywhere (or R1 onto the tab) opens
 the keyboard there, and the results show in the tab as "< "words" . 12". B goes back to the tab you came from.
 
+
+### Tab bar motion
+
+One pill sits behind the tabs and glides to the active tab, growing and shrinking with its label (so "Systems" stretching into
+"< Game Boy . 498" or "Search" into the search words is animated). Labels that change fade in; the others fade between dim and
+bright. The game page is laid out tighter (smaller title, shorter rows) so four actions plus the Details text fit above the hints.

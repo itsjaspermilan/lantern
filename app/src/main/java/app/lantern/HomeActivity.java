@@ -60,6 +60,12 @@ public class HomeActivity extends Activity {
     private Glow glow;
     private Shelf shelf;
     private TextView playPill;
+    /** The highlight behind the active tab: it glides from tab to tab and grows or shrinks with the label. */
+    private View tabPill;
+    private LinearLayout tabBar;
+    private FrameLayout tabHost;
+    private android.animation.ValueAnimator pillAnim;
+    private int pillX, pillW;
     /** The page's big cover and its text column, kept so Recent's game can fly into place and back. */
     private View pageCover, pageCol;
     private View chevL, chevR;
@@ -248,9 +254,19 @@ public class HomeActivity extends Activity {
 
         LinearLayout tabs = new LinearLayout(this);
         tabs.setGravity(Gravity.CENTER_VERTICAL);
+        tabBar = tabs;
+        tabHost = new FrameLayout(this);
+        tabPill = new View(this);
+        GradientDrawable pillBg = new GradientDrawable();
+        pillBg.setCornerRadius(u(99));
+        pillBg.setColor(0x2EFFFFFF);
+        tabPill.setBackground(pillBg);
+        pillX = pillW = 0;
+        tabHost.addView(tabPill, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
+        tabHost.addView(tabs, new FrameLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
         tp.leftMargin = u(60);
-        top.addView(tabs, tp);
+        top.addView(tabHost, tp);
         tabs.addView(glyph("L1", Color.WHITE, false));
         for (String name : TABS) {
             TextView t = label(name, 32, Color.WHITE, false);
@@ -363,6 +379,49 @@ public class HomeActivity extends Activity {
         boolean hero = shelf.mode() == Shelf.HERO && !pageOpen && !shown.isEmpty();
         chevL.setVisibility(hero && shelf.getIndex() > 0 ? View.VISIBLE : View.GONE);
         chevR.setVisibility(hero && shelf.getIndex() < shelf.size() - 1 ? View.VISIBLE : View.GONE);
+    }
+
+    /** Moves the highlight to the active tab once the bar has been laid out with its new labels. */
+    private void glidePill() {
+        if (tabHost == null) return;
+        tabHost.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                tabHost.getViewTreeObserver().removeOnPreDrawListener(this);
+                if (tab < 0 || tab >= tabViews.size()) return true;
+                TextView t = tabViews.get(tab);
+                if (t.getWidth() == 0) return true;
+                final int toX = t.getLeft(), toW = t.getWidth(), toY = t.getTop(), toH = t.getHeight();
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) tabPill.getLayoutParams();
+                lp.height = toH;
+                tabPill.setTranslationY(toY);
+                if (pillAnim != null) pillAnim.cancel();
+                if (pillW == 0) { // first time: just put it there
+                    pillX = toX;
+                    pillW = toW;
+                    lp.width = toW;
+                    tabPill.setTranslationX(toX);
+                    tabPill.setLayoutParams(lp);
+                    return true;
+                }
+                final int fromX = pillX, fromW = pillW;
+                pillAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
+                pillAnim.setDuration(300);
+                pillAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+                pillAnim.addUpdateListener(a -> {
+                    float f = (Float) a.getAnimatedValue();
+                    pillX = Math.round(fromX + (toX - fromX) * f);
+                    pillW = Math.round(fromW + (toW - fromW) * f);
+                    FrameLayout.LayoutParams l2 = (FrameLayout.LayoutParams) tabPill.getLayoutParams();
+                    l2.width = pillW;
+                    tabPill.setTranslationX(pillX);
+                    tabPill.setLayoutParams(l2);
+                });
+                pillAnim.start();
+                return true;
+            }
+        });
+        tabBar.invalidate();
     }
 
     private void buildHints() {
@@ -608,6 +667,7 @@ public class HomeActivity extends Activity {
             TextView t = tabViews.get(i);
             // A search is shown in the All games tab, since it looks through everything.
             boolean on = i == tab;
+            String before = String.valueOf(t.getText());
             // The tab bar is the breadcrumb: inside a system, "Systems" becomes the system's name with a back arrow
             // and the number of games; a search becomes "back arrow, the words, the number of results".
             boolean back = on && ((i == TAB_SEARCH && searching) || (i == TAB_SYSTEMS && filter != null));
@@ -626,12 +686,17 @@ public class HomeActivity extends Activity {
                 t.setCompoundDrawables(null, null, null, null);
             }
             t.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-            t.setAlpha(on ? 1f : 0.55f);
-            GradientDrawable pill = new GradientDrawable();
-            pill.setCornerRadius(u(99));
-            pill.setColor(on ? 0x24FFFFFF : 0);
-            t.setBackground(pill);
+            float want = on ? 1f : 0.55f;
+            t.setBackground(null); // the shared pill behind the tabs does the highlighting
+            t.animate().cancel();
+            if (!before.equals(String.valueOf(t.getText())) && !before.isEmpty()) {
+                t.setAlpha(0f); // a changed label fades in
+                t.animate().alpha(want).setDuration(220).start();
+            } else {
+                t.animate().alpha(want).setDuration(180).start();
+            }
         }
+        glidePill();
 
         // Work out which tile to come back to first: setItems announces item 0, which overwrites lastId.
         final String want = keepFocus ? lastId : null;
@@ -1401,8 +1466,8 @@ public class HomeActivity extends Activity {
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView t = label(g.title, 96, Color.WHITE, true);
-        t.setMaxLines(2);
+        TextView t = label(g.title, infoOpen ? 64 : 80, Color.WHITE, true); // with the details open, everything is tighter so it fits
+        t.setMaxLines(infoOpen ? 1 : 2);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         col.addView(t);
 
@@ -1429,11 +1494,13 @@ public class HomeActivity extends Activity {
         mp.topMargin = u(14);
         col.addView(meta, mp);
 
-        TextView blurb = label(infoOpen ? details(g) : summary(g), infoOpen ? 26 : 30, 0xBFFFFFFF, false);
-        blurb.setLineSpacing(0, 1.25f);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(u(900), -2);
-        bp.topMargin = u(22);
-        bp.bottomMargin = u(30);
+        TextView blurb = label(infoOpen ? details(g) : summary(g), infoOpen ? 22 : 30, 0xBFFFFFFF, false);
+        blurb.setLineSpacing(0, infoOpen ? 1.15f : 1.25f);
+        blurb.setMaxLines(infoOpen ? 6 : 4);
+        blurb.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(u(infoOpen ? 1100 : 900), -2);
+        bp.topMargin = u(infoOpen ? 12 : 18);
+        bp.bottomMargin = u(infoOpen ? 16 : 22);
         col.addView(blurb, bp);
 
         List<Act> acts = actionsFor(g);
@@ -1453,11 +1520,11 @@ public class HomeActivity extends Activity {
             TextView ic = label(a.icon, 30, ink, true);
             ic.setGravity(Gravity.CENTER);
             row.addView(ic, new LinearLayout.LayoutParams(u(46), -2));
-            row.addView(label(a.label, 34, ink, true));
+            row.addView(label(a.label, 32, ink, true));
             row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
             row.addView(label(a.hint, 24, on ? 0xBF17131F : 0xB3FFFFFF, false));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(760), u(82));
-            rp.bottomMargin = u(14);
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(760), u(72));
+            rp.bottomMargin = u(10);
             col.addView(row, rp);
         }
 

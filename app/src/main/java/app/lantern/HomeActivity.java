@@ -68,6 +68,8 @@ public class HomeActivity extends Activity {
     private TextView eyebrow;
     private Game lastFocused;
     private int lastHeroIndex = -1;
+    /** Top of the details text column on screen, in pixels: it is centred on the screen like the cover. */
+    private int pageColTop;
     private android.animation.ValueAnimator marquee;
     private TextView marqueeTab;
     private View veil;
@@ -1780,6 +1782,9 @@ public class HomeActivity extends Activity {
         pageView.setAlpha(1f);
         pageView.setTranslationY(0f);
         if (fromHero) {
+            // The line above the title and the title start where they are on Recent and move down with the cover.
+            pageCol.setTranslationY(u(150) - pageColTop);
+            pageCol.animate().translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             // Down moves the screen down: the row under the big tile slides away, and the details drop in from above.
             pageRest.setAlpha(0f);
             pageRest.setTranslationY(-u(70));
@@ -1862,33 +1867,37 @@ public class HomeActivity extends Activity {
                     if (pageOpen) return; // opened again meanwhile
                     pageView.setVisibility(View.GONE);
                     pageView.removeAllViews();
-                    if (hero) shelf.setPage(0f, false);
+                    if (hero) {
+                        // The page's copy and the real tile and title are at the same place now: swap in the same frame.
+                        shelf.setPage(0f, false);
+                        infoBlock.animate().cancel();
+                        infoBlock.setAlpha(1f);
+                        setInfoVisibility(View.VISIBLE);
+                        for (int ci = 2; ci < infoBlock.getChildCount(); ci++) {
+                            View cv = infoBlock.getChildAt(ci);
+                            cv.setAlpha(0f);
+                            cv.animate().alpha(1f).setStartDelay(0).setDuration(260).start();
+                        }
+                    }
                 }).start();
         shelf.animate().cancel();
         shelf.setVisibility(View.VISIBLE);
         if (hero) {
             // Up moves the screen back up: the details lift away, the row slides back in from below, and the info returns.
+            // The big tile and the real title stay hidden while the page's cover and title travel back (so nothing
+            // shows twice); both come back in the frame the page goes.
             shelf.setAlpha(1f);
-            shelf.setPage(1f, false);
+            shelf.setPage(1f, true);
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(1f, 0f);
             va.setDuration(PAGE_MS);
             va.setInterpolator(ease);
-            va.addUpdateListener(a -> { if (!pageOpen) shelf.setPage((Float) a.getAnimatedValue(), false); });
+            va.addUpdateListener(a -> { if (!pageOpen) shelf.setPage((Float) a.getAnimatedValue(), (Float) a.getAnimatedValue() > 0f); });
             va.start();
-            // The line above the title and the title are identical to the page's, so they show at once; only
-            // the rest of the info fades in. (Fading all of it left the title dim for a frame when the page went.)
-            infoBlock.animate().cancel();
-            infoBlock.setAlpha(1f);
-            setInfoVisibility(View.VISIBLE);
-            for (int ci = 2; ci < infoBlock.getChildCount(); ci++) {
-                View cv = infoBlock.getChildAt(ci);
-                cv.setAlpha(0f);
-                cv.animate().alpha(1f).setStartDelay(150).setDuration(260).start();
-            }
             pageRest.animate().alpha(0f).translationY(-u(70)).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
+            pageCol.animate().translationY(u(150) - pageColTop).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
         } else {
             shelf.setAlpha(0f);
-            shelf.animate().alpha(1f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            shelf.animate().alpha(1f).setStartDelay(PAGE_MS / 2).setDuration(PAGE_MS / 2).start(); // under the landing cover
             pageCol.animate().alpha(0f).setStartDelay(0).setDuration(PAGE_MS / 2).start();
             infoBlock.animate().cancel();
             infoBlock.setAlpha(0f);
@@ -1989,7 +1998,9 @@ public class HomeActivity extends Activity {
 
         FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(u(980), -2, Gravity.TOP | Gravity.START);
         colp.leftMargin = u(870);
-        colp.topMargin = u(150);
+        col.measure(View.MeasureSpec.makeMeasureSpec(u(980), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        pageColTop = Math.max(u(120), (u(1080) - col.getMeasuredHeight()) / 2); // centred on the screen, like the cover
+        colp.topMargin = pageColTop;
         pageView.addView(col, colp);
         pageCol = col;
     }

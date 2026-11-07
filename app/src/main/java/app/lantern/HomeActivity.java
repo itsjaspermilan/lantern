@@ -32,7 +32,7 @@ import java.util.Map;
  * D-pad to browse, A to open, X to search. Every size below is in mockup pixels, scaled to the screen.
  */
 public class HomeActivity extends Activity {
-    private static final int AMBER = 0xFFFFB454;
+    static final int AMBER = 0xFFFFB454;
     private static final String[] TABS = {"Recent", "Systems", "All games", "Search"};
     private static final int TAB_SYSTEMS = 1, TAB_ALL = 2, TAB_SEARCH = 3;
     /** The tab to go back to when the search is left with B. */
@@ -45,7 +45,7 @@ public class HomeActivity extends Activity {
     private float s = 1f;
     /** Text is drawn this much larger than the mockup's sizes, and the side margins are tighter (EDGE_L, EDGE_R). */
     private static final float FONT = 1.1f;
-    private static final int EDGE_L = 90, EDGE_R = 70;
+    static final int EDGE_L = 90, EDGE_R = 70;
     private boolean loaded;
     private String batteryText = "";
     private FrameLayout root, safe, stage, pageView;
@@ -68,8 +68,6 @@ public class HomeActivity extends Activity {
     private TextView eyebrow;
     private Game lastFocused;
     private int lastHeroIndex = -1;
-    /** How the search keyboard arrives: +1 from the right (R1 onto the Search tab), -1 from the left (L1), 0 rising from below (X). */
-    private int searchDir;
     /** Top of the details text column on screen, in pixels: it is centred on the screen like the cover. */
     private int pageColTop;
     private android.animation.ValueAnimator marquee;
@@ -97,22 +95,13 @@ public class HomeActivity extends Activity {
     private String lastId;
     /** The search being shown on the shelf (all games that match), or null. */
     private String query;
-    private boolean searchOpen;
-    private String draft = "";
-    private int kbRow, kbCol;
-    private FrameLayout searchView;
+    private SearchPanel search;
     private TextView crumb, letterBadge;
     /** Android apps are hidden from every shelf unless this is on; the drawer lists them either way. */
     private boolean showApps;
     private boolean drawerOpen;
     private int drawerIdx;
     private FrameLayout drawerView;
-    private static final String[][] KEYS = {
-        {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
-        {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
-        {"a", "s", "d", "f", "g", "h", "j", "k", "l"},
-        {"z", "x", "c", "v", "b", "n", "m", "Space", "Del", "OK"},
-    };
 
     @Override
     protected void onCreate(Bundle state) {
@@ -293,10 +282,8 @@ public class HomeActivity extends Activity {
         pageView = new FrameLayout(this);
         pageView.setVisibility(View.GONE);
         stage.addView(pageView, new FrameLayout.LayoutParams(-1, -1));
-        searchOpen = false;
-        searchView = new FrameLayout(this);
-        searchView.setVisibility(View.GONE);
-        stage.addView(searchView, new FrameLayout.LayoutParams(-1, -1));
+        search = new SearchPanel(this, searchHost);
+        stage.addView(search.view(), new FrameLayout.LayoutParams(-1, -1));
         buildHints();
         drawerOpen = false;
         drawerView = new FrameLayout(this);
@@ -742,7 +729,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (searchOpen) closeSearch();
+        if (searchOpen()) search.close();
         if (drawerOpen) closeDrawer();
         if (shelf != null) shelf.setIndex(0, true); // Home pressed while Lantern is showing: back to the first game
     }
@@ -769,15 +756,12 @@ public class HomeActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         boolean first = event.getRepeatCount() == 0;
         if (shelf == null) return super.onKeyDown(keyCode, event); // not built yet
-        if (searchOpen) return searchKey(keyCode, event, first);
+        if (searchOpen()) return search.key(keyCode, event, first);
         if (drawerOpen) return drawerKey(keyCode, first);
         if (pageOpen) return pageKey(keyCode, first);
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_X:
-                if (first) {
-                    searchDir = 0;
-                    openSearch();
-                }
+                if (first) openSearch(0);
                 return true;
             case KeyEvent.KEYCODE_BUTTON_L2:
             case KeyEvent.KEYCODE_BUTTON_R2:
@@ -827,7 +811,7 @@ public class HomeActivity extends Activity {
     @Override
     public void onBackPressed() {
         // A launcher has nowhere to go back to, except out of a game page or a system.
-        if (searchOpen) closeSearch(); else if (drawerOpen) closeDrawer(); else if (pageOpen) closePage(); else leaveSystem();
+        if (searchOpen()) search.close(); else if (drawerOpen) closeDrawer(); else if (pageOpen) closePage(); else leaveSystem();
     }
 
     /** A on the shelf: a system tile opens that system's games, a game tile opens its page. */
@@ -913,10 +897,7 @@ public class HomeActivity extends Activity {
         shelf.setEnterDirection(t > old ? 1 : -1); // R1: the new tab comes in from the right; L1: from the left
         refresh(false);
         slideIn(t > old ? 120 : -120, 0); // the next tab arrives from the side it sits on
-        if (tab == TAB_SEARCH) { // arriving on Search opens the keyboard, which comes in from the side of the button pressed
-            searchDir = t > old ? 1 : -1;
-            openSearch();
-        }
+        if (tab == TAB_SEARCH) openSearch(t > old ? 1 : -1); // arriving on Search opens the keyboard, which comes in from the side of the button pressed
     }
 
     private void refresh(boolean keepFocus) {
@@ -1073,7 +1054,7 @@ public class HomeActivity extends Activity {
         updateChevrons();
         if (shelf.mode() == Shelf.HERO && g.systemTile != heroAll) {
             heroAll = g.systemTile;
-            if (!pageOpen && !searchOpen && !drawerOpen) setHints(false);
+            if (!pageOpen && !searchOpen() && !drawerOpen) setHints(false);
         }
         if (g.systemTile) {
             title.setText(g.title);
@@ -1129,7 +1110,7 @@ public class HomeActivity extends Activity {
             playPill.setText(saved > 0 ? "\u25B6  Resume" : "\u25B6  Play");
             if (h != heroFocused) {
                 heroFocused = h;
-                if (!pageOpen && !searchOpen && !drawerOpen) setHints(false);
+                if (!pageOpen && !searchOpen() && !drawerOpen) setHints(false);
             }
         } else {
             playPill.setVisibility(View.GONE);
@@ -1184,7 +1165,7 @@ public class HomeActivity extends Activity {
 
     /** Y on Recent: takes the big game off the list (its saves stay; playing it again puts it back). */
     private void removeRecent() {
-        if (shelf == null || shelf.mode() != Shelf.HERO || pageOpen || searchOpen || drawerOpen) return;
+        if (shelf == null || shelf.mode() != Shelf.HERO || pageOpen || searchOpen() || drawerOpen) return;
         int i = shelf.getIndex();
         if (i < 0 || i >= shown.size() || shown.get(i).systemTile) return;
         Game g = shown.get(i);
@@ -1261,7 +1242,7 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Select");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Close");
-        } else if (searchOpen) {
+        } else if (searchOpen()) {
             hint(hintsRow, glyph("◀ ▶ ▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Type");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Delete");
@@ -1522,7 +1503,11 @@ public class HomeActivity extends Activity {
         crumb.setVisibility(View.GONE); // the tab bar now carries the breadcrumb
     }
 
-    private void openSearch() {
+    /**
+     * Opens the search. dir is where its keyboard comes from: +1 the right (R1 onto the Search tab), -1 the left (L1),
+     * 0 below (the X button).
+     */
+    private void openSearch(int dir) {
         if (tab != TAB_SEARCH) { // X from anywhere: go to the Search tab first, then type
             tabBeforeSearch = tab;
             tab = TAB_SEARCH;
@@ -1531,243 +1516,54 @@ public class HomeActivity extends Activity {
             lastId = null;
             refresh(false);
         }
-        searchOpen = true;
-        empty.setVisibility(View.GONE); // the keyboard has the screen; the empty-search hint would show through its dim layer
-        draft = query == null ? "" : query;
-        kbRow = 1; // starts on Q
-        kbCol = 0;
-        renderSearch();
-        searchView.setVisibility(View.VISIBLE);
-        searchView.setAlpha(0f);
-        searchView.animate().alpha(1f).setDuration(150).start();
-        // The keyboard rises from below and the results come in from the right, where they sit.
-        android.view.animation.DecelerateInterpolator easeS = new android.view.animation.DecelerateInterpolator(2f);
-        for (int ci = 1; ci < searchView.getChildCount(); ci++) {
-            View cv = searchView.getChildAt(ci);
-            boolean results = ((FrameLayout.LayoutParams) cv.getLayoutParams()).leftMargin == u(1210);
-            cv.setAlpha(0f);
-            long delay = Math.min(ci, 30) * 6L;
-            if (searchDir != 0) {
-                // From the side of the button pressed, in a wave that starts on that side.
-                cv.setTranslationX(searchDir * u(170));
-                float x = ((FrameLayout.LayoutParams) cv.getLayoutParams()).leftMargin;
-                delay = (long) ((searchDir > 0 ? u(1920) - x : x) / u(1920) * 170f);
-            } else if (results) {
-                cv.setTranslationX(u(140));
-            } else {
-                cv.setTranslationY(u(160));
-            }
-            cv.animate().alpha(1f).translationX(0f).translationY(0f).setStartDelay(delay).setDuration(300).setInterpolator(easeS).start();
-        }
-        setHints(false);
+        search.open(dir);
     }
 
-    private void closeSearch() {
-        searchOpen = false;
-        empty.setVisibility(View.VISIBLE);
-        searchView.setVisibility(View.GONE);
-        searchView.removeAllViews();
-        setHints(pageOpen);
+    private boolean searchOpen() {
+        return search != null && search.isOpen();
     }
 
-    /** Shows the draft's matches on the shelf (an empty draft clears the search). */
-    private void applySearch() {
-        String q = draft.trim();
-        query = q.isEmpty() ? null : q;
-        if (query != null) filter = null;
-        closeSearch();
-        lastId = null;
-        refresh(false);
-    }
-
-    private void typeChar(String c) {
-        if (draft.length() < 40) draft += c;
-        renderSearch();
-    }
-
-    private void backspace() {
-        if (!draft.isEmpty()) draft = draft.substring(0, draft.length() - 1);
-        renderSearch();
-    }
-
-    private void pressKey(String k) {
-        if (k.equals("OK")) applySearch();
-        else if (k.equals("Del")) backspace();
-        else typeChar(k.equals("Space") ? " " : k);
-    }
-
-    /** Touch: a tapped result closes the search with those matches on the shelf and that game focused. */
-    private void pickResult(Game g) {
-        String q = draft.trim();
-        query = q.isEmpty() ? null : q;
-        if (query != null) filter = null;
-        closeSearch();
-        lastId = g.id;
-        refresh(true);
-    }
-
-    private boolean searchKey(int keyCode, KeyEvent event, boolean first) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                kbCol = (kbCol + KEYS[kbRow].length - 1) % KEYS[kbRow].length;
-                renderSearch();
-                return true;
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                kbCol = (kbCol + 1) % KEYS[kbRow].length;
-                renderSearch();
-                return true;
-            case KeyEvent.KEYCODE_DPAD_UP:
-                kbRow = (kbRow + KEYS.length - 1) % KEYS.length;
-                kbCol = Math.min(kbCol, KEYS[kbRow].length - 1);
-                renderSearch();
-                return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                kbRow = (kbRow + 1) % KEYS.length;
-                kbCol = Math.min(kbCol, KEYS[kbRow].length - 1);
-                renderSearch();
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_A:
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                if (!first) return true;
-                pressKey(KEYS[kbRow][kbCol]);
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_Y:
-            case KeyEvent.KEYCODE_DEL:
-                backspace();
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_X:
-                if (first) applySearch();
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_L1:
-            case KeyEvent.KEYCODE_BUTTON_R1:
-                if (first) {
-                    int dirT = keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1;
-                    closeSearch();
-                    setTab(tab + dirT);
-                }
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_B:
-            case KeyEvent.KEYCODE_ESCAPE:
-                if (first) closeSearch();
-                return true;
-            default:
-                // A real keyboard works too.
-                int ch = event.getUnicodeChar();
-                if (ch > 0 && (Character.isLetterOrDigit(ch) || ch == ' ')) {
-                    typeChar(String.valueOf((char) Character.toLowerCase(ch)));
-                    return true;
-                }
-                return true;
-        }
-    }
-
-    private void renderSearch() {
-        searchView.removeAllViews();
-        View dim = new View(this);
-        dim.setBackgroundColor(0xF20B0A10);
-        dim.setClickable(true); // swallows touches so the shelf underneath is not tapped
-        FrameLayout.LayoutParams dimp = new FrameLayout.LayoutParams(-1, -1);
-        dimp.topMargin = u(104); // the tab bar stays above the keyboard: L1 and R1 still move between tabs
-        searchView.addView(dim, dimp);
-
-        TextView head = label("Search", 56, Color.WHITE, true);
-        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
-        hp.leftMargin = u(EDGE_L);
-        hp.topMargin = u(110);
-        searchView.addView(head, hp);
-
-        TextView box = label(draft.isEmpty() ? "Type a game name" : draft + "\u2502", 44, draft.isEmpty() ? 0x66FFFFFF : Color.WHITE, false);
-        box.setSingleLine(true);
-        box.setGravity(Gravity.CENTER_VERTICAL);
-        box.setPadding(u(28), 0, u(28), 0);
-        GradientDrawable bd = new GradientDrawable();
-        bd.setCornerRadius(u(18));
-        bd.setColor(0x1FFFFFFF);
-        bd.setStroke(u(3), AMBER);
-        box.setBackground(bd);
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(u(1040), u(96), Gravity.TOP | Gravity.START);
-        bp.leftMargin = u(EDGE_L);
-        bp.topMargin = u(215);
-        searchView.addView(box, bp);
-
-        // The letters: a grid chosen with the D-pad.
-        int cell = 92, gap = 10;
-        for (int r = 0; r < KEYS.length; r++) {
-            for (int c = 0; c < KEYS[r].length; c++) {
-                String k = KEYS[r][c];
-                boolean on = r == kbRow && c == kbCol;
-                boolean word = k.length() > 1;
-                TextView v = label(word ? k : k.toUpperCase(), word ? 26 : 38, on ? 0xFF17131F : Color.WHITE, true);
-                v.setGravity(Gravity.CENTER);
-                GradientDrawable kd = new GradientDrawable();
-                kd.setCornerRadius(u(16));
-                kd.setColor(on ? Color.WHITE : k.equals("OK") ? 0x40FFB454 : 0x1AFFFFFF);
-                v.setBackground(kd);
-                FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(u(cell), u(cell - 8), Gravity.TOP | Gravity.START);
-                kp.leftMargin = u(EDGE_L + (r == 2 ? (cell + gap) / 2 : 0) + c * (cell + gap)); // the home row is indented, as on a keyboard
-                kp.topMargin = u(350 + r * (cell - 8 + gap));
-                final int fr = r, fc = c;
-                v.setOnClickListener(x -> {
-                    kbRow = fr;
-                    kbCol = fc;
-                    pressKey(k);
-                });
-                searchView.addView(v, kp);
-            }
+    /** What the search panel asks of the launcher. */
+    private final SearchPanel.Host searchHost = new SearchPanel.Host() {
+        @Override
+        public int px(float mockupPx) {
+            return u(mockupPx);
         }
 
-        // Touch: close, and show the results.
-        TextView cancel = label("Cancel", 28, Color.WHITE, true);
-        cancel.setGravity(Gravity.CENTER);
-        GradientDrawable cdr = new GradientDrawable();
-        cdr.setCornerRadius(u(99));
-        cdr.setColor(0x24FFFFFF);
-        cancel.setBackground(cdr);
-        cancel.setOnClickListener(x -> closeSearch());
-        FrameLayout.LayoutParams cap = new FrameLayout.LayoutParams(u(170), u(64), Gravity.TOP | Gravity.START);
-        cap.leftMargin = u(EDGE_L + 870);
-        cap.topMargin = u(120);
-        searchView.addView(cancel, cap);
+        @Override
+        public TextView text(String text, float mockupPx, int color, boolean bold) {
+            return label(text, mockupPx, color, bold);
+        }
 
-        // Live matches on the right.
-        List<Game> hits = draft.trim().isEmpty() ? new ArrayList<Game>() : matches(draft);
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        String sum = draft.trim().isEmpty() ? "Pick letters, then press X to see the games"
-                : hits.size() + (hits.size() == 1 ? " game" : " games");
-        TextView sumView = label(sum, 28, AMBER, true);
-        if (!hits.isEmpty()) {
-            sumView.setText(sum + "  \u2014  tap to show all");
-            sumView.setOnClickListener(x -> applySearch());
+        @Override
+        public List<Game> matches(String q) {
+            return HomeActivity.this.matches(q);
         }
-        col.addView(sumView);
-        for (int i = 0; i < Math.min(hits.size(), 8); i++) {
-            Game g = hits.get(i);
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            TextView name = label(g.title, 30, Color.WHITE, false);
-            name.setSingleLine(true);
-            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            row.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
-            row.addView(label(g.system, 22, 0x99FFFFFF, false));
-            row.setPadding(0, u(6), 0, u(6));
-            row.setOnClickListener(x -> pickResult(g));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
-            rp.topMargin = u(12);
-            col.addView(row, rp);
+
+        @Override
+        public String currentQuery() {
+            return query;
         }
-        if (hits.size() > 8) {
-            TextView more = label("and " + (hits.size() - 8) + " more", 24, 0x99FFFFFF, false);
-            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
-            mp.topMargin = u(18);
-            col.addView(more, mp);
+
+        @Override
+        public void showResults(String q, String focusId) {
+            query = q;
+            if (query != null) filter = null;
+            lastId = focusId;
+            refresh(focusId != null);
         }
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(600), -2, Gravity.TOP | Gravity.START);
-        cp.leftMargin = u(1210);
-        cp.topMargin = u(232);
-        searchView.addView(col, cp);
-    }
+
+        @Override
+        public void searchVisible(boolean visible) {
+            empty.setVisibility(visible ? View.GONE : View.VISIBLE); // the keyboard has the screen: the empty-search hint would show through its dim layer
+            setHints(visible ? false : pageOpen);
+        }
+
+        @Override
+        public void moveTab(int dir) {
+            setTab(tab + dir);
+        }
+    };
 
     // ---- game page ----
 

@@ -269,7 +269,7 @@ Movement matches the direction you pressed, so the screen feels like one space.
 - **On the details page** the tab bar fades up and away and a wide chevron at the top says that Up goes back (it can be tapped too); the dots under the cover are hidden, and L1/R1 do nothing there, since the page is about one game. Coming back reverses all of it.
 - **Long system names** in the tab bar (inside a system) are not cut off: the name slides slowly to its end and back, pausing at each end, while the back arrow stays put.
 - **Recent**: the info text slides a little the way you moved; dots under the big tile show where you are in the list, and small arrows at the edges of the row show there is more that way. **Details**: At the first or last tile (or the top or bottom row) the whole screen stretches like a rubber band and springs back: the tiles move most, the text and dots a little less.
-- **L1/R1** slide the next tab in from the side it sits on. **A** on a system makes its games rise in from below; **B** brings the systems back down from above.
+- **L1/R1** slide the next tab in from the side it sits on: R1 brings it in from the right, L1 from the left. The tiles inside arrive in a wave that starts on that side, each one sliding in a little behind the one before. **A** on a system makes its games rise in from below; **B** brings the systems back down from above.
 
 ## Build
 

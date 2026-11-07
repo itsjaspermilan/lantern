@@ -895,6 +895,7 @@ public class HomeActivity extends Activity {
         filter = null;
         query = null;
         lastId = null;
+        shelf.setEnterDirection(t > old ? 1 : -1); // R1: the new tab comes in from the right; L1: from the left
         refresh(false);
         slideIn(t > old ? 120 : -120, 0); // the next tab arrives from the side it sits on
         if (tab == TAB_SEARCH) openSearch(); // arriving on Search opens the keyboard

@@ -67,6 +67,13 @@ final class Shelf extends ViewGroup {
     private float focusT = 1f;
     /** Tiles come in one after another when a new list appears: 0 to 1. */
     private float enterT = 1f;
+    /** Which way the next list arrives: +1 from the right (R1), -1 from the left (L1), 0 rising from below. */
+    private int enterDir, enterDirNow;
+
+    /** Called just before a new list is shown after a tab change: its tiles arrive from the side of that tab. */
+    void setEnterDirection(int d) {
+        enterDir = d;
+    }
     /** The big Recent cover slowly breathes: 0 to 1 and back. */
     private float breath;
     /** The details page is open (0 to 1): the row under the big tile slides down; the big tile itself is hidden while the page's copy stands in. */
@@ -143,7 +150,9 @@ final class Shelf extends ViewGroup {
         prevIndex = -1;
         focusT = 1f;
         enterT = 1f;
-        if (fresh && layout != HERO && !list.isEmpty()) {
+        enterDirNow = enterDir;
+        enterDir = 0;
+        if (fresh && (layout != HERO || enterDirNow != 0) && !list.isEmpty()) {
             enterT = 0f;
             enter = ValueAnimator.ofFloat(0f, 1f);
             enter.setDuration(760);
@@ -385,7 +394,7 @@ final class Shelf extends ViewGroup {
             Game g = items.get(i);
             if (c.game() != g) c.setGame(g);
             boolean on = i == index;
-            float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = 0f, ek = 1f, ty = 0f;
+            float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = 0f, ek = 1f, ty = 0f, tx = 0f;
             if (mode == HERO) {
                 // The whole recent list sits in the row. The focused game is lifted a little, so you can see where you
                 // are; the row scrolls to keep it in view, one game back from the left edge.
@@ -399,15 +408,21 @@ final class Shelf extends ViewGroup {
                 wt = lift;
                 z = lift > 0f ? 2f : 0f;
                 ek = .3f + .7f * Math.max(0f, Math.min(1f, (1900f - x) / 240f)); // the row fades at the right edge,
+                if (enterDirNow != 0 && enterT < 1f) { // arriving from the side of the tab that was pressed
+                    float kk = Math.max(0f, Math.min(1f, (enterT - (enterDirNow > 0 ? i : 8 - Math.min(i, 8)) * .05f) / .5f));
+                    ek *= kk;
+                    tx = enterDirNow * (1f - kk) * 140f * s;
+                }
                 ek *= Math.max(0f, Math.min(1f, (x + SMALL_W - LEFT) / SMALL_W)); // and as it slides out on the left
             } else {
                 int cols = cols(), row = i / cols, col = i % cols;
                 float used = cols * (cellW() + GAP) - GAP, x0 = LEFT + (1920 - LEFT - RIGHT - used) / 2f;
                 float grow = 1f + .06f * Math.max(0f, i == index ? focusT : i == prevIndex ? 1f - focusT : 0f);
                 float order = Math.max(0, row - (int) Math.floor(scroll / (cellH() + GAP))) * .10f + col * .05f;
+                if (enterDirNow != 0) order = Math.max(0, row - (int) Math.floor(scroll / (cellH() + GAP))) * .05f + (enterDirNow > 0 ? cols - 1 - col : col) * .07f; // the side it comes from leads
                 float kk = Math.max(0f, Math.min(1f, (enterT - order) / .45f));
                 ek = i == hiddenIndex ? 0f : kk;
-                ty = (1f - kk) * 28f * s;
+                if (enterDirNow != 0) tx = enterDirNow * (1f - kk) * 140f * s; else ty = (1f - kk) * 28f * s;
                 float cx = x0 + col * (cellW() + GAP) + cellW() / 2f, cy = GRID_TOP + row * (cellH() + GAP) - scroll + cellH() / 2f;
                 w = cellW() * grow; h = cellH() * grow;
                 x = cx - w / 2f; y = cy - h / 2f;
@@ -416,6 +431,7 @@ final class Shelf extends ViewGroup {
             c.setWeight(wt);
             c.setAlpha((alpha >= 0f ? alpha : .6f + .4f * wt) * ek); // tiles are reused, so never inherit an old fade
             c.setTranslationY(ty);
+            c.setTranslationX(tx);
             c.setShot(null, 0f);
             float sc = mode == HERO ? 1f : .88f + .12f * ek; // grid tiles grow in as they arrive
             c.setScaleX(sc);

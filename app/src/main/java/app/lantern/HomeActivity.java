@@ -1371,7 +1371,6 @@ public class HomeActivity extends Activity {
         if (saved > 0) a.add(new Act("⟲", "Resume", "Saved " + ago(saved)));
         a.add(new Act("▶", saved > 0 ? "Play from the start" : "Play", g.isRom() ? (Cores.has(this, g.sysId) ? "Built-in player" : "No core yet") : "Android app"));
         a.add(new Act("★", g.fav ? "Remove from favourites" : "Add to favourites", ""));
-        a.add(new Act("i", infoOpen ? "Hide details" : "Details", ""));
         if (!g.isRom()) a.add(new Act("⚙", "App settings", "Android settings"));
         return a;
     }
@@ -1466,8 +1465,8 @@ public class HomeActivity extends Activity {
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView t = label(g.title, infoOpen ? 64 : 80, Color.WHITE, true); // with the details open, everything is tighter so it fits
-        t.setMaxLines(infoOpen ? 1 : 2);
+        TextView t = label(g.title, 96, Color.WHITE, true); // with the details open, everything is tighter so it fits
+        t.setMaxLines(2);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         col.addView(t);
 
@@ -1499,8 +1498,8 @@ public class HomeActivity extends Activity {
         blurb.setMaxLines(infoOpen ? 6 : 4);
         blurb.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(u(infoOpen ? 1100 : 900), -2);
-        bp.topMargin = u(infoOpen ? 12 : 18);
-        bp.bottomMargin = u(infoOpen ? 16 : 22);
+        bp.topMargin = u(22);
+        bp.bottomMargin = u(30);
         col.addView(blurb, bp);
 
         List<Act> acts = actionsFor(g);
@@ -1520,11 +1519,11 @@ public class HomeActivity extends Activity {
             TextView ic = label(a.icon, 30, ink, true);
             ic.setGravity(Gravity.CENTER);
             row.addView(ic, new LinearLayout.LayoutParams(u(46), -2));
-            row.addView(label(a.label, 32, ink, true));
+            row.addView(label(a.label, 34, ink, true));
             row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
             row.addView(label(a.hint, 24, on ? 0xBF17131F : 0xB3FFFFFF, false));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(760), u(72));
-            rp.bottomMargin = u(10);
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(u(760), u(82));
+            rp.bottomMargin = u(14);
             col.addView(row, rp);
         }
 

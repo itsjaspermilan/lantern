@@ -293,4 +293,4 @@ the keyboard there, and the results show in the tab as "< "words" . 12". B goes 
 
 One pill sits behind the tabs and glides to the active tab, growing and shrinking with its label (so "Systems" stretching into
 "< Game Boy . 498" or "Search" into the search words is animated). Labels that change fade in; the others fade between dim and
-bright. The game page is laid out tighter (smaller title, shorter rows) so four actions plus the Details text fit above the hints.
+bright. The game page has no Details button any more (it ran past the bottom), so the full-size title and rows fit.

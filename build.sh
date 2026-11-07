@@ -35,11 +35,17 @@ CFLAGS="-shared -fPIC -O2 -Wall -Wextra -Inative/third_party/libretro"
 "$CC" $CFLAGS -o "$LIBDIR/libtestcore.so" native/testcore/testcore.c -lm
 # Real cores the person has downloaded into native/cores/ (git-ignored, never committed):
 # mgba_libretro_android.so is packaged as libmgba.so, because Android only unpacks lib*.so files.
+CORES=0
 for core in native/cores/*_libretro_android.so; do
     [ -f "$core" ] || continue
     name=$(basename "$core" _libretro_android.so)
     cp "$core" "$LIBDIR/lib$name.so"
+    CORES=$((CORES + 1))
 done
+if [ "$CORES" -gt 0 ]; then
+    echo "note: $CORES emulator core(s) from native/cores are packaged in this APK. Cores have their own licences" >&2
+    echo "      (some are non-commercial only): keep this build for your own device. See native/CORES.md." >&2
+fi
 # Stored, not compressed, so zipalign can page-align them.
 (cd "$OUT" && zip -q -0 -r base.apk lib)
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"

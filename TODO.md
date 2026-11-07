@@ -2,13 +2,13 @@
 
 Roadmap, not features: check the source before relying on any line here.
 
-## Cores still missing (needs the owner's approval for each download)
+## Cores still missing (needs the author's approval for each download)
 
 Systems with a ROM folder but no core: N64, PlayStation, Nintendo DS, PSP, Saturn, Dreamcast, PS2.
 Likely libretro cores, in a sensible order (performance notes are expectations, not measurements on the Pocket 6):
 
 1. **N64: Mupen64Plus-Next.** 19 N64 ROMs are already on the device. Per-game settings may be needed.
-2. **PlayStation: SwanStation or PCSX ReARMed.** Needs a PS1 BIOS from the owner, `.cue`/`.chd` handling and disc swapping.
+2. **PlayStation: SwanStation or PCSX ReARMed.** Needs a PS1 BIOS from the author, `.cue`/`.chd` handling and disc swapping.
 3. **Nintendo DS: melonDS or DeSmuME.** Two screens: needs a layout choice and touch for the bottom screen.
 4. **PSP: PPSSPP.** The heaviest of the set.
 5. **Dreamcast: Flycast.** Needs a BIOS.
@@ -35,4 +35,4 @@ Before adding any core: read its licence, record it in `native/CORES.md`, check 
 - Search results: rank titles that start with the text first.
 - "Move to Games" on an Android app's page, for games that do not declare a category.
 - Hint for L2/R2 letter jumping in the bottom row, if there is room.
-- System art: icons for Android apps and games are still the drawn shapes (`SystemArt.java`); the console icons are libretro's. Optionally let the owner's pictures in `Lantern/art/_systems/<id>.png` win.
+- System art: icons for Android apps and games are still the drawn shapes (`SystemArt.java`); the console icons are libretro's. Optionally let the author's pictures in `Lantern/art/_systems/<id>.png` win.

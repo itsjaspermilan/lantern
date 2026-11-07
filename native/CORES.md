@@ -1,11 +1,11 @@
-# Emulator cores in use
+# Emulator cores
 
-The core binaries live in `native/cores/` (git-ignored, never committed). This file records what they are, where
-they came from and what licence applies, so the folder can be rebuilt and the terms are not forgotten.
+**Lantern does not include any emulator core.** A person who builds it adds the cores they want to `native/cores/`
+(git-ignored, never committed), and `build.sh` packages them. This file records which cores Lantern has been used
+with, where they come from and what licence applies, so the terms are not forgotten.
 
-All were downloaded on 2026-11-05 from libretro's nightly Android build server,
-`https://buildbot.libretro.com/nightly/android/latest/arm64-v8a/<core>_libretro_android.so.zip`, with the owner's
-approval for each file. They are nightly builds with no signature: the only integrity checks made were the size
+The cores Lantern's author uses were downloaded on 2026-11-05 from libretro's nightly Android build server,
+`https://buildbot.libretro.com/nightly/android/latest/arm64-v8a/<core>_libretro_android.so.zip`. They are nightly builds with no signature: the only integrity checks made were the size
 and a SHA-256 of the zip, and that the unzipped file is a 64-bit ARM ELF that exports the libretro functions and
 needs only libc, libm and libdl. None of them was scanned or reviewed beyond that.
 
@@ -19,15 +19,15 @@ needs only libc, libm and libdl. None of them was scanned or reviewed beyond tha
 
 ## What this means
 
-- On the owner's own device, none of this is a problem.
-- **Do not sell or give away an APK that contains Snes9x or Genesis Plus GX** as part of anything commercial.
+- On your own device, for your own use, none of this is a problem.
+- **Do not redistribute an APK that contains Snes9x or Genesis Plus GX** (their licences are non-commercial only). Lantern's repository and any release built from it contain no cores.
 - Sharing an APK with GPL cores (Gambatte, FCEUmm) means offering their source and the GPL text with it. Whether
   Lantern itself then has to be GPL depends on how the cores are combined with it (they are separate shared
   libraries loaded at run time, which is the usual argument for keeping them apart, but that is a legal question
   this file does not settle).
 - The libretro API header (`native/third_party/libretro/libretro.h`) is MIT and separate from all of the above.
-- Before any sharing: get proper legal advice, ship the licence texts, and consider downloading cores at first run
-  instead of bundling them.
+- Before sharing a build that contains any core: check its licence, ship the licence texts and offer the source of GPL
+  cores, or leave the cores out and let people add their own.
 
 ## Systems and folders
 

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 76 76" width="512" height="512" role="img" aria-label="Lantern logo">
+  <title>Lantern</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="4" x2="0" y2="72" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2B2018"/>
+      <stop offset="1" stop-color="#120E16"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="38" cy="40" r="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFA040" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#FFA040" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="22" x2="0" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD27A"/>
+      <stop offset="1" stop-color="#FF8A3D"/>
+    </linearGradient>
+    <clipPath id="clip"><rect x="4" y="4" width="68" height="68" rx="17"/></clipPath>
+  </defs>
+  <rect x="4" y="4" width="68" height="68" rx="17" fill="url(#tile)"/>
+  <circle cx="38" cy="40" r="40" fill="url(#glow)" clip-path="url(#clip)"/>
+  <rect x="4.8" y="4.8" width="66.4" height="66.4" rx="16.5" fill="none" stroke="#FFC878" stroke-opacity=".33" stroke-width="1.6"/>
+  <g transform="translate(38 40) scale(1.22) translate(-38 -40)">
+    <path d="M31.5 14.5 A6.5 6.5 0 0 1 44.5 14.5" fill="none" stroke="#F6DDAA" stroke-width="2.6"/>
+    <rect x="28" y="16.5" width="20" height="5.5" rx="2.5" fill="#F6DDAA"/>
+    <rect x="29.5" y="54" width="17" height="5.5" rx="2.5" fill="#F6DDAA"/>
+    <rect x="28.5" y="22" width="19" height="32" rx="6.5" fill="url(#glass)"/>
+    <path d="M38 29.5 C45 37 44.5 47 38 49 C31.5 47 31 37 38 29.5 Z" fill="#FFF3C9"/>
+    <circle cx="38" cy="43.5" r="3.2" fill="#FFFFFF"/>
+    <path d="M34.7 22.5 V53.5 M41.3 22.5 V53.5" stroke="#401E00" stroke-opacity=".4" stroke-width="1.6" fill="none"/>
+  </g>
+</svg>

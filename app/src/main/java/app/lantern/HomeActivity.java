@@ -57,10 +57,12 @@ public class HomeActivity extends Activity {
     private int actIdx;
     private Glow glow;
     private Shelf shelf;
-    private TextView playPill;
+    private TextView playPill, chevL, chevR;
     private FrameLayout.LayoutParams infoLp;
     /** Recent's big first game has the focus, so A plays it straight away. */
     private boolean heroFocused;
+    /** Recent's selected tile is the "All games" one, so A opens it and there are no details. */
+    private boolean heroAll;
     private TextView title, when, chipView, sub, empty, banner, battery;
     private int tab = -1;
     private String lastId;
@@ -191,6 +193,8 @@ public class HomeActivity extends Activity {
         lbp.topMargin = u(200);
         stage.addView(letterBadge, lbp);
         buildInfo();
+        chevL = chevron("\u2039", 250, -1);
+        chevR = chevron("\u203A", 410, 1);
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
@@ -323,6 +327,32 @@ public class HomeActivity extends Activity {
         infoBlock.requestLayout();
     }
 
+    /** A small round arrow under Recent's big game, showing that there is more to the left or right. */
+    private TextView chevron(String glyph, int x, int dir) {
+        TextView v = label(glyph, 60, Color.WHITE, true);
+        v.setGravity(Gravity.CENTER);
+        v.setIncludeFontPadding(false);
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setStroke(u(3), 0xCCFFFFFF);
+        v.setBackground(d);
+        v.setVisibility(View.GONE);
+        v.setOnClickListener(x2 -> shelf.move(dir));
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(76), u(76), Gravity.TOP | Gravity.START);
+        p.leftMargin = u(x - 38 + 0);
+        p.topMargin = u(824);
+        stage.addView(v, p);
+        return v;
+    }
+
+    /** Shows each arrow only while there is something in that direction. */
+    private void updateChevrons() {
+        if (chevL == null || shelf == null) return;
+        boolean hero = shelf.mode() == Shelf.HERO && !pageOpen && !shown.isEmpty();
+        chevL.setVisibility(hero && shelf.getIndex() > 0 ? View.VISIBLE : View.GONE);
+        chevR.setVisibility(hero && shelf.getIndex() < shelf.size() - 1 ? View.VISIBLE : View.GONE);
+    }
+
     private void buildHints() {
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
@@ -334,7 +364,9 @@ public class HomeActivity extends Activity {
         hintsRow = new LinearLayout(this);
         hintsRow.setGravity(Gravity.CENTER_VERTICAL);
         setHints(false);
-        bottom.addView(hintsRow, new LinearLayout.LayoutParams(-2, u(96)));
+        LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(-2, u(96));
+        hl.gravity = Gravity.END;
+        bottom.addView(hintsRow, hl);
         stage.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
     }
 
@@ -346,7 +378,7 @@ public class HomeActivity extends Activity {
         t.setPadding(u(12), 0, 0, 0);
         h.addView(t);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.rightMargin = u(44);
+        lp.leftMargin = u(44); // the row is right-aligned, so the spacing goes on the left
         row.addView(h, lp);
     }
 
@@ -434,7 +466,11 @@ public class HomeActivity extends Activity {
                 shelf.move(1);
                 return true;
             case KeyEvent.KEYCODE_DPAD_UP:
-                shelf.moveRow(-1);
+                if (shelf.mode() == Shelf.HERO) {
+                    if (first && shelf.size() > 0) openPage(); // Recent: A plays at once, Up shows the game's page
+                } else {
+                    shelf.moveRow(-1);
+                }
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 shelf.moveRow(1);
@@ -474,12 +510,14 @@ public class HomeActivity extends Activity {
     private void activateShelf() {
         Game g = shelf.itemAt(shelf.getIndex());
         if (g == null) return;
-        if (g.systemTile) {
+        if (g.systemTile && "all".equals(g.sysId)) {
+            setTab(TAB_ALL); // Recent's last tile
+        } else if (g.systemTile) {
             filter = g.sysId;
             lastId = null;
             refresh(false);
-        } else if (shelf.mode() == Shelf.HERO && shelf.getIndex() == 0) {
-            open(g, Library.resumeTime(g) > 0); // Recent's first game: one press and it is playing
+        } else if (shelf.mode() == Shelf.HERO) {
+            open(g, Library.resumeTime(g) > 0); // Recent: the big game is the selected one; one press and it is playing
         } else {
             openPage();
         }
@@ -533,6 +571,19 @@ public class HomeActivity extends Activity {
             if (filter == null && tab == 0) {
                 Collections.sort(shown, (a, b) -> Long.compare(b.lastPlayed, a.lastPlayed));
                 while (shown.size() > Shelf.HERO_COUNT) shown.remove(shown.size() - 1);
+                if (!shown.isEmpty()) { // the last tile of Recent leads to everything
+                    int total = 0;
+                    for (Game g : all) if (listed(g)) total++;
+                    Game more = new Game();
+                    more.id = "sys:all";
+                    more.systemTile = true;
+                    more.sysId = "all";
+                    more.title = "All games";
+                    more.system = "";
+                    more.count = total;
+                    more.hue = 255;
+                    shown.add(more);
+                }
             }
         }
 
@@ -558,11 +609,13 @@ public class HomeActivity extends Activity {
         }
         placeInfo(hero);
         heroFocused = hero;
+        heroAll = false;
         shelf.setItems(new ArrayList<>(shown), hero ? Shelf.HERO : systemTiles ? Shelf.SYSTEMS : Shelf.GRID);
         shelf.setIndex(restore, false);
         setHints(pageOpen);
 
         updateCrumb();
+        updateChevrons();
         empty.setText(shown.isEmpty() ? emptyMessage() : "");
         if (shown.isEmpty()) {
             title.setText("");
@@ -615,17 +668,26 @@ public class HomeActivity extends Activity {
         if (index < 0 || index >= shown.size()) return;
         Game g = shown.get(index);
         lastId = g.id;
+        updateChevrons();
+        if (shelf.mode() == Shelf.HERO && g.systemTile != heroAll) {
+            heroAll = g.systemTile;
+            if (!pageOpen && !searchOpen && !drawerOpen) setHints(false);
+        }
         if (g.systemTile) {
             title.setText(g.title);
             chipView.setVisibility(View.VISIBLE);
             chipView.setText((g.count + " " + Library.unit(g.sysId, g.count)).toUpperCase());
             when.setText("");
-            sub.setText(g.sysId.equals(Library.APPS) ? "Installed Android apps"
+            sub.setText(g.sysId.equals("all") ? "Everything in your library"
+                    : g.sysId.equals(Library.APPS) ? "Installed Android apps"
                     : g.sysId.equals(Library.GAMES) ? "Installed Android games"
                     : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
                     : "No emulator core for this system yet");
             glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
             compactInfo();
+            boolean heroMode = shelf.mode() == Shelf.HERO;
+            playPill.setVisibility(heroMode ? View.VISIBLE : View.GONE);
+            playPill.setText("\u25A6  Browse all");
             return;
         }
         title.setText(g.title);
@@ -638,8 +700,8 @@ public class HomeActivity extends Activity {
         glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
         compactInfo();
         if (shelf.mode() == Shelf.HERO) {
-            boolean h = index == 0;
-            playPill.setVisibility(h ? View.VISIBLE : View.GONE);
+            boolean h = true; // the selected game is always the big one
+            playPill.setVisibility(View.VISIBLE);
             playPill.setText(saved > 0 ? "\u25B6  Resume" : "\u25B6  Play");
             if (h != heroFocused) {
                 heroFocused = h;
@@ -752,7 +814,8 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("R1", Color.WHITE, false), "Next");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
-            hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && heroFocused ? "Play" : "Open");
+            hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && !heroAll ? "Play" : "Open");
+            if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("\u25B2", Color.WHITE, true), "Details");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || query != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
@@ -1217,8 +1280,10 @@ public class HomeActivity extends Activity {
     private void openPage() {
         int i = shelf.getIndex();
         if (i < 0 || i >= shown.size()) return;
+        if (shown.get(i).systemTile) return;
         pageOpen = true;
         infoOpen = false;
+        if (chevL != null) { chevL.setVisibility(View.GONE); chevR.setVisibility(View.GONE); }
         actIdx = 0;
         renderPage();
         pageView.setVisibility(View.VISIBLE);
@@ -1231,6 +1296,7 @@ public class HomeActivity extends Activity {
 
     private void closePage() {
         pageOpen = false;
+        updateChevrons();
         pageView.setVisibility(View.GONE);
         pageView.removeAllViews();
         shelf.setVisibility(View.VISIBLE);

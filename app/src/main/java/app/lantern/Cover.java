@@ -34,6 +34,8 @@ final class Cover extends View {
     private final Path shape = new Path();
     private final RectF rect = new RectF();
     private float weight;
+    /** Height of the strip under the tile that holds the title, in pixels (0: no title). */
+    private float labelPx;
 
     Cover(Context c, float s) {
         super(c);
@@ -62,6 +64,13 @@ final class Cover extends View {
         c2 = Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .26f});
     }
 
+    /** Makes room for the title under the picture. The picture is drawn in what is left above it. */
+    void setLabel(float px) {
+        if (px == labelPx) return;
+        labelPx = px;
+        invalidate();
+    }
+
     /** 0 when idle, 1 when focused. */
     void setWeight(float w) {
         if (w == weight) return;
@@ -72,7 +81,7 @@ final class Cover extends View {
 
     @Override
     protected void onDraw(Canvas c) {
-        float w = getWidth(), h = getHeight();
+        float w = getWidth(), h = getHeight() - labelPx;
         if (g == null || w <= 0 || h <= 0) return;
         float r = 18 * s;
         if (g.hue != lastHue) setColours();
@@ -91,12 +100,13 @@ final class Cover extends View {
             drawSystem(c, w, h);
             c.restore();
             ring(c, w, h, r);
+            drawLabel(c, w, h);
             return;
         }
 
         c.save();
         c.scale(w / 300f, h / 400f);
-        drawMotif(c);
+        if (weight < .5f) drawMotif(c); // the selected tile has no pale pattern over it: its ring is enough
         c.restore();
 
         if (g.icon != null && g.art == null) {
@@ -105,17 +115,6 @@ final class Cover extends View {
             g.icon.setBounds(x, y, x + sz, y + sz);
             g.icon.draw(c);
         }
-
-        // Title, larger when focused.
-        tp.setTextSize((34 + 16 * weight) * s);
-        tp.setShadowLayer(8 * s, 0, 2 * s, 0x73000000);
-        StaticLayout sl = StaticLayout.Builder.obtain(g.title, 0, g.title.length(), tp, Math.max(1, Math.round(w - 40 * s)))
-                .setMaxLines(3).setEllipsize(TextUtils.TruncateAt.END).build();
-        c.save();
-        c.translate(20 * s, h - 18 * s - sl.getHeight());
-        sl.draw(c);
-        c.restore();
-        tp.clearShadowLayer();
 
         // A real cover replaces the generated art and the title. It is fitted inside the tile, never cropped;
         // the rest of the tile is a soft blur of the cover itself, and the cover floats on a shadow.
@@ -154,6 +153,16 @@ final class Cover extends View {
         }
         c.restore();
         ring(c, w, h, r);
+        drawLabel(c, w, h);
+    }
+
+    /** The title under the picture, on one line. */
+    private void drawLabel(Canvas c, float w, float artH) {
+        if (labelPx <= 0 || g == null) return;
+        tp.setTextSize(Math.min(labelPx * .62f, 26 * s));
+        tp.setColor(Color.WHITE);
+        CharSequence t = TextUtils.ellipsize(g.title, tp, Math.max(1f, w - 8 * s), TextUtils.TruncateAt.END);
+        c.drawText(t, 0, t.length(), 4 * s, artH + labelPx * .72f, tp);
     }
 
     /** A system's tile: soft rings and its picture. The name and the count are shown below the shelf, not repeated here. */
@@ -164,6 +173,18 @@ final class Cover extends View {
         float cx = w / 2f, cy = h / 2f;
         for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
         p.setStyle(Paint.Style.FILL);
+        if ("all".equals(g.sysId)) { // the "All games" tile: a little grid of squares
+            float sq = w * .11f, gap = w * .045f, start = cx - (3 * sq + 2 * gap) / 2f;
+            p.setColor(0xE6FFFFFF);
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    float x = start + col * (sq + gap), y = cy - (3 * sq + 2 * gap) / 2f + row * (sq + gap);
+                    rect.set(x, y, x + sq, y + sq);
+                    c.drawRoundRect(rect, sq * .22f, sq * .22f, p);
+                }
+            }
+            return;
+        }
         SystemArt.draw(getContext(), c, p, g.sysId, cx, cy, w * .52f);
     }
 

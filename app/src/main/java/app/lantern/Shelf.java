@@ -34,12 +34,13 @@ final class Shelf extends ViewGroup {
 
     // Mockup pixels. The grid lives between GRID_TOP and GRID_BOTTOM; the info line is under it.
     private static final float LEFT = 90, RIGHT = 70, GRID_TOP = 150, GRID_BOTTOM = 860, GAP = 24;
-    private static final float GAME_W = 230, GAME_H = 313, SYS_W = 250, SYS_H = 250;
+    // Picture sizes; each tile also has a LABEL strip under it for the title.
+    private static final float GAME_W = 198, GAME_H = 270, SYS_W = 230, SYS_H = 230, LABEL = 42;
     // The hero tile and the small row beside and below it.
     private static final float HERO_W = 480, HERO_H = 660, HERO_Y = 150;
-    private static final float SMALL_X = 620, SMALL_W = 180, SMALL_H = 246, SMALL_GAP = 20, SMALL_BOTTOM = 940;
-    /** How many games the hero layout shows: the hero and six more. */
-    static final int HERO_COUNT = 7;
+    private static final float SMALL_X = 620, SMALL_W = 180, SMALL_H = 262, SMALL_GAP = 20, SMALL_BOTTOM = 956;
+    /** How many recent games the hero layout carries. The focused one is large; the next six show beside it. */
+    static final int HERO_COUNT = 12;
 
     private final float s;
     private final SparseArray<Cover> attached = new SparseArray<>();
@@ -49,6 +50,8 @@ final class Shelf extends ViewGroup {
     /** Grid scroll, in mockup pixels from the top of the first row. */
     private float scroll;
     private int index;
+    /** Where the hero layout is, as a game number that glides between whole numbers. */
+    private float heroPos;
     private ValueAnimator anim;
     private Listener listener;
     private float downY, lastY;
@@ -92,6 +95,7 @@ final class Shelf extends ViewGroup {
         mode = layout;
         index = 0;
         scroll = 0;
+        heroPos = 0;
         requestLayout();
         if (listener != null && !items.isEmpty()) listener.onFocus(0);
     }
@@ -105,8 +109,9 @@ final class Shelf extends ViewGroup {
         return mode == SYSTEMS ? SYS_W : GAME_W;
     }
 
+    /** A grid cell's full height: the picture and the title strip under it. */
     private float cellH() {
-        return mode == SYSTEMS ? SYS_H : GAME_H;
+        return (mode == SYSTEMS ? SYS_H : GAME_H) + LABEL;
     }
 
     private float maxScroll() {
@@ -131,7 +136,16 @@ final class Shelf extends ViewGroup {
         boolean changed = i != index;
         index = i;
         if (anim != null) anim.cancel();
-        if (mode != HERO) {
+        if (mode == HERO) {
+            anim = ValueAnimator.ofFloat(heroPos, i);
+            anim.setDuration(animate ? 320 : 0);
+            anim.setInterpolator(new DecelerateInterpolator(2f));
+            anim.addUpdateListener(v -> {
+                heroPos = (Float) v.getAnimatedValue();
+                requestLayout();
+            });
+            anim.start();
+        } else {
             float target = scrollFor(i);
             if (animate && target != scroll) {
                 anim = ValueAnimator.ofFloat(scroll, target);
@@ -154,13 +168,9 @@ final class Shelf extends ViewGroup {
         setIndex(index + d, true);
     }
 
-    /** Up (-1) or down (+1): a grid row at a time; in the hero layout, between the hero and the row. */
+    /** Up (-1) or down (+1): a grid row at a time. The hero layout has one row, so nothing happens. */
     void moveRow(int d) {
-        if (mode == HERO) {
-            if (d > 0 && index == 0) setIndex(1, true);
-            else if (d < 0 && index > 0) setIndex(0, true);
-            return;
-        }
+        if (mode == HERO) return;
         int n = items.size(), target = index + d * cols();
         if (d > 0 && target >= n && index / cols() < (n - 1) / cols()) target = n - 1; // last, shorter row
         if (target < 0 || target >= n) return;
@@ -189,8 +199,8 @@ final class Shelf extends ViewGroup {
         int first, last;
         if (mode == HERO) {
             setClipBounds(null);
-            first = 0;
-            last = n - 1;
+            first = Math.max(0, (int) Math.floor(heroPos) - 1);
+            last = Math.min(n - 1, (int) Math.ceil(heroPos) + 7);
         } else {
             setClipBounds(new Rect(0, Math.round((GRID_TOP - 20) * s), r - l, Math.round((GRID_BOTTOM + 10) * s)));
             int c = cols();
@@ -218,16 +228,23 @@ final class Shelf extends ViewGroup {
             Game g = items.get(i);
             if (c.game() != g) c.setGame(g);
             boolean on = i == index;
-            float x, y, w, h;
+            float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = LABEL;
             if (mode == HERO) {
-                if (i == 0) {
-                    x = LEFT; y = HERO_Y; w = HERO_W; h = HERO_H;
-                } else {
-                    float grow = on ? 1.12f : 1f;
-                    float cx = SMALL_X + (i - 1) * (SMALL_W + SMALL_GAP) + SMALL_W / 2f;
-                    w = SMALL_W * grow; h = SMALL_H * grow;
-                    x = cx - w / 2f; y = SMALL_BOTTOM - h;
-                }
+                // d is how far this game is from the hero spot. At 0 it is the big tile; from 1 on it sits in the
+                // small row, and between 0 and 1 it glides from one to the other. The game just left fades out.
+                float d = i - heroPos, k = Math.max(0f, Math.min(1f, d));
+                float slotCx = SMALL_X + (Math.max(d, 1f) - 1) * (SMALL_W + SMALL_GAP) + SMALL_W / 2f;
+                float sx = slotCx - SMALL_W / 2f, sy = SMALL_BOTTOM - SMALL_H;
+                label = LABEL * k;
+                x = LEFT + (sx - LEFT) * k;
+                y = HERO_Y + (sy - HERO_Y) * k;
+                w = HERO_W + (SMALL_W - HERO_W) * k;
+                h = HERO_H + (SMALL_H - HERO_H) * k;
+                wt = Math.max(0f, 1f - Math.abs(d));
+                alpha = d >= 1f ? .6f : d > 0f ? 1f - .4f * d : Math.max(0f, 1f + d);
+                z = d <= 0f ? (d > -1f ? 1f : 0f) : 0f;
+                if (d < 0f) z = 1f;
+                if (d > 0f && d < 1f) z = 2f;
             } else {
                 int cols = cols(), row = i / cols, col = i % cols;
                 float used = cols * (cellW() + GAP) - GAP, x0 = LEFT + (1920 - LEFT - RIGHT - used) / 2f;
@@ -236,8 +253,10 @@ final class Shelf extends ViewGroup {
                 w = cellW() * grow; h = cellH() * grow;
                 x = cx - w / 2f; y = cy - h / 2f;
             }
-            c.setWeight(on ? 1f : mode == HERO && i == 0 ? .5f : 0f);
-            c.setZ(on ? 2f : 0f);
+            c.setLabel(label * s);
+            c.setWeight(wt);
+            if (alpha >= 0f) c.setAlpha(alpha);
+            c.setZ(z);
             int pw = Math.round(w * s), ph = Math.round(h * s), px = Math.round(x * s), py = Math.round(y * s);
             c.measure(View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(ph, View.MeasureSpec.EXACTLY));

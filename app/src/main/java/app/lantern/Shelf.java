@@ -90,6 +90,18 @@ final class Shelf extends ViewGroup {
     }
 
     /** Where the big Recent tile sits, in mockup pixels: x, y, width, height. The details page cover uses the same box. */
+    /** Where the cover sits on the details page: the same size as Recent's big tile, centred on the screen. */
+    static float[] pageBox() {
+        return new float[]{LEFT, (1080f - HERO_H) / 2f, HERO_W, HERO_H};
+    }
+
+    /** Where a game's tile is on screen now (x, y, width, height in mockup pixels), or null if it is not showing. */
+    float[] tileRect(int i) {
+        Cover c = attached.get(i);
+        if (c == null) return null;
+        return new float[]{c.getLeft() / s, (c.getTop() + c.getTranslationY()) / s, c.getWidth() / s, (c.getHeight() - 0f) / s};
+    }
+
     static float[] heroBox(Game g) {
         return new float[]{LEFT, HERO_Y, HERO_W, HERO_H};
     }

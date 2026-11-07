@@ -1773,33 +1773,31 @@ public class HomeActivity extends Activity {
         pageView.setVisibility(View.VISIBLE);
         boolean fromHero = shelf.mode() == Shelf.HERO;
         android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+        // The cover starts where it was (Recent's big tile, or the grid tile) and moves to its place on the page,
+        // centred on the screen.
+        placeCoverAtSource();
+        pageCover.animate().scaleX(1f).scaleY(1f).translationX(0f).translationY(0f).setDuration(PAGE_MS).setInterpolator(ease).start();
+        pageView.setAlpha(1f);
+        pageView.setTranslationY(0f);
         if (fromHero) {
-            // Recent's big cover grows and settles into its place on the page while the text rises in beside it.
-            heroCoverPose(true);
-            pageCover.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(340).setInterpolator(ease).start();
             // Down moves the screen down: the row under the big tile slides away, and the details drop in from above.
             pageRest.setAlpha(0f);
             pageRest.setTranslationY(-u(70));
             pageRest.animate().alpha(1f).translationY(0f).setStartDelay(110).setDuration(340).setInterpolator(ease).start();
-            pageView.setAlpha(1f);
-            pageView.setTranslationY(0f);
             shelf.setPage(0f, true);
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
             va.setDuration(PAGE_MS);
             va.setInterpolator(ease);
             va.addUpdateListener(a -> shelf.setPage((Float) a.getAnimatedValue(), true));
-            va.addListener(new android.animation.AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(android.animation.Animator an) {
-                }
-            });
             va.start();
         } else {
-            pageView.setAlpha(0f);
-            pageView.setTranslationY(0f);
-            pageView.animate().alpha(1f).setDuration(200).setInterpolator(ease).start();
+            pageCol.setAlpha(0f);
+            pageCol.animate().alpha(1f).setStartDelay(100).setDuration(PAGE_MS).setInterpolator(ease).start();
+            shelf.animate().cancel();
+            shelf.animate().alpha(0f).setDuration(PAGE_MS).withEndAction(() -> {
+                if (pageOpen) shelf.setVisibility(View.INVISIBLE);
+            }).start();
         }
-        if (!fromHero) shelf.setVisibility(View.INVISIBLE);
         setInfoVisibility(View.INVISIBLE);
         setHints(true);
     }
@@ -1823,27 +1821,54 @@ public class HomeActivity extends Activity {
         }
     }
 
-    /** Puts the page's cover where Recent's big cover is (or, with false, back in its page place). */
-    private void heroCoverPose(boolean atHero) {
+    /** Where the page's cover came from: Recent's big tile, or the tile in the grid. */
+    private float[] sourceRect() {
+        if (shelf.mode() == Shelf.HERO) return Shelf.heroBox(null);
+        float[] r = shelf.tileRect(shelf.getIndex());
+        return r != null ? r : Shelf.heroBox(null);
+    }
+
+    private void placeCoverAtSource() {
+        float[] src = sourceRect(), pb = Shelf.pageBox();
         pageCover.setPivotX(0f);
         pageCover.setPivotY(0f);
-        pageCover.setScaleX(1f); // Recent's cover is the page cover's size and place, so it does not need to move
-        pageCover.setScaleY(1f);
-        pageCover.setTranslationY(0f);
+        pageCover.setScaleX(src[2] / pb[2]);
+        pageCover.setScaleY(src[3] / pb[3]);
+        pageCover.setTranslationX(u(src[0] - pb[0]));
+        pageCover.setTranslationY(u(src[1] - pb[1]));
     }
 
     private void closePage() {
         pageOpen = false;
         pageChrome(false);
         updateChevrons();
-        if (shelf.mode() == Shelf.HERO && pageCover != null) {
-            // The cover flies back to Recent's big tile; the shelf shows again once it has landed.
-            android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
-            pageCover.setPivotX(0f);
-            pageCover.setPivotY(0f);
-            pageCover.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(280).setInterpolator(ease).start();
-            // Up moves the screen back up: the details lift away, the row slides back in from below, and the info returns.
+        if (pageCover == null) {
+            pageView.setVisibility(View.GONE);
+            pageView.removeAllViews();
             shelf.setVisibility(View.VISIBLE);
+            setInfoVisibility(View.VISIBLE);
+            setHints(false);
+            shelf.redraw();
+            return;
+        }
+        final boolean hero = shelf.mode() == Shelf.HERO;
+        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+        // The cover goes back to where it came from, and the page is taken down once it has landed.
+        float[] src = sourceRect(), pb = Shelf.pageBox();
+        pageCover.setPivotX(0f);
+        pageCover.setPivotY(0f);
+        pageCover.animate().scaleX(src[2] / pb[2]).scaleY(src[3] / pb[3]).translationX(u(src[0] - pb[0])).translationY(u(src[1] - pb[1]))
+                .setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).withEndAction(() -> {
+                    if (pageOpen) return; // opened again meanwhile
+                    pageView.setVisibility(View.GONE);
+                    pageView.removeAllViews();
+                    if (hero) shelf.setPage(0f, false);
+                }).start();
+        shelf.animate().cancel();
+        shelf.setVisibility(View.VISIBLE);
+        if (hero) {
+            // Up moves the screen back up: the details lift away, the row slides back in from below, and the info returns.
+            shelf.setAlpha(1f);
             shelf.setPage(1f, false);
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(1f, 0f);
             va.setDuration(PAGE_MS);
@@ -1860,18 +1885,15 @@ public class HomeActivity extends Activity {
                 cv.setAlpha(0f);
                 cv.animate().alpha(1f).setStartDelay(150).setDuration(260).start();
             }
-            pageRest.animate().alpha(0f).translationY(-u(70)).setStartDelay(0).setDuration(240).setInterpolator(ease)
-                    .withEndAction(() -> {
-                        if (pageOpen) return; // opened again meanwhile
-                        pageView.setVisibility(View.GONE);
-                        pageView.removeAllViews();
-                        shelf.setPage(0f, false);
-                    }).start();
+            pageRest.animate().alpha(0f).translationY(-u(70)).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
         } else {
-            pageView.setVisibility(View.GONE);
-            pageView.removeAllViews();
-            shelf.setVisibility(View.VISIBLE);
+            shelf.setAlpha(0f);
+            shelf.animate().alpha(1f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            pageCol.animate().alpha(0f).setStartDelay(0).setDuration(PAGE_MS / 2).start();
+            infoBlock.animate().cancel();
+            infoBlock.setAlpha(0f);
             setInfoVisibility(View.VISIBLE);
+            infoBlock.animate().alpha(1f).setStartDelay(120).setDuration(260).start();
         }
         setHints(false);
         shelf.redraw();
@@ -1884,7 +1906,7 @@ public class HomeActivity extends Activity {
         Cover big = new Cover(this, s);
         big.setGame(g);
         big.setWeight(1f);
-        float[] hb = Shelf.heroBox(g); // the same box as Recent's big cover, so it can grow into the page
+        float[] hb = Shelf.pageBox(); // the same size as Recent's big cover, centred on the screen
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(u(hb[2]), u(hb[3]), Gravity.TOP | Gravity.START);
         cp.leftMargin = u(hb[0]);
         cp.topMargin = u(hb[1]);

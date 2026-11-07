@@ -97,11 +97,9 @@ public class HomeActivity extends Activity {
     private String query;
     private SearchPanel search;
     private TextView crumb, letterBadge;
-    /** Android apps are hidden from every shelf unless this is on; the drawer lists them either way. */
+    /** Android apps are hidden from every shelf unless this is on; the menu lists them either way. */
     private boolean showApps;
-    private boolean drawerOpen;
-    private int drawerIdx;
-    private FrameLayout drawerView;
+    private MenuPanel menu;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -285,10 +283,8 @@ public class HomeActivity extends Activity {
         search = new SearchPanel(this, searchHost);
         stage.addView(search.view(), new FrameLayout.LayoutParams(-1, -1));
         buildHints();
-        drawerOpen = false;
-        drawerView = new FrameLayout(this);
-        drawerView.setVisibility(View.GONE);
-        stage.addView(drawerView, new FrameLayout.LayoutParams(-1, -1));
+        menu = new MenuPanel(this, menuHost);
+        stage.addView(menu.view(), new FrameLayout.LayoutParams(-1, -1));
 
         battery.setText(batteryText);
         if (loaded) {
@@ -730,7 +726,7 @@ public class HomeActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (searchOpen()) search.close();
-        if (drawerOpen) closeDrawer();
+        if (menuOpen()) menu.close();
         if (shelf != null) shelf.setIndex(0, true); // Home pressed while Lantern is showing: back to the first game
     }
 
@@ -757,7 +753,7 @@ public class HomeActivity extends Activity {
         boolean first = event.getRepeatCount() == 0;
         if (shelf == null) return super.onKeyDown(keyCode, event); // not built yet
         if (searchOpen()) return search.key(keyCode, event, first);
-        if (drawerOpen) return drawerKey(keyCode, first);
+        if (menuOpen()) return menu.key(keyCode, first);
         if (pageOpen) return pageKey(keyCode, first);
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_X:
@@ -798,7 +794,7 @@ public class HomeActivity extends Activity {
                 if (first) removeRecent();
                 return true;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
-                if (first) openDrawer();
+                if (first) menu.open();
                 return true;
             case KeyEvent.KEYCODE_BUTTON_B:
                 if (first) leaveSystem();
@@ -811,7 +807,7 @@ public class HomeActivity extends Activity {
     @Override
     public void onBackPressed() {
         // A launcher has nowhere to go back to, except out of a game page or a system.
-        if (searchOpen()) search.close(); else if (drawerOpen) closeDrawer(); else if (pageOpen) closePage(); else leaveSystem();
+        if (searchOpen()) search.close(); else if (menuOpen()) menu.close(); else if (pageOpen) closePage(); else leaveSystem();
     }
 
     /** A on the shelf: a system tile opens that system's games, a game tile opens its page. */
@@ -1054,7 +1050,7 @@ public class HomeActivity extends Activity {
         updateChevrons();
         if (shelf.mode() == Shelf.HERO && g.systemTile != heroAll) {
             heroAll = g.systemTile;
-            if (!pageOpen && !searchOpen() && !drawerOpen) setHints(false);
+            if (!pageOpen && !searchOpen() && !menuOpen()) setHints(false);
         }
         if (g.systemTile) {
             title.setText(g.title);
@@ -1110,7 +1106,7 @@ public class HomeActivity extends Activity {
             playPill.setText(saved > 0 ? "\u25B6  Resume" : "\u25B6  Play");
             if (h != heroFocused) {
                 heroFocused = h;
-                if (!pageOpen && !searchOpen() && !drawerOpen) setHints(false);
+                if (!pageOpen && !searchOpen() && !menuOpen()) setHints(false);
             }
         } else {
             playPill.setVisibility(View.GONE);
@@ -1165,7 +1161,7 @@ public class HomeActivity extends Activity {
 
     /** Y on Recent: takes the big game off the list (its saves stay; playing it again puts it back). */
     private void removeRecent() {
-        if (shelf == null || shelf.mode() != Shelf.HERO || pageOpen || searchOpen() || drawerOpen) return;
+        if (shelf == null || shelf.mode() != Shelf.HERO || pageOpen || searchOpen() || menuOpen()) return;
         int i = shelf.getIndex();
         if (i < 0 || i >= shown.size() || shown.get(i).systemTile) return;
         Game g = shown.get(i);
@@ -1238,7 +1234,7 @@ public class HomeActivity extends Activity {
 
     private void setHints(boolean page) {
         hintsRow.removeAllViews();
-        if (drawerOpen) {
+        if (menuOpen()) {
             hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Select");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Close");
@@ -1258,187 +1254,107 @@ public class HomeActivity extends Activity {
             if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Remove");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || tab == TAB_SEARCH) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
-            // Select opens the drawer: settings, file access and the Android apps list.
+            // Select opens the menu: settings, file access and the Android apps list.
             hint(hintsRow, glyph("Select", Color.WHITE, false), Library.hasFileAccess() ? "Menu" : "Menu (file access)");
         }
     }
 
-    /** Android apps are only listed when the drawer's switch is on, or while their own list is open. */
+    /** Android apps are only listed when the menu's switch is on, or while their own list is open. */
     private boolean listed(Game g) {
         if (!Library.APPS.equals(g.sysId)) return true;
         return showApps || Library.APPS.equals(filter);
     }
 
-    // ---- drawer (Select) ----
+    // ---- menu (Select) ----
 
-    private static final int D_APPS = 0, D_SHOWAPPS = 1, D_ART = 2, D_FILES = 3, D_CLOCK = 4;
-
-    private List<Integer> drawerItems() {
-        List<Integer> l = new ArrayList<>();
-        l.add(D_APPS);
-        l.add(D_SHOWAPPS);
-        l.add(D_ART);
-        l.add(D_CLOCK);
-        if (!Library.hasFileAccess()) l.add(D_FILES);
-        return l;
+    private boolean menuOpen() {
+        return menu != null && menu.isOpen();
     }
 
-    private void openDrawer() {
-        drawerOpen = true;
-        drawerIdx = 0;
-        renderDrawer();
-        drawerView.setVisibility(View.VISIBLE);
-        drawerView.setAlpha(0f);
-        drawerView.animate().alpha(1f).setDuration(150).start();
-        // The Select button is on the left, so the menu comes from the left and pushes the screen a little to the right.
-        View panel = drawerView.getChildAt(drawerView.getChildCount() - 1);
-        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
-        panel.setTranslationX(-u(700));
-        panel.animate().translationX(0f).setDuration(280).setInterpolator(ease).start();
-        shelf.animate().translationX(u(80)).setDuration(280).setInterpolator(ease).start();
-        infoBlock.animate().translationX(u(80)).setDuration(280).setInterpolator(ease).start();
-        setHints(false);
-    }
-
-    private void closeDrawer() {
-        drawerOpen = false;
-        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
-        shelf.animate().translationX(0f).setDuration(240).setInterpolator(ease).start();
-        infoBlock.animate().translationX(0f).setDuration(240).setInterpolator(ease).start();
-        View panel = drawerView.getChildAt(drawerView.getChildCount() - 1);
-        if (panel != null && drawerView.getVisibility() == View.VISIBLE) {
-            panel.animate().translationX(-u(700)).setDuration(220).setInterpolator(ease).withEndAction(() -> {
-                if (drawerOpen) return;
-                drawerView.setVisibility(View.GONE);
-                drawerView.removeAllViews();
-            }).start();
-            drawerView.animate().alpha(0f).setDuration(220).start();
-        } else {
-            drawerView.setVisibility(View.GONE);
-            drawerView.removeAllViews();
+    /** What the menu panel asks of the launcher. */
+    private final MenuPanel.Host menuHost = new MenuPanel.Host() {
+        @Override
+        public int px(float mockupPx) {
+            return u(mockupPx);
         }
-        setHints(pageOpen);
-    }
 
-    private void drawerDo(int item) {
-        switch (item) {
-            case D_APPS:
-                closeDrawer();
-                filter = Library.APPS;
-                query = null;
-                tab = TAB_SYSTEMS;
-                lastId = null;
-                refresh(false);
-                break;
-            case D_SHOWAPPS:
-                showApps = !showApps;
-                getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("showApps", showApps).apply();
-                refresh(true); // the shelf behind the drawer follows the switch
-                renderDrawer();
-                break;
-            case D_ART:
-                toggleArt();
-                renderDrawer();
-                break;
-            case D_CLOCK:
-                clock24 = !clock24;
-                getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("clock24", clock24).apply();
-                applyClock();
-                renderDrawer();
-                break;
-            case D_FILES:
-                closeDrawer();
-                askForFileAccess();
-                break;
-            default:
+        @Override
+        public TextView text(String text, float mockupPx, int color, boolean bold) {
+            return label(text, mockupPx, color, bold);
         }
-    }
 
-    private boolean drawerKey(int keyCode, boolean first) {
-        List<Integer> items = drawerItems();
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-                if (drawerIdx > 0) { drawerIdx--; renderDrawer(); }
-                return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (drawerIdx < items.size() - 1) { drawerIdx++; renderDrawer(); }
-                return true;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                if (first && items.get(drawerIdx) != D_APPS && items.get(drawerIdx) != D_FILES) drawerDo(items.get(drawerIdx));
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_A:
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                if (first) drawerDo(items.get(drawerIdx));
-                return true;
-            case KeyEvent.KEYCODE_BUTTON_B:
-            case KeyEvent.KEYCODE_BUTTON_SELECT:
-                if (first) closeDrawer();
-                return true;
-            default:
-                return true;
+        @Override
+        public int appCount() {
+            int apps = 0;
+            for (Game g : all) if (Library.APPS.equals(g.sysId)) apps++;
+            return apps;
         }
-    }
 
-    private void renderDrawer() {
-        drawerView.removeAllViews();
-        View scrim = new View(this);
-        scrim.setBackgroundColor(0x99000000);
-        scrim.setOnClickListener(x -> closeDrawer());
-        drawerView.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
-
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setClickable(true); // taps on the panel are not taps on the scrim
-        panel.setPadding(u(EDGE_L), u(70), u(48), u(40));
-        GradientDrawable pd = new GradientDrawable();
-        pd.setColor(0xF2141119);
-        pd.setCornerRadii(new float[]{0, 0, u(28), u(28), u(28), u(28), 0, 0});
-        panel.setBackground(pd);
-        panel.addView(label("Menu", 52, Color.WHITE, true));
-
-        int apps = 0;
-        for (Game g : all) if (Library.APPS.equals(g.sysId)) apps++;
-        List<Integer> items = drawerItems();
-        for (int i = 0; i < items.size(); i++) {
-            int item = items.get(i);
-            boolean on = i == drawerIdx;
-            String name, value;
-            switch (item) {
-                case D_APPS: name = "Android apps"; value = apps + "  \u203A"; break;
-                case D_SHOWAPPS: name = "Show apps on every shelf"; value = showApps ? "On" : "Off"; break;
-                case D_ART: name = "Cover art"; value = artOn ? "On" : "Off"; break;
-                case D_CLOCK: name = "Clock"; value = clock24 ? "24 hour" : "12 hour"; break;
-                default: name = "Allow file access"; value = "\u203A";
-            }
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(u(28), 0, u(28), 0);
-            GradientDrawable rd = new GradientDrawable();
-            rd.setCornerRadius(u(16));
-            rd.setColor(on ? Color.WHITE : 0x14FFFFFF);
-            row.setBackground(rd);
-            int ink = on ? 0xFF17131F : Color.WHITE;
-            TextView nm = label(name, 30, ink, true);
-            nm.setSingleLine(true);
-            row.addView(nm, new LinearLayout.LayoutParams(0, -2, 1f));
-            boolean toggle = item == D_SHOWAPPS || item == D_ART;
-            TextView val = label(value, 28, toggle && value.equals("On") ? (on ? 0xFF1F7A3A : 0xFF8BE28F) : on ? 0xBF17131F : 0xB3FFFFFF, toggle);
-            row.addView(val);
-            final int idx = i;
-            row.setOnClickListener(x -> { drawerIdx = idx; drawerDo(item); });
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, u(88));
-            rp.topMargin = u(i == 0 ? 36 : 14);
-            panel.addView(row, rp);
+        @Override
+        public boolean showApps() {
+            return showApps;
         }
-        TextView note = label("Apps are hidden from the shelves unless the switch is on. Open the list here any time.", 24, 0x99FFFFFF, false);
-        note.setLineSpacing(0, 1.2f);
-        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, -2);
-        np.topMargin = u(30);
-        panel.addView(note, np);
-        drawerView.addView(panel, new FrameLayout.LayoutParams(u(700), -1, Gravity.START));
-    }
+
+        @Override
+        public boolean coverArt() {
+            return artOn;
+        }
+
+        @Override
+        public boolean clock24() {
+            return clock24;
+        }
+
+        @Override
+        public boolean hasFileAccess() {
+            return Library.hasFileAccess();
+        }
+
+        @Override
+        public void toggleShowApps() {
+            showApps = !showApps;
+            getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("showApps", showApps).apply();
+            refresh(true);
+        }
+
+        @Override
+        public void toggleCoverArt() {
+            toggleArt();
+        }
+
+        @Override
+        public void toggleClock() {
+            clock24 = !clock24;
+            getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("clock24", clock24).apply();
+            applyClock();
+        }
+
+        @Override
+        public void openAppsList() {
+            filter = Library.APPS;
+            query = null;
+            tab = TAB_SYSTEMS;
+            lastId = null;
+            refresh(false);
+        }
+
+        @Override
+        public void askForFileAccess() {
+            HomeActivity.this.askForFileAccess();
+        }
+
+        @Override
+        public void menuVisible(boolean visible) {
+            setHints(visible ? false : pageOpen);
+        }
+
+        @Override
+        public void shiftScreen(float dx, long ms) {
+            android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+            shelf.animate().translationX(u(dx)).setDuration(ms).setInterpolator(ease).start();
+            infoBlock.animate().translationX(u(dx)).setDuration(ms).setInterpolator(ease).start();
+        }
+    };
 
     // ---- letter jumping ----
 

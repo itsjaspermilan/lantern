@@ -37,11 +37,26 @@ conversation that produced this file; the numbers below are from that device, no
 - **Tests:** `./test.sh` runs 21 checks of the plain logic (title cleaning, file names, system names and colours,
   cores, thumbnail names) on the computer's JVM. A deliberately wrong expectation was used to check that it fails.
 
+## Split out of `HomeActivity` (second pass)
+
+Each piece keeps its own state and talks to the launcher through a small `Host` interface, so what it needs is written
+down in one place. Behaviour was checked on the Pocket 6 after each move (screens, keys, animations) and the frame
+statistics were re-measured after the last one (same as before: 0.6% janky).
+
+| Class | What it owns | Lines |
+|---|---|---|
+| `SearchPanel` | the on-screen keyboard, what is typed, the live results, their keys | 280 |
+| `MenuPanel` | the Select menu: rows, switches, keys | 240 |
+| `TabBar` | logo, tabs, the sliding highlight, the breadcrumb and its marquee, battery, clock | 330 |
+
+One small fix came with it: the battery percentage was only read on resume and never shown until the screen was
+rebuilt; it is now updated on resume.
+
 ## Recommended next (not done: larger than a fix)
 
-1. **Split `HomeActivity.java` (about 2,200 lines).** It holds the tab bar, the details page, search, the menu, the
-   launch animation and the key handling. Natural pieces: `TabBar`, `DetailsPage`, `SearchView`, `Drawer`. Do it one
-   piece at a time with a device check after each, since there is little automated test cover of the screens.
+1. **Finish splitting `HomeActivity.java`.** It was about 2,200 lines; three pieces have been moved out (see below) and it is
+   now about 1,670. What is left is mostly the details page (about 480 lines: the cover's flight, the text column, the
+   action list), the launch animation and the hints. Take the details page next, with a device check after each step.
 2. **Cover decoding.** Decoding a cover per visible tile is fine today; a grid of several hundred large pictures on a
    weaker device would want the decode size chosen per tile size, not one size for all.
 3. **A build that can lint.** The Gradle-free build has no Android Lint, no CI and no instrumented tests. Adding Lint

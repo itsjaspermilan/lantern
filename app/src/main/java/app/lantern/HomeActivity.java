@@ -667,6 +667,9 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_ENTER:
                 if (first) activateShelf();
                 return true;
+            case KeyEvent.KEYCODE_BUTTON_Y:
+                if (first) removeRecent();
+                return true;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
                 if (first) openDrawer();
                 return true;
@@ -1024,6 +1027,19 @@ public class HomeActivity extends Activity {
         veil.animate().alpha(0f).setDuration(380).withEndAction(() -> veil.setVisibility(View.GONE)).start();
     }
 
+    /** Y on Recent: takes the big game off the list (its saves stay; playing it again puts it back). */
+    private void removeRecent() {
+        if (shelf == null || shelf.mode() != Shelf.HERO || pageOpen || searchOpen || drawerOpen) return;
+        int i = shelf.getIndex();
+        if (i < 0 || i >= shown.size() || shown.get(i).systemTile) return;
+        Game g = shown.get(i);
+        Library.clearPlayed(this, g);
+        refresh(false);
+        shelf.setIndex(Math.min(i, Math.max(0, shown.size() - 1)), false);
+        slideIn(90, 0); // the next game slides into the big spot
+        Toast.makeText(this, "Removed \u201C" + g.title + "\u201D from Recent", Toast.LENGTH_SHORT).show();
+    }
+
     /** Opens a game. For a ROM, resume picks up the saved resume point instead of starting fresh. */
     private void open(Game g, boolean resume) {
         if (g.isRom()) {
@@ -1105,6 +1121,7 @@ public class HomeActivity extends Activity {
         } else {
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && !heroAll ? "Play" : "Open");
             if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("▼", Color.WHITE, true), "Details");
+            if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Remove");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || tab == TAB_SEARCH) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
             // Select opens the drawer: settings, file access and the Android apps list.

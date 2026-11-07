@@ -224,6 +224,12 @@ final class Library {
         }
     }
 
+    /** Takes a game off the Recent list. Its saves and play time are kept; playing it again brings it back. */
+    static void clearPlayed(Context c, Game g) {
+        g.lastPlayed = 0;
+        prefs(c).edit().remove("last:" + g.id).apply();
+    }
+
     static void markPlayed(Context c, Game g) {
         g.lastPlayed = System.currentTimeMillis();
         prefs(c).edit().putLong("last:" + g.id, g.lastPlayed).apply();

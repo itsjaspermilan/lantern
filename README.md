@@ -263,6 +263,7 @@ Movement matches the direction you pressed, so the screen feels like one space.
 - **Launching a game** eases the screen towards you and fades to black, then the game opens; coming back fades up.
 - **Menu (Select)** comes in from the left, where the button is, and pushes the screen a little to the right.
 - **Search (X)** keeps the tab bar, so L1 and R1 still move between tabs. The keyboard rises from below and the results come in from the right.
+- **Y on Recent** takes the big game off the list (a toast says so, and the next game slides into the big spot). Its saves and play time are kept; playing it again puts it back.
 - **Recent**: the info text slides a little the way you moved; dots under the big tile show where you are in the list, and small arrows at the edges of the row show there is more that way. **Details**: L1/R1 slide the next game in from its side. At the first or last tile (or the top or bottom row) the whole screen stretches like a rubber band and springs back: the tiles move most, the text and dots a little less.
 - **L1/R1** slide the next tab in from the side it sits on. **A** on a system makes its games rise in from below; **B** brings the systems back down from above.
 

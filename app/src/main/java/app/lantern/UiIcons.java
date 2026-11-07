@@ -42,6 +42,7 @@ final class UiIcons {
             case "◀ ▶": return "dpad_horizontal";
             case "◀ ▶ ▲ ▼": return "dpad_all";
             case "▲": return "dpad_up";
+            case "▼": return "dpad_down";
             default: return null;
         }
     }

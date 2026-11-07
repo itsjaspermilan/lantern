@@ -339,10 +339,12 @@ public class HomeActivity extends Activity {
         d.setStroke(u(3), 0xCCFFFFFF);
         v.setBackground(d);
         v.setVisibility(View.GONE);
+        v.setFocusable(false); // keys never land on it, so no focus highlight is drawn over it
+        v.setDefaultFocusHighlightEnabled(false);
         v.setOnClickListener(x2 -> shelf.move(dir));
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(76), u(76), Gravity.TOP | Gravity.START);
         p.leftMargin = u(x - 38 + 0);
-        p.topMargin = u(824);
+        p.topMargin = u(856);
         stage.addView(v, p);
         return v;
     }
@@ -468,14 +470,14 @@ public class HomeActivity extends Activity {
                 shelf.move(1);
                 return true;
             case KeyEvent.KEYCODE_DPAD_UP:
-                if (shelf.mode() == Shelf.HERO) {
-                    if (first && shelf.size() > 0) openPage(); // Recent: A plays at once, Up shows the game's page
-                } else {
-                    shelf.moveRow(-1);
-                }
+                shelf.moveRow(-1);
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                shelf.moveRow(1);
+                if (shelf.mode() == Shelf.HERO) {
+                    if (first && shelf.size() > 0) openPage(); // Recent: A plays at once, Down slides up the game's page
+                } else {
+                    shelf.moveRow(1);
+                }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_L1:
                 if (first) setTab(tab - 1);
@@ -817,7 +819,7 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && !heroAll ? "Play" : "Open");
-            if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("\u25B2", Color.WHITE, true), "Details");
+            if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("▼", Color.WHITE, true), "Details");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Favourite");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || query != null) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
@@ -1289,8 +1291,11 @@ public class HomeActivity extends Activity {
         actIdx = 0;
         renderPage();
         pageView.setVisibility(View.VISIBLE);
+        boolean fromHero = shelf.mode() == Shelf.HERO; // from Recent the page rises up from below
         pageView.setAlpha(0f);
-        pageView.animate().alpha(1f).setDuration(200).start();
+        pageView.setTranslationY(fromHero ? u(120) : 0);
+        pageView.animate().alpha(1f).translationY(0).setDuration(fromHero ? 300 : 200)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         shelf.setVisibility(View.INVISIBLE);
         infoBlock.setVisibility(View.INVISIBLE);
         setHints(true);
@@ -1299,8 +1304,18 @@ public class HomeActivity extends Activity {
     private void closePage() {
         pageOpen = false;
         updateChevrons();
-        pageView.setVisibility(View.GONE);
-        pageView.removeAllViews();
+        if (shelf.mode() == Shelf.HERO) { // sink back down, the way it came up
+            pageView.animate().alpha(0f).translationY(u(120)).setDuration(220).withEndAction(() -> {
+                if (pageOpen) return; // opened again meanwhile
+                pageView.setVisibility(View.GONE);
+                pageView.removeAllViews();
+                pageView.setTranslationY(0);
+                pageView.setAlpha(1f);
+            }).start();
+        } else {
+            pageView.setVisibility(View.GONE);
+            pageView.removeAllViews();
+        }
         shelf.setVisibility(View.VISIBLE);
         infoBlock.setVisibility(View.VISIBLE);
         setHints(false);
@@ -1522,7 +1537,7 @@ public class HomeActivity extends Activity {
             android.widget.ImageView iv = new android.widget.ImageView(this);
             iv.setImageBitmap(pic);
             iv.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            iv.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN);
+            if (!prompt.startsWith("dpad")) iv.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN); // the D-pad pictures mark the pressed part in red
             iv.setLayoutParams(new LinearLayout.LayoutParams(u(52), u(52)));
             return iv;
         }

@@ -315,8 +315,8 @@ final class PlayerMenu extends FrameLayout {
         hint(hints, glyph("◀ ▶", Color.WHITE, true), "Change");
         hint(hints, glyph("A", 0xFF8BE28F, true), "Select");
         hint(hints, glyph("B", 0xFFFF8F8F, true), level == 0 ? "Continue" : "Back");
-        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, u(96), Gravity.BOTTOM | Gravity.START);
-        hp.leftMargin = u(140);
+        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, u(96), Gravity.BOTTOM | Gravity.END);
+        hp.rightMargin = u(140);
         stage.addView(hints, hp);
     }
 
@@ -399,7 +399,17 @@ final class PlayerMenu extends FrameLayout {
         return v;
     }
 
-    private TextView glyph(String text, int color, boolean round) {
+    private View glyph(String text, int color, boolean round) {
+        String prompt = UiIcons.promptFor(text);
+        Bitmap pic = prompt == null ? null : UiIcons.get(getContext(), prompt);
+        if (pic != null) { // Kenney's button prompt, tinted with the hint's colour
+            ImageView iv = new ImageView(getContext());
+            iv.setImageBitmap(pic);
+            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            if (!prompt.startsWith("dpad")) iv.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN); // the D-pad pictures mark the pressed part in red
+            iv.setLayoutParams(new LinearLayout.LayoutParams(u(52), u(52)));
+            return iv;
+        }
         boolean one = text.length() == 1;
         TextView v = label(text, one ? 24 : 20, color, true);
         v.setGravity(Gravity.CENTER);
@@ -421,7 +431,7 @@ final class PlayerMenu extends FrameLayout {
         t.setPadding(u(12), 0, 0, 0);
         h.addView(t);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.rightMargin = u(44);
+        lp.leftMargin = u(44); // the row is right-aligned, so the spacing goes on the left
         row.addView(h, lp);
     }
 }

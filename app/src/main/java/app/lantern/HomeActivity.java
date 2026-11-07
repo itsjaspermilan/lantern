@@ -67,6 +67,10 @@ public class HomeActivity extends Activity {
     private GradientDrawable pillBg;
     private TextView eyebrow;
     private Game lastFocused;
+    private int lastHeroIndex = -1;
+    private View veil;
+    private View dots;
+    private int dotsN, dotsAt;
     private float[] tabNat;
     private boolean clock24;
     private FrameLayout tabHost;
@@ -214,8 +218,34 @@ public class HomeActivity extends Activity {
         lbp.topMargin = u(200);
         stage.addView(letterBadge, lbp);
         buildInfo();
-        chevL = chevron("\u2039", 370, -1);
-        chevR = chevron("\u203A", 530, 1);
+        chevL = chevron("\u2039", 40, -1);
+        chevR = chevron("\u203A", 1878, 1);
+        // Dots under the big tile: where you are in the recent list.
+        dots = new View(this) {
+            private final android.graphics.Paint dp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                int n = Math.min(dotsN, 13);
+                if (n < 2) return;
+                float sp = 30 * s, r = 5 * s, x0 = getWidth() / 2f - (n - 1) * sp / 2f, cy = getHeight() / 2f;
+                int at = Math.min(dotsAt, n - 1);
+                for (int i = 0; i < n; i++) {
+                    if (i == at) {
+                        dp.setColor(AMBER);
+                        c.drawRoundRect(x0 + i * sp - 13 * s, cy - r, x0 + i * sp + 13 * s, cy + r, r, r, dp);
+                    } else {
+                        dp.setColor(0x80FFFFFF);
+                        c.drawCircle(x0 + i * sp, cy, r * .8f, dp);
+                    }
+                }
+            }
+        };
+        dots.setVisibility(View.GONE);
+        FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(u(720), u(24), Gravity.TOP | Gravity.START);
+        dlp.leftMargin = u(EDGE_L);
+        dlp.topMargin = u(604);
+        stage.addView(dots, dlp);
         empty = label("", 44, 0x99FFFFFF, true);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
@@ -426,18 +456,18 @@ public class HomeActivity extends Activity {
         android.widget.ImageView v = new android.widget.ImageView(this);
         v.setImageBitmap(UiIcons.get(this, dir < 0 ? "arrow_left" : "arrow_right"));
         v.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-        v.setPadding(u(16), u(16), u(16), u(16)); // an image centres itself; the arrow sits in the middle of the circle
-        GradientDrawable d = new GradientDrawable();
+        v.setPadding(u(11), u(11), u(11), u(11)); // an image centres itself; the arrow sits in the middle of the disc
+        GradientDrawable d = new GradientDrawable(); // a soft dark disc at the edge of the row, with no outline
         d.setShape(GradientDrawable.OVAL);
-        d.setStroke(u(3), 0xCCFFFFFF);
+        d.setColor(0x99000000);
         v.setBackground(d);
         v.setVisibility(View.GONE);
         v.setFocusable(false); // keys never land on it, so no focus highlight is drawn over it
         v.setDefaultFocusHighlightEnabled(false);
         v.setOnClickListener(x2 -> shelf.move(dir));
-        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(76), u(76), Gravity.TOP | Gravity.START);
-        p.leftMargin = u(x - 38 + 0);
-        p.topMargin = u(620);
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(u(58), u(58), Gravity.TOP | Gravity.START);
+        p.leftMargin = u(x - 29);
+        p.topMargin = u(801); // level with the middle of the row of small tiles
         stage.addView(v, p);
         return v;
     }
@@ -448,6 +478,10 @@ public class HomeActivity extends Activity {
         boolean hero = shelf.mode() == Shelf.HERO && !pageOpen && !shown.isEmpty();
         chevL.setVisibility(hero && shelf.getIndex() > 0 ? View.VISIBLE : View.GONE);
         chevR.setVisibility(hero && shelf.getIndex() < shelf.size() - 1 ? View.VISIBLE : View.GONE);
+        dots.setVisibility(hero ? View.VISIBLE : View.GONE);
+        dotsN = shelf.size();
+        dotsAt = shelf.getIndex();
+        dots.invalidate();
     }
 
     /** Moves the highlight to the active tab once the bar has been laid out with its new labels. */
@@ -528,6 +562,7 @@ public class HomeActivity extends Activity {
     protected void onResume() {
         super.onResume();
         ArtCache.clearShots();
+        unveil(true);
         Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if (b != null) {
             int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
@@ -756,7 +791,7 @@ public class HomeActivity extends Activity {
             boolean back = on && ((i == TAB_SEARCH && searching) || (i == TAB_SYSTEMS && filter != null));
             if (back) crumbAt = i;
             if (back && searching) t.setText("\u201C" + query + "\u201D  \u00B7  " + shown.size());
-            else if (back) t.setText(Library.systemTitle(filter) + "  \u00B7  " + shown.size());
+            else if (back) t.setText(Library.systemTitle(filter));
             else t.setText(TABS[i]);
             if (back) {
                 android.graphics.Bitmap arrow = UiIcons.get(this, "arrow_left");
@@ -897,6 +932,12 @@ public class HomeActivity extends Activity {
         glow.art(ArtCache.backdrop(g));
         compactInfo();
         if (shelf.mode() == Shelf.HERO) {
+            if (g != lastFocused && !pageOpen && infoBlock.getVisibility() == View.VISIBLE && lastHeroIndex >= 0) {
+                infoBlock.animate().cancel(); // the text slides a little the way you moved
+                infoBlock.setTranslationX((index > lastHeroIndex ? 1 : -1) * u(50));
+                infoBlock.animate().translationX(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+            }
+            lastHeroIndex = index;
             if (g != lastFocused) { // the status line fades in on a new game
                 sub.setAlpha(0f);
                 sub.animate().alpha(1f).setStartDelay(120).setDuration(280).start();
@@ -928,6 +969,37 @@ public class HomeActivity extends Activity {
 
     // ---- actions ----
 
+    /** Going into a game: the screen eases towards you and fades to black, then the game opens. Coming back, it fades up. */
+    private void launch(Runnable go) {
+        if (veil == null) {
+            veil = new View(this);
+            veil.setBackgroundColor(0xFF000000);
+            veil.setAlpha(0f);
+            veil.setVisibility(View.GONE);
+            root.addView(veil, new FrameLayout.LayoutParams(-1, -1));
+        }
+        veil.setVisibility(View.VISIBLE);
+        boolean hero = shelf.mode() == Shelf.HERO && !pageOpen;
+        stage.setPivotX(u(hero ? 450 : 960));
+        stage.setPivotY(u(hero ? 368 : 540));
+        stage.animate().scaleX(1.16f).scaleY(1.16f).setDuration(260).setInterpolator(new android.view.animation.AccelerateInterpolator(1.4f)).start();
+        veil.animate().alpha(1f).setDuration(260).withEndAction(go).start();
+    }
+
+    private void unveil(boolean fade) {
+        if (veil == null || veil.getVisibility() != View.VISIBLE) return;
+        stage.animate().cancel();
+        stage.setScaleX(1f);
+        stage.setScaleY(1f);
+        veil.animate().cancel();
+        if (!fade) {
+            veil.setAlpha(0f);
+            veil.setVisibility(View.GONE);
+            return;
+        }
+        veil.animate().alpha(0f).setDuration(380).withEndAction(() -> veil.setVisibility(View.GONE)).start();
+    }
+
     /** Opens a game. For a ROM, resume picks up the saved resume point instead of starting fresh. */
     private void open(Game g, boolean resume) {
         if (g.isRom()) {
@@ -937,19 +1009,25 @@ public class HomeActivity extends Activity {
                 return;
             }
             Library.markPlayed(this, g);
-            startActivity(new Intent(this, PlayerActivity.class)
+            launch(() -> startActivity(new Intent(this, PlayerActivity.class)
                     .putExtra(PlayerActivity.EXTRA_CORE, core.getAbsolutePath())
                     .putExtra(PlayerActivity.EXTRA_ROM, g.file.getAbsolutePath())
                     .putExtra(PlayerActivity.EXTRA_SYS, Library.biosDir().getAbsolutePath())
                     .putExtra(PlayerActivity.EXTRA_SAVE, Library.saveDir(g.sysId).getAbsolutePath())
                     .putExtra(PlayerActivity.EXTRA_START, resume ? 0 : -1)
                     .putExtra(PlayerActivity.EXTRA_TITLE, g.title)
-                    .putExtra(PlayerActivity.EXTRA_SYSID, g.sysId));
+                    .putExtra(PlayerActivity.EXTRA_SYSID, g.sysId)));
             return;
         }
         try {
             Library.markPlayed(this, g);
-            startActivity(g.launch);
+            launch(() -> {
+                try {
+                    startActivity(g.launch);
+                } catch (RuntimeException e) {
+                    unveil(false);
+                }
+            });
         } catch (RuntimeException e) {
             // App was removed or is not launchable; the next resume rebuilds the shelf.
         }
@@ -1037,13 +1115,33 @@ public class HomeActivity extends Activity {
         drawerView.setVisibility(View.VISIBLE);
         drawerView.setAlpha(0f);
         drawerView.animate().alpha(1f).setDuration(150).start();
+        // The Select button is on the left, so the menu comes from the left and pushes the screen a little to the right.
+        View panel = drawerView.getChildAt(drawerView.getChildCount() - 1);
+        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+        panel.setTranslationX(-u(700));
+        panel.animate().translationX(0f).setDuration(280).setInterpolator(ease).start();
+        shelf.animate().translationX(u(80)).setDuration(280).setInterpolator(ease).start();
+        infoBlock.animate().translationX(u(80)).setDuration(280).setInterpolator(ease).start();
         setHints(false);
     }
 
     private void closeDrawer() {
         drawerOpen = false;
-        drawerView.setVisibility(View.GONE);
-        drawerView.removeAllViews();
+        android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
+        shelf.animate().translationX(0f).setDuration(240).setInterpolator(ease).start();
+        infoBlock.animate().translationX(0f).setDuration(240).setInterpolator(ease).start();
+        View panel = drawerView.getChildAt(drawerView.getChildCount() - 1);
+        if (panel != null && drawerView.getVisibility() == View.VISIBLE) {
+            panel.animate().translationX(-u(700)).setDuration(220).setInterpolator(ease).withEndAction(() -> {
+                if (drawerOpen) return;
+                drawerView.setVisibility(View.GONE);
+                drawerView.removeAllViews();
+            }).start();
+            drawerView.animate().alpha(0f).setDuration(220).start();
+        } else {
+            drawerView.setVisibility(View.GONE);
+            drawerView.removeAllViews();
+        }
         setHints(pageOpen);
     }
 
@@ -1118,10 +1216,10 @@ public class HomeActivity extends Activity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setClickable(true); // taps on the panel are not taps on the scrim
-        panel.setPadding(u(48), u(70), u(EDGE_R), u(40));
+        panel.setPadding(u(EDGE_L), u(70), u(48), u(40));
         GradientDrawable pd = new GradientDrawable();
         pd.setColor(0xF2141119);
-        pd.setCornerRadii(new float[]{u(28), u(28), 0, 0, 0, 0, u(28), u(28)});
+        pd.setCornerRadii(new float[]{0, 0, u(28), u(28), u(28), u(28), 0, 0});
         panel.setBackground(pd);
         panel.addView(label("Menu", 52, Color.WHITE, true));
 
@@ -1164,7 +1262,7 @@ public class HomeActivity extends Activity {
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, -2);
         np.topMargin = u(30);
         panel.addView(note, np);
-        drawerView.addView(panel, new FrameLayout.LayoutParams(u(700), -1, Gravity.END));
+        drawerView.addView(panel, new FrameLayout.LayoutParams(u(700), -1, Gravity.START));
     }
 
     // ---- letter jumping ----
@@ -1248,6 +1346,15 @@ public class HomeActivity extends Activity {
         searchView.setVisibility(View.VISIBLE);
         searchView.setAlpha(0f);
         searchView.animate().alpha(1f).setDuration(150).start();
+        // The keyboard rises from below and the results come in from the right, where they sit.
+        android.view.animation.DecelerateInterpolator easeS = new android.view.animation.DecelerateInterpolator(2f);
+        for (int ci = 1; ci < searchView.getChildCount(); ci++) {
+            View cv = searchView.getChildAt(ci);
+            boolean results = ((FrameLayout.LayoutParams) cv.getLayoutParams()).leftMargin == u(1210);
+            cv.setAlpha(0f);
+            if (results) cv.setTranslationX(u(140)); else cv.setTranslationY(u(160));
+            cv.animate().alpha(1f).translationX(0f).translationY(0f).setStartDelay(Math.min(ci, 30) * 6L).setDuration(300).setInterpolator(easeS).start();
+        }
         setHints(false);
     }
 
@@ -1328,6 +1435,14 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_BUTTON_X:
                 if (first) applySearch();
                 return true;
+            case KeyEvent.KEYCODE_BUTTON_L1:
+            case KeyEvent.KEYCODE_BUTTON_R1:
+                if (first) {
+                    int dirT = keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1;
+                    closeSearch();
+                    setTab(tab + dirT);
+                }
+                return true;
             case KeyEvent.KEYCODE_BUTTON_B:
             case KeyEvent.KEYCODE_ESCAPE:
                 if (first) closeSearch();
@@ -1348,7 +1463,9 @@ public class HomeActivity extends Activity {
         View dim = new View(this);
         dim.setBackgroundColor(0xF20B0A10);
         dim.setClickable(true); // swallows touches so the shelf underneath is not tapped
-        searchView.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+        FrameLayout.LayoutParams dimp = new FrameLayout.LayoutParams(-1, -1);
+        dimp.topMargin = u(104); // the tab bar stays above the keyboard: L1 and R1 still move between tabs
+        searchView.addView(dim, dimp);
 
         TextView head = label("Search", 56, Color.WHITE, true);
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
@@ -1500,7 +1617,6 @@ public class HomeActivity extends Activity {
             va.addListener(new android.animation.AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationEnd(android.animation.Animator an) {
-                    if (pageOpen) shelf.setVisibility(View.INVISIBLE);
                 }
             });
             va.start();
@@ -1540,9 +1656,16 @@ public class HomeActivity extends Activity {
             va.setInterpolator(ease);
             va.addUpdateListener(a -> { if (!pageOpen) shelf.setPage((Float) a.getAnimatedValue(), false); });
             va.start();
-            infoBlock.setAlpha(0f);
+            // The line above the title and the title are identical to the page's, so they show at once; only
+            // the rest of the info fades in. (Fading all of it left the title dim for a frame when the page went.)
+            infoBlock.animate().cancel();
+            infoBlock.setAlpha(1f);
             setInfoVisibility(View.VISIBLE);
-            infoBlock.animate().alpha(1f).setStartDelay(120).setDuration(260).start();
+            for (int ci = 2; ci < infoBlock.getChildCount(); ci++) {
+                View cv = infoBlock.getChildAt(ci);
+                cv.setAlpha(0f);
+                cv.animate().alpha(1f).setStartDelay(150).setDuration(260).start();
+            }
             pageRest.animate().alpha(0f).translationY(-u(70)).setStartDelay(0).setDuration(240).setInterpolator(ease)
                     .withEndAction(() -> {
                         if (pageOpen) return; // opened again meanwhile
@@ -1675,6 +1798,13 @@ public class HomeActivity extends Activity {
                     actIdx = 0;
                     infoOpen = false;
                     renderPage();
+                    int sd = keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1; // the next game slides in from its side
+                    android.view.animation.DecelerateInterpolator easeP = new android.view.animation.DecelerateInterpolator(2f);
+                    for (View pv : new View[]{pageCover, pageCol}) {
+                        pv.setAlpha(0f);
+                        pv.setTranslationX(sd * u(90));
+                        pv.animate().alpha(1f).translationX(0f).setDuration(260).setInterpolator(easeP).start();
+                    }
                 }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_A:

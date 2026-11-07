@@ -219,7 +219,18 @@ final class Shelf extends ViewGroup {
     }
 
     void move(int d) {
+        if (index + d < 0 || index + d >= items.size()) {
+            if (!items.isEmpty()) nudge(d * 18 * s, 0f);
+            return;
+        }
         setIndex(index + d, true);
+    }
+
+    /** A small push against the edge when there is nothing further in that direction. */
+    private void nudge(float dx, float dy) {
+        animate().cancel();
+        animate().translationX(dx).translationY(dy).setDuration(70).withEndAction(() ->
+                animate().translationX(0f).translationY(0f).setDuration(220).setInterpolator(new OvershootInterpolator(3f)).start()).start();
     }
 
     void setPage(float t, boolean hideHero) {
@@ -266,7 +277,10 @@ final class Shelf extends ViewGroup {
         if (mode == HERO) return;
         int n = items.size(), target = index + d * cols();
         if (d > 0 && target >= n && index / cols() < (n - 1) / cols()) target = n - 1; // last, shorter row
-        if (target < 0 || target >= n) return;
+        if (target < 0 || target >= n) {
+            nudge(0f, d * 14 * s);
+            return;
+        }
         setIndex(target, true);
     }
 
@@ -364,8 +378,9 @@ final class Shelf extends ViewGroup {
             } else {
                 c.setShot(null, 0f);
             }
-            c.setScaleX(1f);
-            c.setScaleY(1f);
+            float sc = mode == HERO ? 1f : .88f + .12f * ek; // grid tiles grow in as they arrive
+            c.setScaleX(sc);
+            c.setScaleY(sc);
             c.setZ(z);
             int pw = Math.round(w * s), ph = Math.round(h * s), px = Math.round(x * s), py = Math.round(y * s);
             c.measure(View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY),

@@ -260,6 +260,10 @@ The tab bar has a fixed width, so it never grows over the battery and the time. 
 
 Movement matches the direction you pressed, so the screen feels like one space.
 - **Down on Recent** opens the details: the row under the big tile slides down and away, the line above the title, the title and the big tile stay exactly where they are (the details title is the same size as Recent's), and the details drop in from above. **Up** (at the top of the details) or **B** reverses it: the details lift away and the row slides back up.
+- **Launching a game** eases the screen towards you and fades to black, then the game opens; coming back fades up.
+- **Menu (Select)** comes in from the left, where the button is, and pushes the screen a little to the right.
+- **Search (X)** keeps the tab bar, so L1 and R1 still move between tabs. The keyboard rises from below and the results come in from the right.
+- **Recent**: the info text slides a little the way you moved; dots under the big tile show where you are in the list, and small arrows at the edges of the row show there is more that way. **Details**: L1/R1 slide the next game in from its side. At the first or last tile (or the top or bottom row) the screen gives a small push.
 - **L1/R1** slide the next tab in from the side it sits on. **A** on a system makes its games rise in from below; **B** brings the systems back down from above.
 
 ## Build

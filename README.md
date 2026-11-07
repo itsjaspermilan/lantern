@@ -265,6 +265,7 @@ Movement matches the direction you pressed, so the screen feels like one space.
 - **Search (X)** keeps the tab bar, so L1 and R1 still move between tabs. The keyboard rises from below and the results come in from the right.
 - **Y on Recent** takes the big game off the list (a toast says so, and the next game slides into the big spot). Its saves and play time are kept; playing it again puts it back.
 - **The tab bar opens and closes smoothly**: going into a system, the other tabs slide aside to make room for the breadcrumb, and slide back together when you leave; the highlight follows the whole way.
+- **Long titles on grid tiles**: the focused tile's title, if it is cut off, waits a moment (so moving across tiles does not set it off) and then slides slowly to its end and back, the same way as the tab bar.
 - **Long system names** in the tab bar (inside a system) are not cut off: the name slides slowly to its end and back, pausing at each end, while the back arrow stays put.
 - **Recent**: the info text slides a little the way you moved; dots under the big tile show where you are in the list, and small arrows at the edges of the row show there is more that way. **Details**: L1/R1 slide the next game in from its side. At the first or last tile (or the top or bottom row) the whole screen stretches like a rubber band and springs back: the tiles move most, the text and dots a little less.
 - **L1/R1** slide the next tab in from the side it sits on. **A** on a system makes its games rise in from below; **B** brings the systems back down from above.

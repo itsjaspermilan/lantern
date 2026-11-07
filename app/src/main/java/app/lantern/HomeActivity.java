@@ -570,8 +570,9 @@ public class HomeActivity extends Activity {
     private void updateChevrons() {
         if (chevL == null || shelf == null) return;
         boolean hero = shelf.mode() == Shelf.HERO && !pageOpen && !shown.isEmpty();
-        chevL.setVisibility(hero && shelf.getIndex() > 0 ? View.VISIBLE : View.GONE);
-        chevR.setVisibility(hero && shelf.getIndex() < shelf.size() - 1 ? View.VISIBLE : View.GONE);
+        int rowStart = Math.max(0, shelf.getIndex() - 1); // the row keeps the focused game one tile in from its left edge
+        chevL.setVisibility(hero && rowStart > 0 ? View.VISIBLE : View.GONE);
+        chevR.setVisibility(hero && rowStart + 5 < shelf.size() ? View.VISIBLE : View.GONE);
         dots.setVisibility(hero ? View.VISIBLE : View.GONE);
         dotsN = shelf.size();
         dotsAt = shelf.getIndex();

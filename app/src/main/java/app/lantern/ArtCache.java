@@ -30,6 +30,7 @@ final class ArtCache {
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2);
     private static final Set<String> LOADING = new HashSet<>();
+    private static final java.util.HashMap<String, java.util.List<View>> WAITERS = new java.util.HashMap<>();
     private static final LruCache<String, Bitmap> CACHE = new LruCache<String, Bitmap>(24 * 1024 * 1024) {
         @Override
         protected int sizeOf(String key, Bitmap b) {
@@ -100,17 +101,25 @@ final class ArtCache {
         Bitmap b = CACHE.get(key);
         if (b != null) return b;
         synchronized (LOADING) {
-            if (!LOADING.add(key)) return null;
+            if (!LOADING.add(key)) { // already loading for another tile: this one is redrawn too when it lands
+                java.util.List<View> w = WAITERS.get(key);
+                if (w == null) { w = new java.util.ArrayList<>(); WAITERS.put(key, w); }
+                if (!w.contains(redraw)) w.add(redraw);
+                return null;
+            }
         }
         POOL.execute(() -> {
             Bitmap decoded = decode(g);
             if (decoded != null) CACHE.put(key, decoded);
+            final java.util.List<View> waiting;
             synchronized (LOADING) {
                 LOADING.remove(key);
+                waiting = WAITERS.remove(key);
             }
             MAIN.post(() -> {
                 if (decoded != null && listener != null) listener.onDecoded(g);
                 redraw.invalidate();
+                if (waiting != null) for (View v : waiting) v.invalidate();
             });
         });
         return null;

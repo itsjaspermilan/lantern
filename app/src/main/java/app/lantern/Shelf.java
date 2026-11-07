@@ -71,6 +71,11 @@ final class Shelf extends ViewGroup {
     private float breath;
     /** The details page is open (0 to 1): the row under the big tile slides down; the big tile itself is hidden while the page's copy stands in. */
     private float pageT;
+    /** Recent: the big tile is two covers that cross-fade when the focused game changes. */
+    private Cover heroCur, heroPrev;
+    private Game heroCurG, heroPrevG;
+    private float heroFade = 1f;
+    private ValueAnimator heroFadeAnim;
     private boolean heroHide;
     private Listener listener;
     private float downY, lastY;
@@ -135,6 +140,9 @@ final class Shelf extends ViewGroup {
             });
             enter.start();
         }
+        if (heroFadeAnim != null) heroFadeAnim.cancel();
+        heroFade = 1f;
+        heroCurG = heroPrevG = layout == HERO && !list.isEmpty() ? list.get(0) : null;
         startBreath();
         index = 0;
         scroll = 0;
@@ -194,6 +202,20 @@ final class Shelf extends ViewGroup {
         }
         if (anim != null) anim.cancel();
         if (mode == HERO) {
+            if (changed) { // the big tile cross-fades to the new game
+                heroPrevG = heroCurG;
+                heroCurG = items.get(i);
+                heroFade = 0f;
+                if (heroFadeAnim != null) heroFadeAnim.cancel();
+                heroFadeAnim = ValueAnimator.ofFloat(0f, 1f);
+                heroFadeAnim.setDuration(280);
+                heroFadeAnim.setInterpolator(new DecelerateInterpolator(1.5f));
+                heroFadeAnim.addUpdateListener(v -> {
+                    heroFade = (Float) v.getAnimatedValue();
+                    requestLayout();
+                });
+                heroFadeAnim.start();
+            }
             anim = ValueAnimator.ofFloat(heroPos, i);
             anim.setDuration(animate ? 320 : 0);
             anim.setInterpolator(new DecelerateInterpolator(2f));
@@ -258,8 +280,10 @@ final class Shelf extends ViewGroup {
         breathAnim.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
         breathAnim.addUpdateListener(v -> {
             breath = (Float) v.getAnimatedValue();
-            Cover c = attached.get(index);
-            if (c != null && mode == HERO && Math.abs(heroPos - index) < .02f) applyBreath(c);
+            if (heroCur != null && mode == HERO) {
+                applyBreath(heroCur);
+                applyBreath(heroPrev);
+            }
         });
         if (getWindowVisibility() == View.VISIBLE) breathAnim.start();
     }
@@ -313,8 +337,8 @@ final class Shelf extends ViewGroup {
         int first, last;
         if (mode == HERO) {
             setClipBounds(null);
-            first = Math.max(0, (int) Math.floor(heroPos) - 1);
-            last = Math.min(n - 1, (int) Math.ceil(heroPos) + 7);
+            first = Math.max(0, (int) Math.floor(Math.max(0f, heroPos - 1f)));
+            last = Math.min(n - 1, first + 8);
         } else {
             setClipBounds(new Rect(0, Math.round((GRID_TOP - 20) * s), r - l, Math.round((GRID_BOTTOM + 10) * s)));
             int c = cols();
@@ -344,25 +368,19 @@ final class Shelf extends ViewGroup {
             boolean on = i == index;
             float x, y, w, h, wt = on ? 1f : 0f, alpha = -1f, z = on ? 2f : 0f, label = 0f, ek = 1f, ty = 0f;
             if (mode == HERO) {
-                // d is how far this game is from the hero spot. At 0 it is the big tile; from 1 on it sits in the
-                // small row, and between 0 and 1 it glides from one to the other. The game just left fades out.
-                float d = i - heroPos, k = Math.max(0f, Math.min(1f, d));
-                float slotCx = SMALL_X + (Math.max(d, 1f) - 1) * (SMALL_W + SMALL_GAP) + SMALL_W / 2f;
-                float sx = slotCx - SMALL_W / 2f, sy = SMALL_BOTTOM - SMALL_H;
-                label = LABEL * k; // Recent's row of small tiles keeps its titles
-                float[] hb = heroBox(g);
-                x = hb[0] + (sx - hb[0]) * k;
-                y = hb[1] + (sy - hb[1]) * k;
-                w = hb[2] + (SMALL_W - hb[2]) * k;
-                h = hb[3] + (SMALL_H - hb[3]) * k;
-                y += pageT * 420f * k;
-                if (heroHide) ek *= Math.max(0f, Math.min(1f, d * 2f));
-                if (d >= 1f) ek = .3f + .7f * Math.max(0f, Math.min(1f, (1900f - x) / 240f)); // the row fades out at the right edge
-                wt = Math.max(0f, 1f - Math.abs(d));
-                alpha = d >= 1f ? .6f : d > 0f ? 1f - .4f * d : Math.max(0f, 1f + d);
-                z = d <= 0f ? (d > -1f ? 1f : 0f) : 0f;
-                if (d < 0f) z = 1f;
-                if (d > 0f && d < 1f) z = 2f;
+                // The whole recent list sits in the row. The focused game is lifted a little, so you can see where you
+                // are; the row scrolls to keep it in view, one game back from the left edge.
+                float rs = Math.max(0f, heroPos - 1f), d = i - rs;
+                float lift = Math.max(0f, 1f - Math.abs(i - heroPos));
+                x = SMALL_X + d * (SMALL_W + SMALL_GAP);
+                y = SMALL_BOTTOM - SMALL_H - lift * 24f + pageT * 420f;
+                w = SMALL_W;
+                h = SMALL_H;
+                label = LABEL;
+                wt = lift;
+                z = lift > 0f ? 2f : 0f;
+                ek = .3f + .7f * Math.max(0f, Math.min(1f, (1900f - x) / 240f)); // the row fades at the right edge,
+                ek *= Math.max(0f, Math.min(1f, (x + SMALL_W - LEFT) / SMALL_W)); // and as it slides out on the left
             } else {
                 int cols = cols(), row = i / cols, col = i % cols;
                 float used = cols * (cellW() + GAP) - GAP, x0 = LEFT + (1920 - LEFT - RIGHT - used) / 2f;
@@ -379,12 +397,7 @@ final class Shelf extends ViewGroup {
             c.setWeight(wt);
             c.setAlpha((alpha >= 0f ? alpha : .6f + .4f * wt) * ek); // tiles are reused, so never inherit an old fade
             c.setTranslationY(ty);
-            if (mode == HERO) {
-                float dd = i - heroPos;
-                c.setShot(dd > -1f && dd < 1f ? ArtCache.shot(g) : null, 1f - Math.abs(dd)); // a screenshot of where it was left
-            } else {
-                c.setShot(null, 0f);
-            }
+            c.setShot(null, 0f);
             float sc = mode == HERO ? 1f : .88f + .12f * ek; // grid tiles grow in as they arrive
             c.setScaleX(sc);
             c.setScaleY(sc);
@@ -393,8 +406,36 @@ final class Shelf extends ViewGroup {
             c.measure(View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(ph, View.MeasureSpec.EXACTLY));
             c.layout(px, py, px + pw, py + ph);
-            if (mode == HERO && on && Math.abs(heroPos - index) < .02f) applyBreath(c);
         }
+        if (mode == HERO) layoutHero(r - l);
+    }
+
+    /** The big tile: the focused game, cross-fading from the one before. */
+    private void layoutHero(int width) {
+        if (heroCur == null) {
+            heroCur = newCover();
+            heroPrev = newCover();
+            heroCur.setOnClickListener(v -> { if (listener != null) listener.onTap(index); });
+        }
+        float[] hb = heroBox(null);
+        int px = Math.round(hb[0] * s), py = Math.round(hb[1] * s), pw = Math.round(hb[2] * s), ph = Math.round(hb[3] * s);
+        Cover[] covers = {heroPrev, heroCur};
+        Game[] games = {heroPrevG, heroCurG};
+        float[] alphas = {heroFade < 1f ? 1f - heroFade : 0f, heroFade};
+        for (int k = 0; k < 2; k++) {
+            Cover c = covers[k];
+            if (c.getParent() == null) addViewInLayout(c, -1, new ViewGroup.LayoutParams(-2, -2), true);
+            if (games[k] != null && c.game() != games[k]) c.setGame(games[k]);
+            c.setLabel(0f);
+            c.setWeight(1f);
+            c.setAlpha(heroHide ? 0f : alphas[k]);
+            c.setShot(ArtCache.shot(games[k]), 1f); // a screenshot of where it was left
+            c.setZ(3f);
+            c.measure(View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(ph, View.MeasureSpec.EXACTLY));
+            c.layout(px, py, px + pw, py + ph);
+        }
+        applyBreath(heroCur);
+        applyBreath(heroPrev);
     }
 
     // ---- touch: drag a grid up and down ----

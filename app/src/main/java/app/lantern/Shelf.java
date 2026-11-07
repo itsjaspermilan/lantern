@@ -35,7 +35,7 @@ final class Shelf extends ViewGroup {
     // Mockup pixels. The grid lives between GRID_TOP and GRID_BOTTOM; the info line is under it.
     private static final float LEFT = 90, RIGHT = 70, GRID_TOP = 150, GRID_BOTTOM = 860, GAP = 24;
     // Picture sizes; each tile also has a LABEL strip under it for the title.
-    private static final float GAME_W = 198, GAME_H = 270, SYS_W = 230, SYS_H = 230, LABEL = 42;
+    private static final float GAME_W = 228, GAME_H = 300, SYS_W = 270, SYS_H = 270, LABEL = 42;
     // The hero tile and the small row beside and below it.
     private static final float HERO_W = 430, HERO_H = 620, HERO_Y = 170; // the same size and place as the cover on the details page
     private static final float SMALL_X = 620, SMALL_W = 180, SMALL_H = 262, SMALL_GAP = 20, SMALL_BOTTOM = 956;

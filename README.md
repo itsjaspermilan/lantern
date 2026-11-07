@@ -53,63 +53,45 @@ run on other 64-bit ARM Android devices (Android 8 or newer) but has not been tr
 page, but no Play Store listing and no auto-update. Emulation covers software-rendered cores only (Game Boy, GBA, NES, SNES, Mega Drive and friends); there are
 no N64, PlayStation, DS or PSP cores yet. See [TODO.md](TODO.md).
 
-## Quick install
-
-1. On the handheld, download `lantern-0.1.0.apk` from the
-   [Releases](https://github.com/itsjaspermilan/lantern/releases) page and open it (Android asks you to allow installs
-   from your browser or file manager).
-2. Open Lantern, press **Select**, and allow file access if it asks; put your games in folders as in
-   [step 3](#3-give-it-access-to-your-games).
-3. Add emulators in the app (*Select > Emulators*, see [step 4](#4-add-emulators)), and optionally make it your home
-   screen ([step 5](#5-make-it-your-home-screen-optional)).
-
-The release APK contains no emulators: they are downloaded in the app, from libretro, when you ask.
-
 ## Set it up
 
-To build it yourself instead: you need a computer to build Lantern, and the handheld to run it. Setup has five parts: build, install, give it access
-to your games, add the emulators you want (in the app), and (optionally) make it your home screen.
+Setup has four parts: install the APK, give Lantern access to your games, add the emulators you want (in the app), and
+(optionally) make it your home screen. You do not need to build anything: to build it yourself instead, see
+[Build it yourself](#build-it-yourself).
 
-### 1. Build it
+### 1. Install the APK
 
-Requirements on your computer (macOS or Linux; the build is a shell script, not Gradle):
+Download **`lantern-0.1.0.apk`** from the [latest release](https://github.com/itsjaspermilan/lantern/releases/latest).
+It contains no emulators and no games. Then install it one of two ways.
 
-| Needed | Notes |
-|---|---|
-| **JDK 17** | `java`, `javac` and `keytool` on your `PATH` (or set `JAVA_HOME`). |
-| **Android SDK** | Set `ANDROID_HOME` (default `~/Library/Android/sdk`). Install **platform `android-36`**, the latest **build-tools** and **platform-tools** (for `adb`). |
-| **Android NDK** | Any recent one (tested with r29). Set `ANDROID_NDK_HOME`, or it uses the newest in `$ANDROID_HOME/ndk`. It builds the native player. |
-| `zip`, `unzip`, `curl` | Usually already installed. |
+**With ADB from a computer (recommended).** ADB is Google's small command-line tool for talking to an Android
+device over USB.
 
-Install the SDK pieces with Android Studio's SDK Manager, or with the command line tools:
-
-```sh
-sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" "ndk;29.0.14206865"   # versions as tested; newer ones work too
-```
-
-Then build:
-
-```sh
-git clone https://github.com/itsjaspermilan/lantern.git
-cd lantern
-./build.sh              # produces build/lantern-debug.apk
-```
-
-The build signs the APK with a throwaway debug key that it creates in `build/` (never committed). Run the tests with
-`./test.sh` (no device needed).
-
-### 2. Install it on the handheld
-
-1. On the handheld, enable **Developer options** and **USB debugging**, and connect it to your computer.
-2. Check it shows up with `adb devices`, then install:
+1. Get ADB: on macOS `brew install android-platform-tools`; on Windows `winget install Google.PlatformTools`; on
+   Linux your package manager's `adb` or `android-tools` package. Or download
+   [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) from Google and unzip it.
+2. On the handheld, turn on **Developer options** (*Settings > About*, tap *Build number* seven times), then
+   **USB debugging** in *Settings > System > Developer options*.
+3. Connect the handheld with a USB cable. Run `adb devices`, and on the handheld allow the computer when it asks. The
+   device should be listed as `device` (not `unauthorized`).
+4. Install, from the folder you downloaded the APK to:
 
 ```sh
-./build.sh install      # builds, then runs: adb install -r build/lantern-debug.apk
+adb install lantern-0.1.0.apk
 ```
 
-(Or copy `build/lantern-debug.apk` to the device and open it; you will need to allow installs from that app.)
+To update later, download the new APK and run `adb install -r lantern-<version>.apk` (`-r` keeps your settings).
+If it fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, a build signed with a different key (such as your own debug
+build) is installed: remove it first with `adb uninstall app.lantern` (that also clears Lantern's settings and
+downloaded emulators; your games and saves in `/sdcard/Lantern/` stay).
 
-### 3. Give it access to your games
+**On the handheld alone.** Open the release page in the handheld's browser, download the APK and open it; Android asks
+you to allow installs from your browser or file manager. On devices where Google's
+[developer verification](https://android-developers.googleblog.com/2026/03/android-developer-verification-rolling-out-to-all-developers.html)
+applies, Android may warn that the developer is not verified or require its "advanced flow" (a setting in Developer
+options and a one-day wait). Installing with ADB is not affected.
+
+### 2. Give it access to your games
 
 Lantern reads game folders in shared storage, which Android treats as "all files access". The first time you open it with
 no games, press **Select** for the menu; if access is missing it shows an **Allow file access** row that opens the right
@@ -146,7 +128,7 @@ Other folders under `/sdcard/Lantern/` (all optional):
 | `art/androidgames/<package>.png` | Cover for an Android game, named after its package (or its title). |
 | `cheats/<system>/<game>.cht` | Cheats in RetroArch's `.cht` format, named like the ROM. |
 
-### 4. Add emulators
+### 3. Add emulators
 
 Lantern plays games with **libretro cores**: separate emulator libraries. None is included, because cores have their
 own licences (some are GPL, some are non-commercial only). You add the ones you want **in the app**:
@@ -158,13 +140,7 @@ own licences (some are GPL, some are non-commercial only). You add the ones you 
 
 The handheld needs an internet connection for this step only.
 
-**If you build Lantern yourself** you can instead package cores into the APK: put `<name>_libretro_android.so` files
-(64-bit ARM) in `native/cores/`, or let `scripts/fetch-cores.sh --list` / `scripts/fetch-cores.sh mgba gambatte`
-download them there (it asks first), then `./build.sh install`. A packaged core wins over a downloaded one. Read
-[native/CORES.md](native/CORES.md) first, and **keep an APK that contains cores to yourself**: the licences of some
-cores do not allow passing it on.
-
-### 5. Make it your home screen (optional)
+### 4. Make it your home screen (optional)
 
 Press the Home button. Android asks which home app to use; choose Lantern and *Always*. Or:
 
@@ -217,9 +193,11 @@ a resume point, so **Resume** puts you back exactly where you were.
 
 ## Troubleshooting
 
+- **`adb devices` shows nothing or `unauthorized`.** Try another cable (some only charge), turn USB debugging off and on,
+  and allow the computer on the handheld's screen.
 - **No games show up.** Check *All files access* is allowed, the folder names match the table (lower case), and the files
   have the right extensions.
-- **"Press A to add the emulator for ..."** The system's emulator is not added yet: see step 4.
+- **"Press A to add the emulator for ..."** The system's emulator is not added yet: see step 3.
 - **An emulator download fails.** Check the handheld is online; libretro's build server is sometimes slow or down, so
   try again later. Systems marked "No emulator ... yet" (N64, PlayStation and others) have none in Lantern at all.
 - **A game does not start.** Some games need a BIOS file in `/sdcard/Lantern/bios/`; the cores above do not. Check
@@ -227,6 +205,44 @@ a resume point, so **Resume** puts you back exactly where you were.
 - **No cover art.** Turn Cover art on in the menu, make sure the file names are in the usual "Game Name (Region)" form, or
   add your own picture to `art/<system>/`.
 - **The build fails on `android-36` or the NDK.** Check `ANDROID_HOME` and `ANDROID_NDK_HOME` point where you think.
+
+## Build it yourself
+
+You need a computer (macOS or Linux; the build is a shell script, not Gradle) and the handheld connected with USB
+debugging on (see [step 1](#1-install-the-apk)).
+
+| Needed | Notes |
+|---|---|
+| **JDK 17** | `java`, `javac` and `keytool` on your `PATH` (or set `JAVA_HOME`). |
+| **Android SDK** | Set `ANDROID_HOME` (default `~/Library/Android/sdk`). Install **platform `android-36`**, the latest **build-tools** and **platform-tools** (for `adb`). |
+| **Android NDK** | Any recent one (tested with r29). Set `ANDROID_NDK_HOME`, or it uses the newest in `$ANDROID_HOME/ndk`. It builds the native player. |
+| `zip`, `unzip`, `curl` | Usually already installed. |
+
+Install the SDK pieces with Android Studio's SDK Manager, or with the command line tools:
+
+```sh
+sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" "ndk;29.0.14206865"   # versions as tested; newer ones work too
+```
+
+Then build and install:
+
+```sh
+git clone https://github.com/itsjaspermilan/lantern.git
+cd lantern
+./build.sh              # produces build/lantern-debug.apk
+./build.sh install      # builds, then runs: adb install -r build/lantern-debug.apk
+./test.sh               # the plain-logic checks, no device needed
+```
+
+The build signs the APK with a throwaway debug key that it creates in `build/` (never committed). A debug build and the
+release APK are signed with different keys, so one cannot be installed over the other: `adb uninstall app.lantern`
+first. Then carry on with [step 2](#2-give-it-access-to-your-games).
+
+**Packaging emulators into your own build.** Instead of downloading emulators in the app, you can put
+`<name>_libretro_android.so` files (64-bit ARM) in `native/cores/`, or let `scripts/fetch-cores.sh --list` /
+`scripts/fetch-cores.sh mgba gambatte` download them there (it asks first), then `./build.sh install`. A packaged core
+wins over a downloaded one. Read [native/CORES.md](native/CORES.md) first, and **keep an APK that contains cores to
+yourself**: the licences of some cores do not allow passing it on.
 
 ## Making a release
 

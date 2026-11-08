@@ -296,6 +296,8 @@ public class HomeActivity extends Activity {
         pd.setColor(AMBER);
         playPill.setBackground(pd);
         playPill.setVisibility(View.GONE);
+        View gap = new View(this); // on Recent this takes the spare height, so the button sits at the foot of the block
+        info.addView(gap, new LinearLayout.LayoutParams(1, 0, 1f));
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-2, -2);
         pp.topMargin = u(34);
         info.addView(playPill, pp);
@@ -360,13 +362,16 @@ public class HomeActivity extends Activity {
     }
 
     /** The title on Recent, in mockup pixels (before FONT). */
-    private static final float HERO_TITLE = 72;
+    private static final float HERO_TITLE = 62;
+    /** Where the big tile ends (its top 200 plus its height 436), in mockup pixels. */
+    private static final float HERO_BOTTOM = 636;
 
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
         infoLp.leftMargin = u(hero ? 870 : EDGE_L);
         infoLp.topMargin = u(hero ? 164 : 866); // Recent: the title starts level with the big tile's top edge
         infoLp.width = u(hero ? 980 : 1700);
+        infoLp.height = hero ? u(HERO_BOTTOM - 164) : -2; // Recent: the block ends level with the bottom of the big tile
         eyebrow.setVisibility(View.GONE); // its text is still kept: the details page shows it
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? HERO_TITLE : 52) * FONT * s);
         title.setSingleLine(true);
@@ -378,7 +383,7 @@ public class HomeActivity extends Activity {
         playPill.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 42 : 36) * FONT * s);
         playPill.setPadding(u(hero ? 54 : 44), u(hero ? 18 : 14), u(hero ? 54 : 44), u(hero ? 18 : 14));
         ((LinearLayout.LayoutParams) sub.getLayoutParams()).topMargin = u(hero ? 22 : 16);
-        ((LinearLayout.LayoutParams) playPill.getLayoutParams()).topMargin = u(hero ? 40 : 34);
+        ((LinearLayout.LayoutParams) playPill.getLayoutParams()).topMargin = u(hero ? 16 : 34);
         LinearLayout.LayoutParams mp = (LinearLayout.LayoutParams) ((View) chipView.getParent()).getLayoutParams();
         mp.topMargin = u(hero ? 12 : 6);
         infoBlock.requestLayout();

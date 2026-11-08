@@ -215,8 +215,7 @@ final class DetailsPage {
             }
             // Down moves the screen down: the row under the big tile slides away, and the details drop in from above.
             rest.setAlpha(0f);
-            rest.setTranslationY(-host.px(70));
-            rest.animate().alpha(1f).translationY(0f).setStartDelay(170).setDuration(300).setInterpolator(ease).start();
+            rest.animate().alpha(1f).setStartDelay(170).setDuration(300).setInterpolator(ease).start();
             shelf.setPage(0f, true);
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
             va.setDuration(PAGE_MS);
@@ -383,7 +382,7 @@ final class DetailsPage {
                 if (!open) shelf.setPage((Float) a.getAnimatedValue(), (Float) a.getAnimatedValue() > 0f);
             });
             va.start();
-            rest.animate().alpha(0f).translationY(-host.px(70)).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
+            rest.animate().alpha(0f).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
             metaView.animate().cancel();
             metaView.animate().translationX(metaDX).translationY(metaDY).scaleX(META_FROM).scaleY(META_FROM).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             morphRow(false);

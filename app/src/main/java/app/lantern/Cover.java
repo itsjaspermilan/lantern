@@ -276,13 +276,9 @@ final class Cover extends View {
         c.drawText(t, 0, t.length(), 4 * s, artH + labelPx * .72f, tp);
     }
 
-    /** A system's tile: soft rings and its picture. The name and the count are shown below the shelf, not repeated here. */
+    /** A system's tile: its picture on the colour. The name and the count are shown below the shelf, not repeated here. */
     private void drawSystem(Canvas c, float w, float h) {
-        p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(Math.max(2f, w * .018f));
-        p.setColor(0x38FFFFFF);
         float cx = w / 2f, cy = h / 2f;
-        for (int i = 1; i <= 3; i++) c.drawCircle(cx, cy, w * .15f * i, p);
         p.setStyle(Paint.Style.FILL);
         if ("all".equals(g.sysId)) { // the "All games" tile: Kenney's grid icon
             Bitmap grid = UiIcons.get(getContext(), "menu_grid");

@@ -47,7 +47,7 @@ public class HomeActivity extends Activity {
     private int batteryLevel = -1;
     private boolean batteryCharging, batteryNumber;
     private FrameLayout root, safe, stage;
-    private LinearLayout infoBlock, hintsRow;
+    private LinearLayout infoBlock, hintsRow, menuHintRow;
     private DetailsPage details;
     private ArtFetcher fetcher;
     private boolean artOn;
@@ -380,12 +380,16 @@ public class HomeActivity extends Activity {
         banner.setVisibility(View.GONE); // no longer used: the Start hint says what is needed
         bottom.addView(banner);
 
+        // The hints run along the bottom: the Menu hint alone on the left, the rest right-aligned.
+        FrameLayout hintsBar = new FrameLayout(this);
         hintsRow = new LinearLayout(this);
         hintsRow.setGravity(Gravity.CENTER_VERTICAL);
+        menuHintRow = new LinearLayout(this);
+        menuHintRow.setGravity(Gravity.CENTER_VERTICAL);
+        hintsBar.addView(menuHintRow, new FrameLayout.LayoutParams(-2, u(96), Gravity.START));
+        hintsBar.addView(hintsRow, new FrameLayout.LayoutParams(-2, u(96), Gravity.END));
         setHints(false);
-        LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(-2, u(96));
-        hl.gravity = Gravity.END;
-        bottom.addView(hintsRow, hl);
+        bottom.addView(hintsBar, new LinearLayout.LayoutParams(-1, -2));
         stage.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
     }
 
@@ -397,7 +401,7 @@ public class HomeActivity extends Activity {
         t.setPadding(u(12), 0, 0, 0);
         h.addView(t);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.leftMargin = u(44); // the row is right-aligned, so the spacing goes on the left
+        lp.leftMargin = row.getChildCount() == 0 ? 0 : u(44); // the row is right-aligned, so the spacing goes on the left
         row.addView(h, lp);
     }
 
@@ -502,8 +506,14 @@ public class HomeActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         boolean first = event.getRepeatCount() == 0;
         if (shelf == null) return super.onKeyDown(keyCode, event); // not built yet
-        if (searchOpen()) return search.key(keyCode, event, first);
         if (menuOpen()) return menu.key(keyCode, first);
+        if (searchOpen()) {
+            if (keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) { // the Menu hint is on the search page too
+                if (first) menu.open();
+                return true;
+            }
+            return search.key(keyCode, event, first);
+        }
         if (pageOpen()) return details.key(keyCode, first);
         switch (keyCode) {
             case KeyEvent.KEYCODE_BUTTON_X:
@@ -557,7 +567,7 @@ public class HomeActivity extends Activity {
     @Override
     public void onBackPressed() {
         // A launcher has nowhere to go back to, except out of a game page or a system.
-        if (searchOpen()) search.close(); else if (menuOpen()) menu.close(); else if (pageOpen()) details.close(); else leaveSystem();
+        if (menuOpen()) menu.close(); else if (searchOpen()) search.close(); else if (pageOpen()) details.close(); else leaveSystem();
     }
 
     /** A on the shelf: a system tile opens that system's games, a game tile opens its page. */
@@ -725,19 +735,15 @@ public class HomeActivity extends Activity {
                 : "No games found yet.";
     }
 
-    /** One tile per system that has games, in a fixed order: consoles by name, Android last. */
+    /** One tile per system that has games, in alphabetical order (Android games and apps too). */
     private List<Game> systemTiles() {
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (Game g : all) if (listed(g)) counts.put(g.sysId, counts.containsKey(g.sysId) ? counts.get(g.sysId) + 1 : 1);
         List<String> ids = new ArrayList<>(counts.keySet());
-        Collections.sort(ids, (a, b) -> {
-            // Consoles first, by name; then Android games; Android apps last.
-            int ra = Library.APPS.equals(a) ? 2 : Library.GAMES.equals(a) ? 1 : 0;
-            int rb = Library.APPS.equals(b) ? 2 : Library.GAMES.equals(b) ? 1 : 0;
-            if (ra != rb) return ra - rb;
-            return Library.systemTitle(a).compareToIgnoreCase(Library.systemTitle(b));
-        });
+        Collections.sort(ids, (a, b) -> Library.systemTitle(a).compareToIgnoreCase(Library.systemTitle(b))); // A to Z by name
         List<Game> out = new ArrayList<>();
+        int n = 0, count = ids.size(), stride = Math.max(1, Math.round(count * .38f));
+        while (stride > 1 && java.math.BigInteger.valueOf(stride).gcd(java.math.BigInteger.valueOf(count)).intValue() != 1) stride++;
         for (String id : ids) {
             Game t = new Game();
             t.id = "sys:" + id;
@@ -746,7 +752,7 @@ public class HomeActivity extends Activity {
             t.title = Library.systemTitle(id);
             t.system = Library.systemName(id);
             t.count = counts.get(id);
-            t.hue = (id.hashCode() & 0x7fffffff) % 360;
+            t.hue = (20 + (n++ * stride % count) * 360 / count) % 360; // every tile a different colour, evenly round the wheel; neighbours are far apart
             out.add(t);
         }
         return out;
@@ -947,18 +953,17 @@ public class HomeActivity extends Activity {
 
     private void setHints(boolean page) {
         hintsRow.removeAllViews();
+        menuHintRow.removeAllViews();
         if (menuOpen()) {
-            hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Select");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Close");
         } else if (searchOpen()) {
-            hint(hintsRow, glyph("◀ ▶ ▲ ▼", Color.WHITE, true), "Choose");
+            hint(menuHintRow, glyph("Select", Color.WHITE, false), "Menu");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Type");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Delete");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Show results");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Cancel");
         } else if (page) {
-            hint(hintsRow, glyph("▲ ▼", Color.WHITE, true), "Choose");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Confirm");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
@@ -968,7 +973,7 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || tab == TAB_SEARCH) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
             // Select opens the menu: settings, file access and the Android apps list.
-            hint(hintsRow, glyph("Select", Color.WHITE, false), Library.hasFileAccess() ? "Menu" : "Menu (file access)");
+            hint(menuHintRow, glyph("Select", Color.WHITE, false), Library.hasFileAccess() ? "Menu" : "Menu (file access)");
         }
     }
 
@@ -1084,6 +1089,7 @@ public class HomeActivity extends Activity {
 
         @Override
         public void openAppsList() {
+            if (searchOpen()) search.close(); // the menu was opened over the search page
             filter = Library.APPS;
             query = null;
             tab = TAB_SYSTEMS;

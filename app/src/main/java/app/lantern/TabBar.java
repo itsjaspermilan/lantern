@@ -114,12 +114,12 @@ final class TabBar {
         top.addView(new View(ctx), new LinearLayout.LayoutParams(0, 1, 1f));
         batteryBox = new LinearLayout(ctx);
         batteryBox.setGravity(Gravity.CENTER_VERTICAL);
-        batteryNum = host.text("", 30, Color.WHITE, false);
+        batteryNum = host.text("", 36, Color.WHITE, false);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-2, -2);
         np.rightMargin = host.px(10);
         batteryBox.addView(batteryNum, np);
         batteryIcon = new BatteryIcon(ctx);
-        batteryBox.addView(batteryIcon, new LinearLayout.LayoutParams(host.px(52), host.px(26)));
+        batteryBox.addView(batteryIcon, new LinearLayout.LayoutParams(host.px(62), host.px(31)));
         batteryBox.setVisibility(View.GONE); // until the level is known
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
         bp.rightMargin = host.px(26);
@@ -127,7 +127,7 @@ final class TabBar {
         clock = new TextClock(ctx);
         setClock24(clock24);
         clock.setTextColor(Color.WHITE);
-        clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, host.px(30 * HomeActivity.FONT));
+        clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, host.px(36 * HomeActivity.FONT));
         top.addView(clock);
     }
 

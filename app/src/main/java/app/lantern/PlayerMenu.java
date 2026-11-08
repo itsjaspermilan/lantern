@@ -311,7 +311,6 @@ final class PlayerMenu extends FrameLayout {
 
         LinearLayout hints = new LinearLayout(getContext());
         hints.setGravity(Gravity.CENTER_VERTICAL);
-        hint(hints, glyph("▲ ▼", Color.WHITE, true), "Choose");
         hint(hints, glyph("◀ ▶", Color.WHITE, true), "Change");
         hint(hints, glyph("A", 0xFF8BE28F, true), "Select");
         hint(hints, glyph("B", 0xFFFF8F8F, true), level == 0 ? "Continue" : "Back");

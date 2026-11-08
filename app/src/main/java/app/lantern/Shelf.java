@@ -125,6 +125,12 @@ final class Shelf extends ViewGroup {
     /** Where the top of Recent's title block sits (mockup pixels): the capital letters line up with the big tile's top edge. */
     static final float HERO_TEXT_TOP = 169;
 
+    /** Where Recent's big tile is on screen right now, with its slow breathing scale (mockup pixels: x, y, width, height). */
+    float[] heroRectNow() {
+        float sc = 1f + .03f * breath, w = HERO_W * sc, h = HERO_H * sc; // it grows about the middle of its bottom edge
+        return new float[]{LEFT - (w - HERO_W) / 2f, HERO_Y + HERO_H - h, w, h};
+    }
+
     static float[] heroBox(Game g) {
         return new float[]{LEFT, HERO_Y, HERO_W, HERO_H};
     }

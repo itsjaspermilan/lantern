@@ -211,7 +211,7 @@ final class DetailsPage {
                 cv.animate().cancel();
                 if (ci < 3 || ci == info.getChildCount() - 1) cv.setAlpha(0f); // the pill is covered by its copy, the title and the line under it are the page's now
                 else {
-                    cv.animate().alpha(0f).setStartDelay(0).setDuration(110).withEndAction(() -> { if (open) host.infoVisible(false); }).start();
+                    cv.animate().alpha(0f).setStartDelay(0).setDuration(70).withEndAction(() -> { if (open) host.infoVisible(false); }).start();
                 }
             }
             // Down moves the screen down: the row under the big tile slides away, and the details drop in from above.
@@ -250,84 +250,55 @@ final class DetailsPage {
         return new float[]{a[0] - b[0], a[1] - b[1], v.getWidth(), v.getHeight()};
     }
 
-    // The pieces of the button that turns into the first row (and back): the shape, its ring, and the pill it replaces.
-    private View ringV;
-    private android.graphics.drawable.GradientDrawable mBg, mRing;
-    private TextView mWord;
-    private PlayPill mPill;
+    private PlayPill mPill, mCopy;
     private float[] mA;
 
     /**
      * Recent's Play / Resume button and the page's first row are one thing: a shape that grows from the pill into the
-     * row (opening) or shrinks back (closing), with the pill's word fading into the row's own content and its white
-     * ring fading away. This puts a copy of the pill exactly over the real one and hides the real one, in the same frame.
+     * row (opening) or shrinks back (closing). The shape is a second PlayPill, drawn exactly like the real one and
+     * put right over it in the same frame the real one is hidden, so nothing flickers; its colours drain to white and
+     * its ring fades as it grows.
      */
     private boolean buildMorph() {
         final ViewGroup info = host.info();
         final View pill = info.getChildCount() > 0 ? info.getChildAt(info.getChildCount() - 1) : null;
         if (morphAnim != null) morphAnim.cancel();
         if (morph != null) view.removeView(morph);
-        if (ringV != null) view.removeView(ringV);
         morph = null;
-        ringV = null;
+        mCopy = null;
         if (!(pill instanceof PlayPill) || pill.getWidth() == 0 || row0 == null) {
             if (row0 != null) row0.setAlpha(1f);
             return false;
         }
         mPill = (PlayPill) pill;
         mA = rectIn(pill);
-        mBg = new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, mPill.colours());
-        mWord = new TextView(ctx);
-        mWord.setText(mPill.getText());
-        mWord.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, mPill.getTextSize());
-        mWord.setTextColor(Color.WHITE);
-        mWord.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        mWord.setGravity(Gravity.CENTER);
-        FrameLayout m = new FrameLayout(ctx);
-        m.setBackground(mBg);
-        m.addView(mWord, new FrameLayout.LayoutParams(-1, -1));
-        morph = m;
-        view.addView(m, new FrameLayout.LayoutParams((int) mA[2], (int) mA[3], Gravity.TOP | Gravity.START));
-        mRing = new android.graphics.drawable.GradientDrawable();
-        mRing.setColor(Color.TRANSPARENT);
-        ringV = new View(ctx);
-        ringV.setBackground(mRing);
-        view.addView(ringV, new FrameLayout.LayoutParams((int) mA[2], (int) mA[3], Gravity.TOP | Gravity.START));
+        mCopy = new PlayPill(ctx);
+        mCopy.copyLook(mPill);
+        morph = mCopy;
+        view.addView(mCopy, new FrameLayout.LayoutParams((int) mA[2], (int) mA[3], Gravity.TOP | Gravity.START));
         layoutMorph(0f);
         pill.setAlpha(0f); // the copy covers it from this frame on
         return true;
     }
 
-    /** Places the shape, its ring and its colours for t = 0 (the pill) to 1 (the row). */
+    /** Places the shape and sets its colours, ring and word for t = 0 (the pill) to 1 (the row). */
     private void layoutMorph(float t) {
         if (morph == null) return;
         float[] b = rectIn(row0);
         if (b[2] == 0) b = mA; // not laid out yet: stay a pill
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) morph.getLayoutParams();
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mCopy.getLayoutParams();
         lp.leftMargin = Math.round(mA[0] + (b[0] - mA[0]) * t);
         lp.topMargin = Math.round(mA[1] + (b[1] - mA[1]) * t);
         lp.width = Math.round(mA[2] + (b[2] - mA[2]) * t);
         lp.height = Math.round(mA[3] + (b[3] - mA[3]) * t);
-        morph.setLayoutParams(lp);
-        mBg.setCornerRadius(lp.height / 2f + (host.px(16) - lp.height / 2f) * t);
-        // The colours of the button drain to the row's white as it grows, then the row's own content shows.
-        float w = Math.max(0f, Math.min(1f, t / .8f));
-        int[] from = mPill.colours(), cc = new int[from.length];
-        for (int k = 0; k < cc.length; k++) cc[k] = (Integer) new android.animation.ArgbEvaluator().evaluate(w, from[k], Color.WHITE);
-        mBg.setColors(cc);
-        morph.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .9f) / .1f)));
-        mWord.setAlpha(1f - Math.max(0f, Math.min(1f, t / .4f)));
-        // The pill's white ring (the same gap and thickness as on Recent) fades away as the shape grows, and back in on return.
-        float gap = lp.height * .1f, stroke = Math.max(2f, lp.height * .04f), off = gap + stroke;
-        FrameLayout.LayoutParams rp = (FrameLayout.LayoutParams) ringV.getLayoutParams();
-        rp.leftMargin = Math.round(lp.leftMargin - off);
-        rp.topMargin = Math.round(lp.topMargin - off);
-        rp.width = Math.round(lp.width + 2 * off);
-        rp.height = Math.round(lp.height + 2 * off);
-        ringV.setLayoutParams(rp);
-        mRing.setStroke(Math.round(stroke), Color.WHITE);
-        mRing.setCornerRadius(rp.height / 2f + (host.px(16) - rp.height / 2f) * t);
-        ringV.setAlpha(1f - Math.max(0f, Math.min(1f, t / .3f)));
+        mCopy.setLayoutParams(lp);
+        float word = 1f - Math.max(0f, Math.min(1f, t / .4f));
+        mCopy.setTextColor(Color.argb(Math.round(255 * word), 255, 255, 255));
+        mCopy.setShadowLayer(mPill.getShadowRadius(), mPill.getShadowDx(), mPill.getShadowDy(), (Math.round(Color.alpha(mPill.getShadowColor()) * word) << 24));
+        mCopy.setMorph(Math.max(0f, Math.min(1f, t / .8f)),
+                lp.height / 2f + (host.px(16) - lp.height / 2f) * t,
+                1f - Math.max(0f, Math.min(1f, t / .3f)));
+        mCopy.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .9f) / .1f)));
         row0.setAlpha(Math.max(0f, Math.min(1f, (t - .6f) / .4f)));
     }
 
@@ -346,9 +317,7 @@ final class DetailsPage {
             public void onAnimationEnd(android.animation.Animator an) {
                 if (morph == m) {
                     view.removeView(m);
-                    view.removeView(ringV);
                     morph = null;
-                    ringV = null;
                 }
                 if (open && row0 != null) row0.setAlpha(1f);
             }
@@ -470,7 +439,7 @@ final class DetailsPage {
     /** Where the cover came from: Recent's big tile, or the tile in the grid. */
     private float[] sourceRect() {
         Shelf shelf = host.shelf();
-        if (shelf.mode() == Shelf.HERO) return Shelf.heroBox(null);
+        if (shelf.mode() == Shelf.HERO) return shelf.heroRectNow();
         float[] r = shelf.tileRect(shelf.getIndex());
         return r != null ? r : Shelf.heroBox(null);
     }
@@ -489,10 +458,18 @@ final class DetailsPage {
         coverAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
         coverAnim.addUpdateListener(a -> {
             float f = (Float) a.getAnimatedValue();
-            c.setScaleX(fsx + (tsx - fsx) * f);
-            c.setScaleY(fsy + (tsy - fsy) * f);
-            c.setTranslationX(ftx + (ttx - ftx) * f);
-            c.setTranslationY(fty + (tty - fty) * f);
+            float gsx = tsx, gsy = tsy, gtx = ttx, gty = tty;
+            if (end != null) { // going back: aim at where the tile is now (Recent's tile breathes), so it lands exactly on it
+                float[] src = sourceRect(), pb = Shelf.pageBox();
+                gsx = src[2] / pb[2];
+                gsy = src[3] / pb[3];
+                gtx = host.px(src[0] - pb[0]);
+                gty = host.px(src[1] - pb[1]);
+            }
+            c.setScaleX(fsx + (gsx - fsx) * f);
+            c.setScaleY(fsy + (gsy - fsy) * f);
+            c.setTranslationX(ftx + (gtx - ftx) * f);
+            c.setTranslationY(fty + (gty - fty) * f);
             if (shotBmp != null && c instanceof Cover) { // the screenshot and the box art blend as the cover travels
                 shotNow = shotFrom + (shotTo - shotFrom) * f;
                 ((Cover) c).setShot(shotBmp, shotNow);
@@ -533,7 +510,6 @@ final class DetailsPage {
         view.removeAllViews();
         view.setClipChildren(false);
         morph = null;
-        ringV = null;
 
         Cover big = new Cover(ctx, host.scale());
         big.setGame(g);

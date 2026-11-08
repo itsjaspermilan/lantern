@@ -21,6 +21,8 @@ final class PlayPill extends TextView {
     private int[] colours = colours(255);
     private LinearGradient fill;
     private int fillW, fillH;
+    /** For a copy that grows into something else: how far its colours have gone to white, its corner radius (-1: a pill) and its ring's strength. */
+    private float whiteMix, corner = -1f, ringAlpha = 1f;
 
     PlayPill(Context c) {
         super(c);
@@ -30,6 +32,27 @@ final class PlayPill extends TextView {
     void setHue(int hue) {
         colours = colours(hue);
         fill = null;
+        invalidate();
+    }
+
+    /** Makes this button look exactly like another one (colours, text, size) so it can stand in for it. */
+    void copyLook(PlayPill o) {
+        colours = o.colours;
+        fill = null;
+        setText(o.getText());
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, o.getTextSize());
+        setTextColor(Color.WHITE);
+        setTypeface(o.getTypeface());
+        setPadding(o.getPaddingLeft(), o.getPaddingTop(), o.getPaddingRight(), o.getPaddingBottom());
+        setShadowLayer(o.getShadowRadius(), o.getShadowDx(), o.getShadowDy(), o.getShadowColor());
+        setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+    }
+
+    /** Colours drained toward white (0 to 1), the corner radius in pixels (-1 for a pill) and the ring's strength (0 to 1). */
+    void setMorph(float white, float cornerPx, float ring) {
+        whiteMix = white;
+        corner = cornerPx;
+        ringAlpha = ring;
         invalidate();
     }
 
@@ -55,16 +78,24 @@ final class PlayPill extends TextView {
                 fillH = (int) h;
             }
             paint.setStyle(Paint.Style.FILL);
-            paint.setShader(fill);
+            Shader sh = fill;
+            if (whiteMix > 0f) {
+                int[] cc = new int[colours.length];
+                for (int k = 0; k < cc.length; k++) cc[k] = (Integer) new android.animation.ArgbEvaluator().evaluate(whiteMix, colours[k], Color.WHITE);
+                sh = new LinearGradient(w * .3f, -h * .7f, w * .7f, h * 1.7f, cc, new float[]{0f, .5f, 1f}, Shader.TileMode.CLAMP);
+            }
+            float rad = corner >= 0f ? corner : h / 2f;
+            paint.setShader(sh);
             box.set(0, 0, w, h);
-            c.drawRoundRect(box, h / 2f, h / 2f, paint);
+            c.drawRoundRect(box, rad, rad, paint);
             paint.setShader(null);
             float gap = h * .1f, stroke = Math.max(2f, h * .04f), off = gap + stroke / 2f;
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(stroke);
             paint.setColor(Color.WHITE);
+            paint.setAlpha(Math.round(255 * ringAlpha));
             box.set(-off, -off, w + off, h + off);
-            c.drawRoundRect(box, h / 2f + off, h / 2f + off, paint);
+            if (ringAlpha > 0f) c.drawRoundRect(box, rad + off, rad + off, paint);
         }
         super.onDraw(c); // the button's own text on top
     }

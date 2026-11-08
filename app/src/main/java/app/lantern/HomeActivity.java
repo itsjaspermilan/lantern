@@ -466,6 +466,10 @@ public class HomeActivity extends Activity {
             android.util.Log.i("Lantern", "library: " + fresh.size() + " games in " + (System.nanoTime() - t0) / 1000000 + " ms");
             runOnUiThread(() -> {
                 if (generation != loadGeneration || isDestroyed()) return; // a newer load took over
+                if (loaded && stage != null && sameLibrary(all, fresh)) { // nothing changed (Home pressed, say): leave the screen as it is
+                    if (shelf != null && !shown.isEmpty() && !pageOpen()) onFocused(shelf.getIndex()); // only the times ("Played 3 min ago") may have moved on
+                    return;
+                }
                 all.clear();
                 all.addAll(fresh);
                 if (tab < 0) tab = hasRecent() ? 0 : TAB_ALL;
@@ -474,6 +478,17 @@ public class HomeActivity extends Activity {
                 if (artOn) startArt();
             });
         }, "library").start();
+    }
+
+    /** True when both lists hold the same games with the same history, resume points and covers. */
+    private static boolean sameLibrary(List<Game> a, List<Game> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            Game x = a.get(i), y = b.get(i);
+            if (!x.id.equals(y.id) || !x.title.equals(y.title) || x.lastPlayed != y.lastPlayed || x.resume != y.resume
+                    || !java.util.Objects.equals(x.art, y.art)) return false;
+        }
+        return true;
     }
 
     @Override
@@ -489,7 +504,7 @@ public class HomeActivity extends Activity {
             topBar.snapNext(); // the tab bar must not animate while the screen is coming back: that shows as a flicker
             setTab(0);
         }
-        else shelf.setIndex(0, true);
+        else if (shelf.getIndex() != 0) shelf.setIndex(0, true);
     }
 
     @Override

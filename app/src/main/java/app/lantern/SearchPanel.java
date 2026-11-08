@@ -197,6 +197,9 @@ final class SearchPanel {
         }
     }
 
+    /** The title, field and keyboard sit this far down (mockup pixels), so they are centred between the tab bar and the hints. */
+    private static final int DOWN = 120;
+
     private void render() {
         view.removeAllViews();
         View dim = new View(ctx);
@@ -209,7 +212,7 @@ final class SearchPanel {
         TextView head = host.text("Search", 56, Color.WHITE, true);
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
         hp.leftMargin = host.px(HomeActivity.EDGE_L);
-        hp.topMargin = host.px(110);
+        hp.topMargin = host.px(DOWN + 110);
         view.addView(head, hp);
 
         TextView box = host.text(draft.isEmpty() ? "Type a game name" : draft + "│", 44, draft.isEmpty() ? 0x66FFFFFF : Color.WHITE, false);
@@ -223,7 +226,7 @@ final class SearchPanel {
         box.setBackground(bd);
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(host.px(1040), host.px(96), Gravity.TOP | Gravity.START);
         bp.leftMargin = host.px(HomeActivity.EDGE_L);
-        bp.topMargin = host.px(215);
+        bp.topMargin = host.px(DOWN + 215);
         view.addView(box, bp);
 
         // The letters: a grid chosen with the D-pad.
@@ -241,7 +244,7 @@ final class SearchPanel {
                 v.setBackground(kd);
                 FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(host.px(cell), host.px(cell - 8), Gravity.TOP | Gravity.START);
                 kp.leftMargin = host.px(HomeActivity.EDGE_L + (r == 2 ? (cell + gap) / 2 : 0) + c * (cell + gap)); // the home row is indented, as on a keyboard
-                kp.topMargin = host.px(350 + r * (cell - 8 + gap));
+                kp.topMargin = host.px(DOWN + 350 + r * (cell - 8 + gap));
                 final int fr = r, fc = c;
                 v.setOnClickListener(x -> {
                     kbRow = fr;
@@ -262,14 +265,14 @@ final class SearchPanel {
         cancel.setOnClickListener(x -> close());
         FrameLayout.LayoutParams cap = new FrameLayout.LayoutParams(host.px(170), host.px(64), Gravity.TOP | Gravity.START);
         cap.leftMargin = host.px(HomeActivity.EDGE_L + 870);
-        cap.topMargin = host.px(120);
+        cap.topMargin = host.px(DOWN + 120);
         view.addView(cancel, cap);
 
         // Live matches on the right.
         List<Game> hits = draft.trim().isEmpty() ? new ArrayList<Game>() : host.matches(draft);
         LinearLayout col = new LinearLayout(ctx);
         col.setOrientation(LinearLayout.VERTICAL);
-        String sum = draft.trim().isEmpty() ? "Pick letters, then press X to see the games"
+        String sum = draft.trim().isEmpty() ? "Start typing to search"
                 : hits.size() + (hits.size() == 1 ? " game" : " games");
         TextView sumView = host.text(sum, 28, HomeActivity.AMBER, true);
         if (!hits.isEmpty()) {
@@ -277,7 +280,7 @@ final class SearchPanel {
             sumView.setOnClickListener(x -> apply());
         }
         col.addView(sumView);
-        for (int i = 0; i < Math.min(hits.size(), 8); i++) {
+        for (int i = 0; i < Math.min(hits.size(), 6); i++) {
             final Game g = hits.get(i);
             LinearLayout row = new LinearLayout(ctx);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -292,15 +295,15 @@ final class SearchPanel {
             rp.topMargin = host.px(12);
             col.addView(row, rp);
         }
-        if (hits.size() > 8) {
-            TextView more = host.text("and " + (hits.size() - 8) + " more", 24, 0x99FFFFFF, false);
+        if (hits.size() > 6) {
+            TextView more = host.text("and " + (hits.size() - 6) + " more", 24, 0x99FFFFFF, false);
             LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
             mp.topMargin = host.px(18);
             col.addView(more, mp);
         }
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(host.px(600), -2, Gravity.TOP | Gravity.START);
         cp.leftMargin = host.px(1210);
-        cp.topMargin = host.px(232);
+        cp.topMargin = host.px(DOWN + 232);
         view.addView(col, cp);
     }
 }

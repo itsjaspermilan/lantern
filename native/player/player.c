@@ -213,6 +213,8 @@ static void hw_destroy(void) {
     g_hw_on = false;
 }
 
+static bool hw_make_fbo(const struct retro_game_geometry *geo);
+
 /* On the emulation thread, after the game is loaded: the window gets the core's base size and the frame buffer its biggest. */
 static bool hw_init(const struct retro_game_geometry *geo) {
     g_dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -235,6 +237,13 @@ static bool hw_init(const struct retro_game_geometry *geo) {
         return false;
     }
     eglSwapInterval(g_dpy, 0); /* the audio clock paces the game */
+    if (!hw_make_fbo(geo)) return false;
+    g_hw_on = true;
+    LOGI("OpenGL ES: %s, frame buffer %ux%u", (const char *)glGetString(GL_RENDERER), g_fbo_w, g_fbo_h);
+    return true;
+}
+
+static bool hw_make_fbo(const struct retro_game_geometry *geo) {
     g_fbo_w = geo->max_width ? geo->max_width : geo->base_width;
     g_fbo_h = geo->max_height ? geo->max_height : geo->base_height;
     glGenTextures(1, &g_fbo_tex);
@@ -251,9 +260,25 @@ static bool hw_init(const struct retro_game_geometry *geo) {
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, g_fbo_depth);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { set_status("ERROR: no frame buffer for the game"); return false; }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    g_hw_on = true;
-    LOGI("OpenGL ES: %s, frame buffer %ux%u", (const char *)glGetString(GL_RENDERER), g_fbo_w, g_fbo_h);
     return true;
+}
+
+/* The core changed its picture size (a new resolution option): a bigger frame buffer if it needs one, and the window follows. */
+static void hw_resize(const struct retro_game_geometry *geo) {
+    unsigned w = geo->max_width ? geo->max_width : geo->base_width, h = geo->max_height ? geo->max_height : geo->base_height;
+    if (w > g_fbo_w || h > g_fbo_h) {
+        GLuint tex = g_fbo_tex, depth = g_fbo_depth, fbo = g_fbo;
+        glDeleteFramebuffers(1, &fbo);
+        glDeleteTextures(1, &tex);
+        glDeleteRenderbuffers(1, &depth);
+        if (!hw_make_fbo(geo)) LOGE("could not make a bigger frame buffer");
+        else LOGI("frame buffer now %ux%u", g_fbo_w, g_fbo_h);
+    }
+    if (geo->base_width && geo->base_height && ((int)geo->base_width != g_surf_w || (int)geo->base_height != g_surf_h)) {
+        g_surf_w = (int)geo->base_width;
+        g_surf_h = (int)geo->base_height;
+        ANativeWindow_setBuffersGeometry(g_win, g_surf_w, g_surf_h, 0);
+    }
 }
 
 /* A picture the core drew into our frame buffer: keep a copy now and then for screenshots, then show it. */
@@ -399,28 +424,88 @@ static void log_cb(enum retro_log_level level, const char *fmt, ...) {
 }
 
 /* Core options: the core lists them with SET_VARIABLES ("Name; first|second", the first is the default) and asks for
- * their values with GET_VARIABLE. Lantern shows none of them yet, so every option has its default. */
+ * their values with GET_VARIABLE. The person's choices are kept in <saves>/<core>.options, one "key=value" per line;
+ * g_better holds Lantern's own defaults for this device, used instead of the core's first value. */
 #define MAX_OPTIONS 256
-static struct { char *key, *value; } g_opts[MAX_OPTIONS];
+static struct opt { char *key, *desc, **vals; int n, cur, def; } g_opts[MAX_OPTIONS];
 static int g_opt_count;
+static pthread_mutex_t g_opt_lock = PTHREAD_MUTEX_INITIALIZER;
+static atomic_bool g_opt_changed;
+static char g_opt_path[620];
+
+static const char *const g_better[][2] = {
+    {"mupen64plus-43screensize", "1280x960"}, /* four times the console's own picture: easy for this chip */
+};
 
 static void options_clear(void) {
-    for (int i = 0; i < g_opt_count; i++) { free(g_opts[i].key); free(g_opts[i].value); }
+    for (int i = 0; i < g_opt_count; i++) {
+        free(g_opts[i].key);
+        free(g_opts[i].desc);
+        for (int j = 0; j < g_opts[i].n; j++) free(g_opts[i].vals[j]);
+        free(g_opts[i].vals);
+    }
     g_opt_count = 0;
 }
 
+static int option_index(const struct opt *o, const char *value) {
+    for (int j = 0; j < o->n; j++) if (strcmp(o->vals[j], value) == 0) return j;
+    return -1;
+}
+
+static void options_save(void) {
+    char tmp[640];
+    snprintf(tmp, sizeof tmp, "%s.tmp", g_opt_path);
+    FILE *f = fopen(tmp, "w");
+    if (!f) return;
+    for (int i = 0; i < g_opt_count; i++)
+        if (g_opts[i].cur != g_opts[i].def) fprintf(f, "%s=%s\n", g_opts[i].key, g_opts[i].vals[g_opts[i].cur]);
+    if (fclose(f) == 0) rename(tmp, g_opt_path);
+}
+
 static void options_set(const struct retro_variable *vars) {
+    pthread_mutex_lock(&g_opt_lock);
     options_clear();
     for (const struct retro_variable *v = vars; v && v->key && g_opt_count < MAX_OPTIONS; v++) {
         const char *sep = v->value ? strstr(v->value, "; ") : NULL;
         if (!sep) continue;
-        sep += 2;
-        size_t n = strcspn(sep, "|");
-        g_opts[g_opt_count].key = strdup(v->key);
-        g_opts[g_opt_count].value = strndup(sep, n);
+        struct opt *o = &g_opts[g_opt_count];
+        o->key = strdup(v->key);
+        o->desc = strndup(v->value, (size_t)(sep - v->value));
+        const char *p = sep + 2;
+        o->vals = NULL;
+        o->n = 0;
+        for (;;) {
+            size_t n = strcspn(p, "|");
+            o->vals = realloc(o->vals, (size_t)(o->n + 1) * sizeof *o->vals);
+            o->vals[o->n++] = strndup(p, n);
+            if (!p[n]) break;
+            p += n + 1;
+        }
+        o->cur = 0;
+        for (size_t k = 0; k < sizeof g_better / sizeof g_better[0]; k++) {
+            int j = strcmp(g_better[k][0], o->key) == 0 ? option_index(o, g_better[k][1]) : -1;
+            if (j >= 0) o->cur = j;
+        }
+        o->def = o->cur;
         g_opt_count++;
     }
-    LOGI("%d core options, all at their defaults", g_opt_count);
+    int kept = 0;
+    FILE *f = fopen(g_opt_path, "r");
+    char line[256];
+    while (f && fgets(line, sizeof line, f)) {
+        char *eq = strchr(line, '=');
+        line[strcspn(line, "\r\n")] = 0;
+        if (!eq) continue;
+        *eq = 0;
+        for (int i = 0; i < g_opt_count; i++) {
+            if (strcmp(g_opts[i].key, line) != 0) continue;
+            int j = option_index(&g_opts[i], eq + 1);
+            if (j >= 0) { g_opts[i].cur = j; kept++; }
+        }
+    }
+    if (f) fclose(f);
+    LOGI("%d core options, %d of them chosen by the person", g_opt_count, kept);
+    pthread_mutex_unlock(&g_opt_lock);
 }
 
 static bool environment_cb(unsigned cmd, void *data) {
@@ -444,24 +529,26 @@ static bool environment_cb(unsigned cmd, void *data) {
     {
         struct retro_variable *v = data;
         for (int i = 0; i < g_opt_count; i++)
-            if (v->key && strcmp(v->key, g_opts[i].key) == 0) { v->value = g_opts[i].value; return true; }
+            if (v->key && strcmp(v->key, g_opts[i].key) == 0) { v->value = g_opts[i].vals[g_opts[i].cur]; return true; }
         v->value = NULL;
         return false;
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
-        *(bool *)data = false;
+        *(bool *)data = atomic_exchange(&g_opt_changed, false);
         return true;
     case RETRO_ENVIRONMENT_GET_CAN_DUPE:
         *(bool *)data = true;
         return true;
     case RETRO_ENVIRONMENT_SET_GEOMETRY: {
         const struct retro_game_geometry *g = data;
+        if (g_hw_on) hw_resize(g);
         if (g->aspect_ratio > 0) g_aspect = g->aspect_ratio;
         else if (g->base_height) g_aspect = (float)g->base_width / (float)g->base_height;
         return true;
     }
     case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO: {
         const struct retro_system_av_info *a = data;
+        if (g_hw_on) hw_resize(&a->geometry);
         if (a->geometry.aspect_ratio > 0) g_aspect = a->geometry.aspect_ratio;
         return true;
     }
@@ -847,6 +934,14 @@ JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeStart(JNIEnv *env, jcla
     char *dot = strrchr(g_name, '.');
     if (dot && dot != g_name) *dot = 0;
     snprintf(g_sram_path, sizeof g_sram_path, "%s/%s.srm", g_save_dir, g_name);
+    {
+        const char *core = strrchr(g_core_path, '/');
+        char stem[128];
+        snprintf(stem, sizeof stem, "%s", core ? core + 1 : "core");
+        char *ext = strstr(stem, ".so");
+        if (ext) *ext = 0;
+        snprintf(g_opt_path, sizeof g_opt_path, "%s/%s.options", g_save_dir, stem);
+    }
 
     g_win = ANativeWindow_fromSurface(env, surface);
     if (!g_win) return JNI_FALSE;
@@ -925,6 +1020,47 @@ JNIEXPORT void JNICALL Java_app_lantern_Player_nativeCheats(JNIEnv *env, jclass 
     g_cheat_count = n;
     pthread_mutex_unlock(&g_cheat_lock);
     atomic_store(&g_cheats_changed, true);
+}
+
+/* The core's options as "key|description|value1;value2;...|current index" strings (empty before the core lists them). */
+JNIEXPORT jobjectArray JNICALL Java_app_lantern_Player_nativeOptions(JNIEnv *env, jclass cls) {
+    jclass str = (*env)->FindClass(env, "java/lang/String");
+    pthread_mutex_lock(&g_opt_lock);
+    jobjectArray out = (*env)->NewObjectArray(env, g_opt_count, str, NULL);
+    for (int i = 0; i < g_opt_count; i++) {
+        char buf[2048];
+        int n = snprintf(buf, sizeof buf, "%s\x01%s\x01", g_opts[i].key, g_opts[i].desc);
+        for (int j = 0; j < g_opts[i].n && n < (int)sizeof buf - 80; j++)
+            n += snprintf(buf + n, sizeof buf - (size_t)n, "%s%s", j ? "\x02" : "", g_opts[i].vals[j]);
+        snprintf(buf + n, sizeof buf - (size_t)n, "\x01%d", g_opts[i].cur);
+        jstring js = (*env)->NewStringUTF(env, buf);
+        (*env)->SetObjectArrayElement(env, out, i, js);
+        (*env)->DeleteLocalRef(env, js);
+    }
+    pthread_mutex_unlock(&g_opt_lock);
+    (void)cls;
+    return out;
+}
+
+/* Sets one option (by key and the text of one of its values), keeps it for next time, and tells the core. */
+JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeSetOption(JNIEnv *env, jclass cls, jstring key, jstring value) {
+    (void)cls;
+    char k[128], v[128];
+    copy_jstring(env, key, k, sizeof k);
+    copy_jstring(env, value, v, sizeof v);
+    jboolean ok = JNI_FALSE;
+    pthread_mutex_lock(&g_opt_lock);
+    for (int i = 0; i < g_opt_count && !ok; i++) {
+        if (strcmp(g_opts[i].key, k) != 0) continue;
+        int j = option_index(&g_opts[i], v);
+        if (j < 0) break;
+        g_opts[i].cur = j;
+        options_save();
+        atomic_store(&g_opt_changed, true);
+        ok = JNI_TRUE;
+    }
+    pthread_mutex_unlock(&g_opt_lock);
+    return ok;
 }
 
 JNIEXPORT void JNICALL Java_app_lantern_Player_nativePause(JNIEnv *env, jclass cls, jboolean paused) {

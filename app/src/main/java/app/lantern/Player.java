@@ -26,6 +26,15 @@ final class Player {
     /** A stick moved: axis 0 left X, 1 left Y, 2 right X, 3 right Y; value -32768 to 32767 (right and down positive). */
     static native void nativeAxis(int axis, int value);
 
+    /**
+     * The core's own settings, one string each: key, description, the values and the index of the one in use,
+     * separated by characters 1, 1, (2 between values) and 1. Empty when the core has none.
+     */
+    static native String[] nativeOptions();
+
+    /** Sets one core setting to one of its values and keeps it for next time. */
+    static native boolean nativeSetOption(String key, String value);
+
     /** Freezes the game and its sound, or lets it go on. */
     static native void nativePause(boolean paused);
 

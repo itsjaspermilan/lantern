@@ -51,6 +51,9 @@ final class PlayerMenu extends FrameLayout {
         int controlKey(int id);
         void bindControl(int id, int keyCode);
         void resetControls();
+        /** The core's settings: {key, description, values joined by \u0002, index in use} each. */
+        List<String[]> coreOptions();
+        void setCoreOption(String key, String value);
     }
 
     static final String[] SCALING = {"Aspect", "Integer", "Fill"};
@@ -58,11 +61,19 @@ final class PlayerMenu extends FrameLayout {
     static final String[] FAST = {"2×", "3×", "4×", "Max"};
 
     private static final int AMBER = 0xFF8FE3CF;
-    private static final String[] MAIN = {"Continue", "Save", "Load", "Options", "Controls", "Quit"};
-    private static final String[] MAIN_CHEATS = {"Continue", "Save", "Load", "Options", "Controls", "Cheats", "Quit"};
+    /** Settings worth showing first for cores with a long list (the rest are behind "More settings"). */
+    private static final java.util.Set<String> COMMON = new java.util.HashSet<>(java.util.Arrays.asList(
+            "mupen64plus-43screensize", "mupen64plus-aspect", "mupen64plus-169screensize", "mupen64plus-MultiSampling",
+            "mupen64plus-FXAA", "mupen64plus-BilinearMode", "mupen64plus-Framerate", "mupen64plus-cpucore",
+            "mupen64plus-rdp-plugin", "mupen64plus-astick-deadzone", "mupen64plus-astick-sensitivity",
+            "mupen64plus-alt-map", "mupen64plus-pak1", "mupen64plus-ForceDisableExtraMem"));
+    private static final int LEVEL_EMULATOR = 4;
     /** Level 3 rows: where changes are kept, the 16 buttons (Controls.ORDER), then reset. */
     private static final int CONTROL_ROWS = Controls.ORDER.length + 2;
     private static final int CHEATS_SHOWN = 7;
+    /** Level 4: the core's settings, as shown (a short list unless "More settings" was chosen), and which are shown. */
+    private List<String[]> emu = Collections.emptyList();
+    private boolean emuAll;
     private static final String[] OPTIONS = {"Scaling", "Screen effect", "Fast-forward"};
 
     private final Host host;
@@ -89,7 +100,16 @@ final class PlayerMenu extends FrameLayout {
         return getVisibility() == VISIBLE;
     }
 
+    /** True when some settings are hidden unless asked for. */
+    private boolean emuLong() {
+        int common = 0;
+        for (String[] o : host.coreOptions()) if (COMMON.contains(o[0])) common++;
+        return common > 0 && host.coreOptions().size() > common;
+    }
+
     void open() {
+        hasEmulator = !host.coreOptions().isEmpty();
+        emuAll = false;
         level = 0;
         idx = 0;
         message = "";
@@ -155,7 +175,7 @@ final class PlayerMenu extends FrameLayout {
                 break;
             case KeyEvent.KEYCODE_BUTTON_B:
             case KeyEvent.KEYCODE_BACK:
-                if (level > 0) { idx = indexOf(level == 1 ? "Options" : level == 3 ? "Controls" : "Cheats"); level = 0; message = ""; }
+                if (level > 0) { idx = indexOf(level == 1 ? "Options" : level == 3 ? "Controls" : level == 4 ? "Emulator" : "Cheats"); level = 0; message = ""; }
                 else { host.continueGame(); return true; }
                 break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
@@ -178,6 +198,16 @@ final class PlayerMenu extends FrameLayout {
             if (idx == 0) host.setControlsPerGame(!host.controlsPerGame());
             return;
         }
+        if (level == LEVEL_EMULATOR) {
+            if (idx >= emu.size()) return;
+            String[] o = emu.get(idx);
+            String[] vals = o[2].split("\u0002");
+            int cur = Integer.parseInt(o[3]), next = (cur + d + vals.length) % vals.length;
+            host.setCoreOption(o[0], vals[next]);
+            o[3] = String.valueOf(next);
+            message = "Some changes only apply the next time the game starts";
+            return;
+        }
         if (level == 2) {
             Cheats.Cheat c = cheats.get(idx);
             c.on = !c.on;
@@ -191,7 +221,7 @@ final class PlayerMenu extends FrameLayout {
     }
 
     private int indexOf(String name) {
-        String[] n = MAIN_CHEATS;
+        String[] n = mainNames();
         for (int i = 0; i < n.length; i++) if (n[i].equals(name)) return i;
         return 0;
     }
@@ -208,13 +238,20 @@ final class PlayerMenu extends FrameLayout {
             }
             return;
         }
+        if (level == LEVEL_EMULATOR && idx == emu.size()) { // "More settings" / "Fewer settings"
+            emuAll = !emuAll;
+            loadEmulator();
+            idx = 0;
+            return;
+        }
         if (level > 0) {
             change(1);
             return;
         }
         String item = names()[idx];
-        if (item.equals("Options") || item.equals("Controls") || item.equals("Cheats")) {
-            level = item.equals("Options") ? 1 : item.equals("Cheats") ? 2 : 3;
+        if (item.equals("Options") || item.equals("Controls") || item.equals("Cheats") || item.equals("Emulator")) {
+            level = item.equals("Options") ? 1 : item.equals("Cheats") ? 2 : item.equals("Emulator") ? LEVEL_EMULATOR : 3;
+            if (level == LEVEL_EMULATOR) loadEmulator();
             idx = 0;
             message = "";
             return;
@@ -236,7 +273,32 @@ final class PlayerMenu extends FrameLayout {
         }
     }
 
+    private boolean hasEmulator;
+
+    private String[] mainNames() {
+        List<String> n = new java.util.ArrayList<>(java.util.Arrays.asList("Continue", "Save", "Load", "Options", "Controls"));
+        if (!cheats.isEmpty()) n.add("Cheats");
+        if (hasEmulator) n.add("Emulator");
+        n.add("Quit");
+        return n.toArray(new String[0]);
+    }
+
+    /** Reads the core's settings again; a core with a long list starts with the common ones. */
+    private void loadEmulator() {
+        List<String[]> all = host.coreOptions();
+        List<String[]> some = new java.util.ArrayList<>();
+        for (String[] o : all) if (emuAll || COMMON.contains(o[0])) some.add(o);
+        emu = some.isEmpty() ? all : some;
+        if (some.isEmpty()) emuAll = true;
+    }
+
     private String[] names() {
+        if (level == LEVEL_EMULATOR) {
+            String[] n = new String[emu.size() + (emuLong() ? 1 : 0)];
+            for (int i = 0; i < emu.size(); i++) n[i] = emu.get(i)[1];
+            if (emuLong()) n[emu.size()] = emuAll ? "Fewer settings" : "More settings";
+            return n;
+        }
         if (level == 1) return OPTIONS;
         if (level == 3) {
             String[] n = new String[CONTROL_ROWS];
@@ -245,7 +307,7 @@ final class PlayerMenu extends FrameLayout {
             n[CONTROL_ROWS - 1] = "Reset to usual buttons";
             return n;
         }
-        if (level == 0) return cheats.isEmpty() ? MAIN : MAIN_CHEATS;
+        if (level == 0) return mainNames();
         String[] n = new String[cheats.size()];
         for (int i = 0; i < n.length; i++) n[i] = cheats.get(i).name;
         return n;
@@ -267,14 +329,14 @@ final class PlayerMenu extends FrameLayout {
 
         LinearLayout col = new LinearLayout(getContext());
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label(level == 0 ? host.gameTitle() : level == 1 ? "Options" : level == 3 ? "Controls" : "Cheats", 44, 0xA6FFFFFF, true);
+        TextView title = label(level == 0 ? host.gameTitle() : level == 1 ? "Options" : level == 3 ? "Controls" : level == LEVEL_EMULATOR ? "Emulator" : "Cheats", 44, 0xA6FFFFFF, true);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
         tp.bottomMargin = u(28);
         col.addView(title, tp);
 
         String[] names = names();
-        boolean wide = level == 2 || level == 3; // cheat names are long, so the list takes the preview's place
+        boolean wide = level == 2 || level == 3 || level == LEVEL_EMULATOR; // cheat names are long, so the list takes the preview's place
         int first = wide ? Math.max(0, Math.min(idx - CHEATS_SHOWN / 2, names.length - CHEATS_SHOWN)) : 0;
         int end = wide ? Math.min(names.length, first + CHEATS_SHOWN) : names.length;
         for (int i = first; i < end; i++) {
@@ -322,13 +384,18 @@ final class PlayerMenu extends FrameLayout {
     private String valueOf(int i) {
         if (level == 0) {
             String n = names()[i];
-            return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : n.equals("Options") || n.equals("Controls") || n.equals("Cheats") ? "›" : "";
+            return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : n.equals("Options") || n.equals("Controls") || n.equals("Cheats") || n.equals("Emulator") ? "›" : "";
         }
         if (level == 3) {
             if (i == 0) return host.controlsPerGame() ? "◀ This game ▶" : "◀ All " + host.consoleName() + " games ▶";
             if (i == CONTROL_ROWS - 1) return "";
             if (capturing && i == idx) return "Press a button…";
             return Controls.keyName(host.controlKey(Controls.ORDER[i - 1]));
+        }
+        if (level == LEVEL_EMULATOR) {
+            if (i >= emu.size()) return "";
+            String[] o = emu.get(i);
+            return "◀ " + o[2].split("\u0002")[Integer.parseInt(o[3])] + " ▶";
         }
         if (level == 2) return cheats.get(i).on ? "◀ On ▶" : "◀ Off ▶";
         String[] set = i == 0 ? SCALING : i == 1 ? EFFECT : FAST;

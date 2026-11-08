@@ -15,9 +15,10 @@ but never confirmed on a device.
 ## N64 follow-ups
 
 N64 works (Mupen64Plus-Next, OpenGL ES). Checked only with Super Mario 64 on the Pocket 6: 60 fps, sound, menu, resume.
-Open: the picture is the core's default 640x480 (core options are not shown in Lantern yet, so resolution, the
-C-button layout and per-game fixes are not choosable); other games not tried; the right stick is the C buttons
-by the core's default; L2 is Z.
+Core settings are in the game menu (*Emulator*): a short list of the common ones for N64, the rest under "More
+settings", kept per system in `saves/<system>/<core>.options`. The picture defaults to 1280x960 (1600x1200 also ran
+at 60 fps). Open: settings are per system, not per game; a few change only when the game starts again; other games
+not tried; the right stick is the C buttons by the core's default; L2 is Z.
 
 ## Cores still missing (each download needs the author's approval)
 

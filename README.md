@@ -124,7 +124,7 @@ Other folders under `/sdcard/Lantern/` (all optional):
 | Folder | What goes in it |
 |---|---|
 | `bios/` | BIOS files a core needs. Yours to supply: Lantern includes none, and the cores listed above need none. |
-| `saves/<system>/` | Created by Lantern: in-game saves, save states and the resume point and its screenshot. |
+| `saves/<system>/` | Created by Lantern: in-game saves, save states, the resume point and its screenshot, and the emulator settings you chose (`<core>.options`, from *Emulator* in the game menu). |
 | `art/<system>/<game>.png` (or `.jpg`) | Your own cover for a game, named like its ROM without the extension. |
 | `art/androidgames/<package>.png` | Cover for an Android game, named after its package (or its title). |
 | `cheats/<system>/<game>.cht` | Cheats in RetroArch's `.cht` format, named like the ROM. |

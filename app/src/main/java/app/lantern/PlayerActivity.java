@@ -330,6 +330,22 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     }
 
     @Override
+    public java.util.List<String[]> coreOptions() {
+        java.util.List<String[]> out = new java.util.ArrayList<>();
+        String[] raw = Player.nativeOptions();
+        if (raw != null) for (String r : raw) {
+            String[] f = r.split("\u0001", -1);
+            if (f.length == 4) out.add(f);
+        }
+        return out;
+    }
+
+    @Override
+    public void setCoreOption(String key, String value) {
+        Player.nativeSetOption(key, value);
+    }
+
+    @Override
     public void optionsChanged() {
         prefs.edit().putInt(sysId + ":scaling", menu.scaling).putInt(sysId + ":effect", menu.effect)
                 .putInt(sysId + ":fast", menu.fast).apply();

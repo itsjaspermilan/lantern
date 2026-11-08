@@ -23,6 +23,9 @@ final class Player {
     /** A RetroPad button (0 to 15, as in libretro.h) went down or up. */
     static native void nativeButton(int id, boolean down);
 
+    /** A stick moved: axis 0 left X, 1 left Y, 2 right X, 3 right Y; value -32768 to 32767 (right and down positive). */
+    static native void nativeAxis(int axis, int value);
+
     /** Freezes the game and its sound, or lets it go on. */
     static native void nativePause(boolean paused);
 

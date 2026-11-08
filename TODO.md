@@ -12,18 +12,24 @@ but never confirmed on a device.
   `VERSION_NAME` / `VERSION_CODE` in `build.sh`, tag `vX.Y`, attach the APK and its SHA-256.
 - GitHub: turn on Issues, add topics (android, launcher, retro-gaming, libretro).
 
+## N64 follow-ups
+
+N64 works (Mupen64Plus-Next, OpenGL ES). Checked only with Super Mario 64 on the Pocket 6: 60 fps, sound, menu, resume.
+Open: the picture is the core's default 640x480 (core options are not shown in Lantern yet, so resolution, the
+C-button layout and per-game fixes are not choosable); other games not tried; the right stick is the C buttons
+by the core's default; L2 is Z.
+
 ## Cores still missing (each download needs the author's approval)
 
-Systems with a ROM folder but no core: N64, PlayStation, Nintendo DS, PSP, Saturn, Dreamcast, PS2.
+Systems with a ROM folder but no core: PlayStation, Nintendo DS, PSP, Saturn, Dreamcast, PS2.
 Likely libretro cores, in a sensible order (performance notes are expectations, not measurements on the Pocket 6):
 
-1. **N64: Mupen64Plus-Next.** Per-game settings may be needed.
-2. **PlayStation: SwanStation or PCSX ReARMed.** Needs a PS1 BIOS from the person, `.cue`/`.chd` handling and disc swapping.
-3. **Nintendo DS: melonDS or DeSmuME.** Two screens: needs a layout choice and touch for the bottom screen.
-4. **PSP: PPSSPP.** The heaviest of the set.
-5. **Dreamcast: Flycast.** Needs a BIOS.
-6. **Saturn: Beetle Saturn or Yabause.** Heavier, less reliable. Last.
-7. **PS2:** no libretro core worth trusting on Android. Realistic route is launching a standalone emulator as an Android app.
+1. **PlayStation: SwanStation or PCSX ReARMed.** Needs a PS1 BIOS from the person, `.cue`/`.chd` handling and disc swapping.
+2. **Nintendo DS: melonDS or DeSmuME.** Two screens: needs a layout choice and touch for the bottom screen.
+3. **PSP: PPSSPP.** The heaviest of the set.
+4. **Dreamcast: Flycast.** Needs a BIOS.
+5. **Saturn: Beetle Saturn or Yabause.** Heavier, less reliable. Last.
+6. **PS2:** no libretro core worth trusting on Android. Realistic route is launching a standalone emulator as an Android app.
 
 Cheap extras with no folder yet: Sega CD (Genesis Plus GX, already supported), 32X (PicoDrive), PC Engine (Beetle
 PCE), arcade and Neo Geo (FBNeo), Atari 2600/7800 (Stella, ProSystem), Lynx, WonderSwan, Neo Geo Pocket, Virtual Boy.

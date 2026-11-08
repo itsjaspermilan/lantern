@@ -36,7 +36,7 @@ CC=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android26-clang |
 LIBDIR="$OUT/lib/arm64-v8a"
 rm -rf "$OUT/lib" && mkdir -p "$LIBDIR"
 CFLAGS="-shared -fPIC -O2 -Wall -Wextra -Inative/third_party/libretro"
-"$CC" $CFLAGS -o "$LIBDIR/liblanternplayer.so" native/player/player.c -llog -landroid -laaudio -ldl -lm
+"$CC" $CFLAGS -o "$LIBDIR/liblanternplayer.so" native/player/player.c -llog -landroid -laaudio -lEGL -lGLESv3 -ldl -lm
 "$CC" $CFLAGS -o "$LIBDIR/libtestcore.so" native/testcore/testcore.c -lm
 # Real cores the person has downloaded into native/cores/ (git-ignored, never committed):
 # mgba_libretro_android.so is packaged as libmgba.so, because Android only unpacks lib*.so files.

@@ -5,14 +5,19 @@
  * Also owns what a menu needs: pause, numbered save-state slots plus a resume point, a copy of the
  * latest frame (for screenshots), battery saves, cheats, and fast-forward.
  *
- * Limits: software-rendered cores only (no hardware rendering), no core options, one controller on
- * port 0, the video is scaled by the system compositor, and speed follows the audio clock.
+ * Cores that draw with OpenGL ES (Nintendo 64) get an EGL context on the window and a frame buffer to draw into;
+ * each finished picture is copied to the window. Software cores are copied pixel by pixel.
+ *
+ * Limits: no core options (cores use their defaults), one controller on port 0, the video is scaled by the
+ * system compositor, and speed follows the audio clock.
  */
 #include <aaudio/AAudio.h>
 #include <android/log.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <dlfcn.h>
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
 #include <jni.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -62,6 +67,7 @@ static char g_core_path[512], g_rom_path[512], g_sys_dir[512], g_save_dir[512], 
 static ANativeWindow *g_win;
 static int g_win_w, g_win_h;
 static unsigned g_pixel_format = RETRO_PIXEL_FORMAT_0RGB1555; /* the libretro default */
+static atomic_int g_axes[4];   /* left X, left Y, right X, right Y, -32768 to 32767 */
 static atomic_uint g_buttons;  /* buttons held right now */
 static atomic_uint g_pressed;  /* buttons pressed since the last frame, even if already let go */
 static unsigned g_latched;     /* the presses the core sees this frame */
@@ -97,6 +103,7 @@ static void set_note(const char *fmt, ...) {
     va_end(ap);
     pthread_mutex_lock(&g_status_lock);
     snprintf(g_note, sizeof g_note, "%s", buf);
+    if (buf[0]) LOGI("note: %s", buf);
     pthread_mutex_unlock(&g_status_lock);
 }
 
@@ -179,8 +186,126 @@ static void audio_close(void) {
     g_stream = NULL;
 }
 
+/* ---- hardware rendering: an OpenGL ES context on the window, a frame buffer for the core, a copy to the window ---- */
+static struct retro_hw_render_callback g_hw;
+static bool g_hw_wanted, g_hw_on;
+static EGLDisplay g_dpy = EGL_NO_DISPLAY;
+static EGLSurface g_surf = EGL_NO_SURFACE;
+static EGLContext g_ctx = EGL_NO_CONTEXT;
+static GLuint g_fbo, g_fbo_tex, g_fbo_depth;
+static unsigned g_fbo_w, g_fbo_h;
+static int g_surf_w, g_surf_h;
+
+static uintptr_t hw_get_framebuffer(void) { return g_fbo; }
+static retro_proc_address_t hw_get_proc(const char *name) { return (retro_proc_address_t)eglGetProcAddress(name); }
+
+static void hw_destroy(void) {
+    if (g_dpy != EGL_NO_DISPLAY) {
+        eglMakeCurrent(g_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (g_ctx != EGL_NO_CONTEXT) eglDestroyContext(g_dpy, g_ctx);
+        if (g_surf != EGL_NO_SURFACE) eglDestroySurface(g_dpy, g_surf);
+        eglTerminate(g_dpy);
+    }
+    g_dpy = EGL_NO_DISPLAY;
+    g_ctx = EGL_NO_CONTEXT;
+    g_surf = EGL_NO_SURFACE;
+    g_fbo = g_fbo_tex = g_fbo_depth = 0;
+    g_hw_on = false;
+}
+
+/* On the emulation thread, after the game is loaded: the window gets the core's base size and the frame buffer its biggest. */
+static bool hw_init(const struct retro_game_geometry *geo) {
+    g_dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (g_dpy == EGL_NO_DISPLAY || !eglInitialize(g_dpy, NULL, NULL)) { set_status("ERROR: no graphics display"); return false; }
+    const EGLint cfg_attr[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT, EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+                               EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_NONE};
+    EGLConfig cfg;
+    EGLint n = 0;
+    if (!eglChooseConfig(g_dpy, cfg_attr, &cfg, 1, &n) || n < 1) { set_status("ERROR: no OpenGL ES 3 graphics"); return false; }
+    EGLint fmt = 0;
+    eglGetConfigAttrib(g_dpy, cfg, EGL_NATIVE_VISUAL_ID, &fmt);
+    g_surf_w = (int)geo->base_width;
+    g_surf_h = (int)geo->base_height;
+    ANativeWindow_setBuffersGeometry(g_win, g_surf_w, g_surf_h, fmt);
+    g_surf = eglCreateWindowSurface(g_dpy, cfg, g_win, NULL);
+    const EGLint ctx_attr[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+    g_ctx = eglCreateContext(g_dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
+    if (g_surf == EGL_NO_SURFACE || g_ctx == EGL_NO_CONTEXT || !eglMakeCurrent(g_dpy, g_surf, g_surf, g_ctx)) {
+        set_status("ERROR: could not start OpenGL ES (egl %x)", eglGetError());
+        return false;
+    }
+    eglSwapInterval(g_dpy, 0); /* the audio clock paces the game */
+    g_fbo_w = geo->max_width ? geo->max_width : geo->base_width;
+    g_fbo_h = geo->max_height ? geo->max_height : geo->base_height;
+    glGenTextures(1, &g_fbo_tex);
+    glBindTexture(GL_TEXTURE_2D, g_fbo_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei)g_fbo_w, (GLsizei)g_fbo_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glGenRenderbuffers(1, &g_fbo_depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, g_fbo_depth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, (GLsizei)g_fbo_w, (GLsizei)g_fbo_h);
+    glGenFramebuffers(1, &g_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_fbo_tex, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, g_fbo_depth);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { set_status("ERROR: no frame buffer for the game"); return false; }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    g_hw_on = true;
+    LOGI("OpenGL ES: %s, frame buffer %ux%u", (const char *)glGetString(GL_RENDERER), g_fbo_w, g_fbo_h);
+    return true;
+}
+
+/* A picture the core drew into our frame buffer: keep a copy now and then for screenshots, then show it. */
+static void hw_present(unsigned w, unsigned h) {
+    if (w > g_fbo_w) w = g_fbo_w;
+    if (h > g_fbo_h) h = g_fbo_h;
+    if (!w || !h) return;
+    g_video_calls++;
+    if (g_video_calls == 1 || (g_video_calls % 15) == 0) {
+        uint32_t *px = malloc((size_t)w * h * sizeof *px);
+        if (px) {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, g_fbo);
+            glPixelStorei(GL_PACK_ALIGNMENT, 4);
+            glReadPixels(0, 0, (GLsizei)w, (GLsizei)h, GL_RGBA, GL_UNSIGNED_BYTE, px);
+            pthread_mutex_lock(&g_snap_lock);
+            size_t need = (size_t)w * h;
+            if (need > g_snap_cap) {
+                free(g_snap);
+                g_snap = malloc(need * sizeof *g_snap);
+                g_snap_cap = g_snap ? need : 0;
+            }
+            if (g_snap_cap >= need) {
+                for (unsigned y = 0; y < h; y++) { /* GL rows run bottom to top; pixels are 0xAABBGGRR */
+                    const uint32_t *src = px + (size_t)(h - 1 - y) * w;
+                    uint32_t *out = g_snap + (size_t)y * w;
+                    for (unsigned x = 0; x < w; x++) {
+                        uint32_t p = src[x];
+                        out[x] = (p & 0xFF00FF00u) | ((p & 0xFF) << 16) | ((p >> 16) & 0xFF);
+                    }
+                }
+                g_snap_w = w;
+                g_snap_h = h;
+                size_t lit = 0;
+                for (size_t i = 0; i < need; i += 7) if (g_snap[i] & 0x00FFFFFF) lit++;
+                g_lit_percent = (int)(lit * 7 * 100 / need);
+            }
+            pthread_mutex_unlock(&g_snap_lock);
+            free(px);
+        }
+    }
+    double t = now_s();
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, g_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glDisable(GL_SCISSOR_TEST);
+    glBlitFramebuffer(0, 0, (GLint)w, (GLint)h, 0, 0, g_surf_w, g_surf_h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    eglSwapBuffers(g_dpy, g_surf);
+    g_lock_s += now_s() - t;
+}
+
 /* ---- video: copy the core's frame into the window (RGBX 8888) and keep an ARGB copy ---- */
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
+    if (data == RETRO_HW_FRAME_BUFFER_VALID) { if (g_hw_on) hw_present(w, h); return; }
     if (!data || !g_win) { g_dupe_calls++; return; } /* NULL means "repeat the last frame" */
     g_video_calls++;
     if ((int)w != g_win_w || (int)h != g_win_h) {
@@ -252,8 +377,12 @@ static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
 static void input_poll_cb(void) {}
 
 static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id) {
-    (void)index;
+    if (port == 0 && device == RETRO_DEVICE_ANALOG) {
+        if (index > RETRO_DEVICE_INDEX_ANALOG_RIGHT || id > RETRO_DEVICE_ID_ANALOG_Y) return 0;
+        return (int16_t)atomic_load(&g_axes[index * 2 + id]);
+    }
     if (port != 0 || device != RETRO_DEVICE_JOYPAD) return 0;
+    (void)index;
     unsigned mask = atomic_load(&g_buttons) | g_latched;
     if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)(mask & 0xFFFF);
     return id < 16 ? (int16_t)((mask >> id) & 1) : 0;
@@ -267,6 +396,31 @@ static void log_cb(enum retro_log_level level, const char *fmt, ...) {
              : level == RETRO_LOG_DEBUG ? ANDROID_LOG_DEBUG : ANDROID_LOG_INFO;
     __android_log_vprint(prio, "LibretroCore", fmt, ap);
     va_end(ap);
+}
+
+/* Core options: the core lists them with SET_VARIABLES ("Name; first|second", the first is the default) and asks for
+ * their values with GET_VARIABLE. Lantern shows none of them yet, so every option has its default. */
+#define MAX_OPTIONS 256
+static struct { char *key, *value; } g_opts[MAX_OPTIONS];
+static int g_opt_count;
+
+static void options_clear(void) {
+    for (int i = 0; i < g_opt_count; i++) { free(g_opts[i].key); free(g_opts[i].value); }
+    g_opt_count = 0;
+}
+
+static void options_set(const struct retro_variable *vars) {
+    options_clear();
+    for (const struct retro_variable *v = vars; v && v->key && g_opt_count < MAX_OPTIONS; v++) {
+        const char *sep = v->value ? strstr(v->value, "; ") : NULL;
+        if (!sep) continue;
+        sep += 2;
+        size_t n = strcspn(sep, "|");
+        g_opts[g_opt_count].key = strdup(v->key);
+        g_opts[g_opt_count].value = strndup(sep, n);
+        g_opt_count++;
+    }
+    LOGI("%d core options, all at their defaults", g_opt_count);
 }
 
 static bool environment_cb(unsigned cmd, void *data) {
@@ -287,8 +441,13 @@ static bool environment_cb(unsigned cmd, void *data) {
         ((struct retro_log_callback *)data)->log = log_cb;
         return true;
     case RETRO_ENVIRONMENT_GET_VARIABLE:
-        ((struct retro_variable *)data)->value = NULL;
+    {
+        struct retro_variable *v = data;
+        for (int i = 0; i < g_opt_count; i++)
+            if (v->key && strcmp(v->key, g_opts[i].key) == 0) { v->value = g_opts[i].value; return true; }
+        v->value = NULL;
         return false;
+    }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
         *(bool *)data = false;
         return true;
@@ -309,14 +468,31 @@ static bool environment_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_GET_LANGUAGE:
         *(unsigned *)data = RETRO_LANGUAGE_ENGLISH;
         return true;
+    case RETRO_ENVIRONMENT_SET_HW_RENDER: {
+        struct retro_hw_render_callback *hw = data;
+        if (hw->context_type != RETRO_HW_CONTEXT_OPENGLES2 && hw->context_type != RETRO_HW_CONTEXT_OPENGLES3
+            && hw->context_type != RETRO_HW_CONTEXT_OPENGLES_VERSION) return false;
+        hw->get_current_framebuffer = hw_get_framebuffer;
+        hw->get_proc_address = hw_get_proc;
+        g_hw = *hw;
+        g_hw_wanted = true;
+        LOGI("the core draws with OpenGL ES (type %d, version %u.%u)", (int)hw->context_type, hw->version_major, hw->version_minor);
+        return true;
+    }
+    case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER:
+        *(unsigned *)data = RETRO_HW_CONTEXT_OPENGLES3;
+        return true;
+    case RETRO_ENVIRONMENT_SET_HW_SHARED_CONTEXT:
     case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
     case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
     case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL:
-    case RETRO_ENVIRONMENT_SET_VARIABLES:
     case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO:
         return true;
+    case RETRO_ENVIRONMENT_SET_VARIABLES:
+        options_set(data);
+        return true;
     default:
-        return false; /* includes hardware rendering: software cores only for now */
+        return false;
     }
 }
 
@@ -488,6 +664,13 @@ static double now_s(void) {
     return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
 }
 
+/* Some cores (Mupen64Plus-Next's recompiler) leave the floating-point registers d8 to d15 changed, which a C function
+ * must not do. Listing them as clobbered here makes the compiler save and restore them around the core's call. */
+__attribute__((noinline)) static void run_core(void) {
+    C.run();
+    __asm__ volatile("" ::: "d8", "d9", "d10", "d11", "d12", "d13", "d14", "d15", "memory");
+}
+
 static void *emulation_thread(void *arg) {
     (void)arg;
     void *rom_data = NULL;
@@ -534,12 +717,19 @@ static void *emulation_thread(void *arg) {
     g_rate = av.timing.sample_rate > 8000 ? av.timing.sample_rate : 48000.0;
     g_aspect = av.geometry.aspect_ratio > 0 ? av.geometry.aspect_ratio
              : av.geometry.base_height ? (float)av.geometry.base_width / (float)av.geometry.base_height : 4.0f / 3.0f;
-    ANativeWindow_setBuffersGeometry(g_win, (int32_t)av.geometry.base_width, (int32_t)av.geometry.base_height, WINDOW_FORMAT_RGBX_8888);
     g_win_w = (int)av.geometry.base_width;
     g_win_h = (int)av.geometry.base_height;
+    if (g_hw_wanted) {
+        if (!hw_init(&av.geometry)) goto done;
+        if (g_hw.context_reset) g_hw.context_reset();
+    } else {
+        ANativeWindow_setBuffersGeometry(g_win, (int32_t)av.geometry.base_width, (int32_t)av.geometry.base_height, WINDOW_FORMAT_RGBX_8888);
+    }
     LOGI("av: %ux%u aspect %.3f, %.2f fps, %.0f Hz", av.geometry.base_width, av.geometry.base_height, g_aspect, g_fps, g_rate);
 
-    if (g_start_slot >= 0) set_note(read_state(g_start_slot) ? "resumed" : "no resume point");
+    /* Cores that draw with OpenGL ES start their emulation thread on the first frames and refuse a state before that. */
+    int pending_slot = g_start_slot;
+    if (pending_slot >= 0 && !g_hw_on) { set_note(read_state(pending_slot) ? "resumed" : "no resume point"); pending_slot = -1; }
 
     const unsigned target = (unsigned)(g_rate / g_fps * 3.0); /* keep about three frames of sound queued */
     bool audio_on = false, audio_paused = false;
@@ -581,10 +771,15 @@ static void *emulation_thread(void *arg) {
         /* A tap shorter than one frame must still reach the game once. */
         g_latched = atomic_exchange(&g_pressed, 0);
         double t_run = now_s();
-        C.run();
+        run_core();
         g_run_s += now_s() - t_run;
+        if (now_s() - t_run > 0.1) LOGI("retro_run took %.0f ms (frame %u)", (now_s() - t_run) * 1000.0, frames);
         frames++;
         shown++;
+        if (pending_slot >= 0 && frames == 10) {
+            set_note(read_state(pending_slot) ? "resumed" : "no resume point");
+            pending_slot = -1;
+        }
         if (!audio_on && !g_stream && frames == 3) audio_on = audio_open((int32_t)g_rate);
         double t = now_s();
         if (t - t_sram >= 5.0) { sram_flush(false); t_sram = t; }
@@ -598,6 +793,8 @@ static void *emulation_thread(void *arg) {
                        shown ? g_run_s * 1000.0 / shown : 0.0, shown ? g_lock_s * 1000.0 / shown : 0.0,
                        shown ? (double)g_video_calls / shown : 0.0, shown ? (double)g_dupe_calls / shown : 0.0,
                        g_lit_percent, g_raw_first, audio_on ? "on" : "OFF", atomic_load(&g_underruns), note);
+            static int reports;
+            if (++reports % 10 == 1) LOGI("%s", g_status);
             g_run_s = g_lock_s = 0;
             g_video_calls = g_dupe_calls = 0;
             shown = 0;
@@ -611,6 +808,7 @@ done:
         sram_flush(false); /* before unloading: the core frees this memory */
         C.unload_game();
     }
+    if (g_hw_on && g_hw.context_destroy) g_hw.context_destroy();
     free(g_sram_shadow);
     g_sram_shadow = NULL;
     g_sram_size = 0;
@@ -618,6 +816,10 @@ done:
         if (C.deinit) C.deinit();
         dlclose(C.lib);
     }
+    hw_destroy();
+    options_clear();
+    g_hw_wanted = false;
+    memset(&g_hw, 0, sizeof g_hw);
     memset(&C, 0, sizeof C);
     free(rom_data);
     return NULL;
@@ -653,6 +855,7 @@ JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeStart(JNIEnv *env, jcla
     g_start_slot = start_slot;
     atomic_store(&g_buttons, 0);
     atomic_store(&g_pressed, 0);
+    for (int i = 0; i < 4; i++) atomic_store(&g_axes[i], 0);
     g_latched = 0;
     atomic_store(&g_wr, 0);
     atomic_store(&g_rd, 0);
@@ -682,6 +885,13 @@ JNIEXPORT void JNICALL Java_app_lantern_Player_nativeStop(JNIEnv *env, jclass cl
     if (g_win) ANativeWindow_release(g_win);
     g_win = NULL;
     g_started = false;
+}
+
+/* A stick position: axis 0 left X, 1 left Y, 2 right X, 3 right Y; value -32768 to 32767 (down and right are positive). */
+JNIEXPORT void JNICALL Java_app_lantern_Player_nativeAxis(JNIEnv *env, jclass cls, jint axis, jint value) {
+    (void)env; (void)cls;
+    if (axis < 0 || axis > 3) return;
+    atomic_store(&g_axes[axis], value < -32768 ? -32768 : value > 32767 ? 32767 : value);
 }
 
 JNIEXPORT void JNICALL Java_app_lantern_Player_nativeButton(JNIEnv *env, jclass cls, jint id, jboolean down) {

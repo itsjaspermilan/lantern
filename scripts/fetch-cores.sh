@@ -18,6 +18,7 @@ gambatte         Game Boy, Game Boy Color                      GPL-2.0
 fceumm           NES                                           GPL-2.0
 snes9x           Super Nintendo                                non-commercial only
 genesis_plus_gx  Mega Drive, Master System, Game Gear          non-commercial only
+mupen64plus_next_gles3  Nintendo 64                            GPL-2.0
 LIST
 }
 

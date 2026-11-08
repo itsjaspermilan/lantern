@@ -34,6 +34,7 @@ final class Cores {
         new Info("snes9x", "Snes9x", "Super Nintendo", "non-commercial", true),
         new Info("genesis_plus_gx", "Genesis Plus GX", "Mega Drive, Master System, Game Gear",
                 "non-commercial", true),
+        new Info("mupen64plus_next_gles3", "Mupen64Plus-Next", "Nintendo 64", "GPL-2.0", false),
     };
 
     /** Library name without "lib" and ".so", or null when Lantern has no core for the system. */
@@ -50,6 +51,8 @@ final class Cores {
                 return "snes9x";
             case "nes":
                 return "fceumm";
+            case "n64":
+                return "mupen64plus_next_gles3";
             case "md":
             case "mastersystem":
             case "gamegear":

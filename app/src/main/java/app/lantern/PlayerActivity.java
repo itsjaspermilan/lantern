@@ -463,6 +463,24 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         return true;
     }
 
+    /** The sticks go to the game as they are; the core applies its own dead zone. Nothing moves while the menu is open. */
+    @Override
+    public boolean onGenericMotionEvent(android.view.MotionEvent e) {
+        if ((e.getSource() & android.view.InputDevice.SOURCE_JOYSTICK) != 0 && e.getAction() == android.view.MotionEvent.ACTION_MOVE) {
+            boolean live = !failed && !menu.isOpen();
+            Player.nativeAxis(0, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_X)) : 0);
+            Player.nativeAxis(1, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_Y)) : 0);
+            Player.nativeAxis(2, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_Z)) : 0);
+            Player.nativeAxis(3, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_RZ)) : 0);
+            return true;
+        }
+        return super.onGenericMotionEvent(e);
+    }
+
+    private static int stick(float v) {
+        return Math.round(Math.max(-1f, Math.min(1f, v)) * 32767f);
+    }
+
     private int fastSpeed() {
         switch (menu.fast) {
             case 0: return 2;

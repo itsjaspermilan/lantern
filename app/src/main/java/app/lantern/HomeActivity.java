@@ -892,11 +892,11 @@ public class HomeActivity extends Activity {
                 infoBlock.animate().cancel(); // the text slides a little the way you moved
                 float dx = (index > lastHeroIndex ? 1 : -1) * u(28); // a gentle nudge
                 infoBlock.setTranslationX(dx);
-                infoBlock.animate().translationX(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
-                shelf.slideHero(dx, 260); // the big picture and the dots under it move with the text
+                infoBlock.animate().translationX(0f).setDuration(480).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+                shelf.slideHero(dx, 480); // the big picture and the dots under it move with the text
                 dots.animate().cancel();
                 dots.setTranslationX(dx);
-                dots.animate().translationX(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+                dots.animate().translationX(0f).setDuration(480).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
             }
             lastHeroIndex = index;
             if (g != lastFocused) { // the status line fades in on a new game

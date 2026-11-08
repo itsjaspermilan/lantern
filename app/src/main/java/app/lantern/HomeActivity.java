@@ -30,7 +30,7 @@ import java.util.Map;
  * D-pad to browse, A to open, X to search. Every size below is in mockup pixels, scaled to the screen.
  */
 public class HomeActivity extends Activity {
-    static final int AMBER = 0xFFFFB454;
+    static final int AMBER = 0xFFFF9E7A;
     private static final String[] TABS = {"Recent", "Systems", "All games", "Search"};
     private static final int TAB_SYSTEMS = 1, TAB_ALL = 2, TAB_SEARCH = 3;
     /** The tab to go back to when the search is left with B. */
@@ -318,28 +318,49 @@ public class HomeActivity extends Activity {
     }
 
     /**
-     * On Recent every title has the same size and the same two-line box, so the line under it and the Play button
-     * never move between games. A title too long for two lines at that size shrinks until it fits (never below 70%).
+     * On Recent every title is one line of the same size, so the lines under it and the Play button never move
+     * between games. A title wider than its place waits a moment, then slides to its end and back (like a long
+     * system name in the tab bar).
      */
     private void fitTitle(String text) {
         boolean hero = shelf != null && shelf.mode() == Shelf.HERO;
-        float base = (hero ? HERO_TITLE : 52) * FONT * s;
-        float size = base;
-        if (hero) {
-            int avail = Math.round(u(980) - title.getPaddingLeft() - title.getPaddingRight());
-            android.text.TextPaint tp = new android.text.TextPaint(title.getPaint());
-            while (size > base * .7f) {
-                tp.setTextSize(size);
-                android.text.StaticLayout sl = android.text.StaticLayout.Builder.obtain(text, 0, text.length(), tp, avail).build();
-                if (sl.getLineCount() <= 2) break;
-                size *= .95f;
-            }
-        }
-        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, size);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? HERO_TITLE : 52) * FONT * s);
+        stopTitleMarquee();
+        if (!hero) return;
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        title.postDelayed(() -> startTitleMarquee(text), 900);
     }
 
-    /** The title on Recent, in mockup pixels (before FONT): two lines of it fit most titles. */
-    private static final float HERO_TITLE = 64;
+    private android.animation.ValueAnimator titleMarquee;
+
+    private void stopTitleMarquee() {
+        if (titleMarquee != null) titleMarquee.cancel();
+        titleMarquee = null;
+        title.setScrollX(0);
+    }
+
+    private void startTitleMarquee(String text) {
+        if (title == null || !String.valueOf(title.getText()).equals(text) || title.getWidth() == 0) return; // another game came up meanwhile
+        if (shelf == null || shelf.mode() != Shelf.HERO) return;
+        stopTitleMarquee();
+        float avail = title.getWidth() - title.getTotalPaddingLeft() - title.getTotalPaddingRight();
+        float over = title.getPaint().measureText(text) - avail;
+        if (over < 4f) return;
+        title.setEllipsize(null); // the full text, sliding
+        titleMarquee = android.animation.ValueAnimator.ofFloat(0f, over + u(12));
+        titleMarquee.setDuration(Math.max(2600L, (long) (over / s / 90f * 1000f))); // about 90 mockup pixels a second
+        titleMarquee.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        titleMarquee.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+        titleMarquee.setInterpolator(x -> {
+            float f = Math.max(0f, Math.min(1f, (x - .15f) / .7f)); // rests at both ends
+            return f * f * (3f - 2f * f);
+        });
+        titleMarquee.addUpdateListener(an -> title.setScrollX(Math.round((Float) an.getAnimatedValue())));
+        titleMarquee.start();
+    }
+
+    /** The title on Recent, in mockup pixels (before FONT). */
+    private static final float HERO_TITLE = 72;
 
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
@@ -348,16 +369,18 @@ public class HomeActivity extends Activity {
         infoLp.width = u(hero ? 980 : 1700);
         eyebrow.setVisibility(View.GONE); // its text is still kept: the details page shows it
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? HERO_TITLE : 52) * FONT * s);
-        title.setSingleLine(!hero);
-        if (hero) { // always a two-line box: a short title leaves the second line empty
-            title.setLines(2);
-            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        } else {
-            title.setMinLines(0);
-            title.setMaxLines(1);
-        }
+        title.setSingleLine(true);
+        // The lines under the title are a little larger on Recent, where there is room.
+        chipView.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 32 : 26) * FONT * s);
+        chipView.setPadding(u(hero ? 22 : 18), u(hero ? 6 : 4), u(hero ? 22 : 18), u(hero ? 6 : 4));
+        when.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 36 : 30) * FONT * s);
+        sub.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 36 : 30) * FONT * s);
+        playPill.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 42 : 36) * FONT * s);
+        playPill.setPadding(u(hero ? 54 : 44), u(hero ? 18 : 14), u(hero ? 54 : 44), u(hero ? 18 : 14));
+        ((LinearLayout.LayoutParams) sub.getLayoutParams()).topMargin = u(hero ? 22 : 16);
+        ((LinearLayout.LayoutParams) playPill.getLayoutParams()).topMargin = u(hero ? 40 : 34);
         LinearLayout.LayoutParams mp = (LinearLayout.LayoutParams) ((View) chipView.getParent()).getLayoutParams();
-        mp.topMargin = u(hero ? 18 : 6);
+        mp.topMargin = u(hero ? 12 : 6);
         infoBlock.requestLayout();
     }
 
@@ -454,12 +477,14 @@ public class HomeActivity extends Activity {
         } catch (IllegalArgumentException ignored) {
         }
         if (topBar != null) topBar.pause(true);
+        if (titleMarquee != null) titleMarquee.pause();
     }
 
     @Override
     protected void onDestroy() {
         // The tab-name marquee repeats for ever; none of these may keep the destroyed activity's views alive.
         if (topBar != null) topBar.stop();
+        if (titleMarquee != null) titleMarquee.cancel();
         if (details != null) details.stop();
         ArtCache.setListener(null);
         super.onDestroy();
@@ -469,6 +494,7 @@ public class HomeActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (topBar != null) topBar.pause(false);
+        if (titleMarquee != null) titleMarquee.resume();
         ArtCache.clearShots();
         Library.forgetFileFacts(); // the player (another process) may have saved a resume point or added play time
         unveil(true);

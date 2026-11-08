@@ -79,10 +79,17 @@ final class DetailsPage {
     private final View chevron;
     private boolean open;
     private int actIdx;
-    private View cover, col, rest, eyeb;
+    private View cover, col, rest, eyeb, metaView, row0, morph;
+    /** Where Recent's "NES  Played ..." line is, relative to where it sits on the page: it travels between the two. */
+    private float metaDX, metaDY;
+    private static final float META_FROM = 1.2f; // Recent's line is a little larger than the page's
+    /** Recent's screenshot of where the game was left, shown over the box art at the start and the end of the move. */
+    private android.graphics.Bitmap shotBmp;
+    private float shotNow;
+    private android.animation.ValueAnimator morphAnim;
     private TextView titleView;
     /** Where the title sits inside the column, and how small it starts (Recent's title is smaller than the page's). */
-    private int titleOff;
+    private int titleOff, metaOff;
     private float titleFrom = 1f;
     /** Top of the text column on screen, in pixels: it is centred on the screen like the cover. */
     private int colTop;
@@ -134,6 +141,7 @@ final class DetailsPage {
     /** Stops the animation: call when the screen is going away. */
     void stop() {
         if (coverAnim != null) coverAnim.cancel();
+        if (morphAnim != null) morphAnim.cancel();
     }
 
     private List<Act> actionsFor(Game g) {
@@ -154,30 +162,53 @@ final class DetailsPage {
         final boolean fromHero = shelf.mode() == Shelf.HERO;
         chrome(true, fromHero); // the chevron is for Recent's page only
         actIdx = 0;
+        shotNow = fromHero ? 1f : 0f; // the cover begins as Recent's tile shows it: the screenshot, if there is one
         render();
         view.setVisibility(View.VISIBLE);
         android.view.animation.DecelerateInterpolator ease = new android.view.animation.DecelerateInterpolator(2f);
         // The cover starts where it was (Recent's big tile, or the grid tile) and moves to its place on the page,
         // centred on the screen.
         placeCoverAtSource();
-        moveCover(1f, 1f, 0f, 0f, null);
+        moveCover(1f, 1f, 0f, 0f, 0f, null);
         view.setAlpha(1f);
         view.setTranslationY(0f);
         if (fromHero) {
             // The title starts exactly where (and as big as) Recent's title is and grows into its place on the page;
             // the line above it fades in.
             titleToRecent();
+            // The "NES  Played ..." line travels from Recent's place too.
+            final ViewGroup info = host.info();
+            float[] mr = rectIn(info.getChildAt(2));
+            metaDX = mr[0] - host.px(870);
+            metaDY = mr[1] - (colTop + metaOff);
+            metaView.setPivotX(0f);
+            metaView.setPivotY(0f);
+            metaView.setScaleX(META_FROM);
+            metaView.setScaleY(META_FROM);
+            metaView.setTranslationX(metaDX);
+            metaView.setTranslationY(metaDY);
+            metaView.animate().cancel();
+            metaView.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            // The Play / Resume button turns into the first row of the page once that is laid out.
+            row0.setAlpha(0f);
+            view.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                @Override
+                public boolean onPreDraw() {
+                    view.getViewTreeObserver().removeOnPreDrawListener(this);
+                    if (open) morphRow(true);
+                    return true;
+                }
+            });
             titleView.animate().cancel();
             titleView.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             eyeb.setAlpha(0f);
-            eyeb.animate().alpha(1f).setStartDelay(120).setDuration(PAGE_MS - 120).setInterpolator(ease).start();
+            eyeb.animate().alpha(1f).setStartDelay(200).setDuration(PAGE_MS - 200).setInterpolator(ease).start();
             // What Recent shows under its title (chips, status, Play) fades out instead of vanishing; its title is the
             // page's title now, so it goes in the same frame.
-            final ViewGroup info = host.info();
             for (int ci = 0; ci < info.getChildCount(); ci++) {
                 View cv = info.getChildAt(ci);
                 cv.animate().cancel();
-                if (ci < 2) cv.setAlpha(0f);
+                if (ci < 3) cv.setAlpha(0f); // the title and the line under it are the page's now
                 else {
                     cv.animate().alpha(0f).setStartDelay(0).setDuration(110).withEndAction(() -> { if (open) host.infoVisible(false); }).start();
                 }
@@ -203,6 +234,78 @@ final class DetailsPage {
         }
         if (!fromHero) host.infoVisible(false);
         host.hints(true);
+    }
+
+    private android.graphics.Bitmap shot() {
+        Game g = host.game();
+        if (host.shelf().mode() != Shelf.HERO || g == null) return null;
+        return ArtCache.shot(g, () -> { });
+    }
+
+    /** A view's place inside the page: x, y, width, height in pixels. */
+    private float[] rectIn(View v) {
+        int[] a = new int[2], b = new int[2];
+        v.getLocationInWindow(a);
+        view.getLocationInWindow(b);
+        return new float[]{a[0] - b[0], a[1] - b[1], v.getWidth(), v.getHeight()};
+    }
+
+    /**
+     * Recent's Play / Resume button and the page's first row are one thing: a shape that grows from the pill into the
+     * row (opening) or shrinks back (closing), with the pill's word fading into the row's own content.
+     */
+    private void morphRow(final boolean opening) {
+        final ViewGroup info = host.info();
+        final View pill = info.getChildCount() > 0 ? info.getChildAt(info.getChildCount() - 1) : null;
+        if (morphAnim != null) morphAnim.cancel();
+        if (!(pill instanceof PlayPill) || pill.getWidth() == 0 || row0 == null) {
+            if (row0 != null) row0.setAlpha(1f);
+            return;
+        }
+        final float[] a = rectIn(pill), b = rectIn(row0);
+        final PlayPill pp = (PlayPill) pill;
+        final android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR, pp.colours());
+        final TextView word = new TextView(ctx);
+        word.setText(pp.getText());
+        word.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, pp.getTextSize());
+        word.setTextColor(Color.WHITE);
+        word.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        word.setGravity(Gravity.CENTER);
+        final FrameLayout m = new FrameLayout(ctx);
+        m.setBackground(bg);
+        m.addView(word, new FrameLayout.LayoutParams(-1, -1));
+        if (morph != null) view.removeView(morph);
+        morph = m;
+        view.addView(m, new FrameLayout.LayoutParams((int) a[2], (int) a[3], Gravity.TOP | Gravity.START));
+        morphAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        morphAnim.setDuration(PAGE_MS);
+        morphAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+        morphAnim.addUpdateListener(an -> {
+            float f = (Float) an.getAnimatedValue();
+            float t = opening ? f : 1f - f;
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) m.getLayoutParams();
+            lp.leftMargin = Math.round(a[0] + (b[0] - a[0]) * t);
+            lp.topMargin = Math.round(a[1] + (b[1] - a[1]) * t);
+            lp.width = Math.round(a[2] + (b[2] - a[2]) * t);
+            lp.height = Math.round(a[3] + (b[3] - a[3]) * t);
+            m.setLayoutParams(lp);
+            bg.setCornerRadius(lp.height / 2f + (host.px(16) - lp.height / 2f) * t);
+            m.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .5f) / .5f)));
+            word.setAlpha(1f - Math.max(0f, Math.min(1f, t / .4f)));
+            row0.setAlpha(Math.max(0f, Math.min(1f, (t - .4f) / .6f)));
+        });
+        morphAnim.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator an) {
+                if (morph == m) {
+                    view.removeView(m);
+                    morph = null;
+                }
+                if (open && row0 != null) row0.setAlpha(1f);
+            }
+        });
+        morphAnim.start();
     }
 
     /** Puts the title (as a copy of Recent's) at Recent's place: the same size, the same spot on the screen. */
@@ -236,7 +339,7 @@ final class DetailsPage {
         float[] src = sourceRect(), pb = Shelf.pageBox();
         cover.setPivotX(0f);
         cover.setPivotY(0f);
-        moveCover(src[2] / pb[2], src[3] / pb[3], host.px(src[0] - pb[0]), host.px(src[1] - pb[1]), () -> {
+        moveCover(src[2] / pb[2], src[3] / pb[3], host.px(src[0] - pb[0]), host.px(src[1] - pb[1]), hero ? 1f : 0f, () -> {
             if (open) return; // opened again meanwhile
             view.setVisibility(View.GONE);
             view.removeAllViews();
@@ -244,7 +347,8 @@ final class DetailsPage {
             if (hero) {
                 // The page's copy and the real tile and title are at the same place now: swap in the same frame.
                 shelf.setPage(0f, false);
-                for (int ci = 0; ci < 2 && ci < info.getChildCount(); ci++) info.getChildAt(ci).setAlpha(1f); // the line above the title, and the title
+                for (int ci = 0; ci < 3 && ci < info.getChildCount(); ci++) info.getChildAt(ci).setAlpha(1f); // the title and the line under it
+                if (info.getChildCount() > 0) info.getChildAt(info.getChildCount() - 1).setAlpha(1f); // the button
             }
         });
         shelf.animate().cancel();
@@ -263,7 +367,7 @@ final class DetailsPage {
                 View cv = info.getChildAt(ci);
                 cv.animate().cancel();
                 cv.setAlpha(0f);
-                if (ci >= 2) cv.animate().alpha(1f).setStartDelay(120).setDuration(PAGE_MS - 120).start();
+                if (ci >= 3 && ci < info.getChildCount() - 1) cv.animate().alpha(1f).setStartDelay(120).setDuration(PAGE_MS - 120).start();
             }
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(1f, 0f);
             va.setDuration(PAGE_MS);
@@ -273,10 +377,13 @@ final class DetailsPage {
             });
             va.start();
             rest.animate().alpha(0f).translationY(-host.px(70)).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
+            metaView.animate().cancel();
+            metaView.animate().translationX(metaDX).translationY(metaDY).scaleX(META_FROM).scaleY(META_FROM).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            morphRow(false);
             titleView.animate().cancel();
             titleView.animate().translationY(host.px(164) - colTop - titleOff).scaleX(titleFrom).scaleY(titleFrom).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             eyeb.animate().cancel();
-            eyeb.animate().alpha(0f).setStartDelay(0).setDuration(PAGE_MS / 2).setInterpolator(ease).start();
+            eyeb.animate().alpha(0f).setStartDelay(0).setDuration(80).setInterpolator(ease).start();
         } else {
             shelf.setAlpha(0f);
             shelf.animate().alpha(1f).setStartDelay(PAGE_MS / 2).setDuration(PAGE_MS / 2).start(); // under the landing cover
@@ -324,9 +431,10 @@ final class DetailsPage {
      * Moves the cover to a scale and place. It is driven by hand, not by a property animator, so the cover is
      * redrawn on every frame and its white ring can keep the same thickness on screen the whole way.
      */
-    private void moveCover(final float tsx, final float tsy, final float ttx, final float tty, final Runnable end) {
+    private void moveCover(final float tsx, final float tsy, final float ttx, final float tty, final float shotTo, final Runnable end) {
         if (coverAnim != null) coverAnim.cancel();
         final View c = cover;
+        final float shotFrom = shotNow;
         final float fsx = c.getScaleX(), fsy = c.getScaleY(), ftx = c.getTranslationX(), fty = c.getTranslationY();
         coverAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
         coverAnim.setDuration(PAGE_MS);
@@ -337,6 +445,10 @@ final class DetailsPage {
             c.setScaleY(fsy + (tsy - fsy) * f);
             c.setTranslationX(ftx + (ttx - ftx) * f);
             c.setTranslationY(fty + (tty - fty) * f);
+            if (shotBmp != null && c instanceof Cover) { // the screenshot and the box art blend as the cover travels
+                shotNow = shotFrom + (shotTo - shotFrom) * f;
+                ((Cover) c).setShot(shotBmp, shotNow);
+            }
             c.invalidate();
         });
         if (end != null) {
@@ -371,10 +483,14 @@ final class DetailsPage {
         Game g = host.game();
         Shelf shelf = host.shelf();
         view.removeAllViews();
+        view.setClipChildren(false);
+        morph = null;
 
         Cover big = new Cover(ctx, host.scale());
         big.setGame(g);
         big.setWeight(1f);
+        shotBmp = shot() ;
+        big.setShot(shotBmp, shotNow);
         float[] hb = Shelf.pageBox(); // the same size as Recent's big cover, centred on the screen
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(host.px(hb[2]), host.px(hb[3]), Gravity.TOP | Gravity.START);
         cp.leftMargin = host.px(hb[0]);
@@ -384,6 +500,7 @@ final class DetailsPage {
 
         LinearLayout column = new LinearLayout(ctx);
         column.setOrientation(LinearLayout.VERTICAL);
+        column.setClipChildren(false); // the title travels in from above the column
         // The line above the title and the title are the same size and in the same place as on Recent, so they
         // do not move when the page opens; only what is below them slides in.
         boolean hero = shelf.mode() == Shelf.HERO;
@@ -424,7 +541,8 @@ final class DetailsPage {
         meta.addView(when, wp);
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
         mp.topMargin = host.px(14);
-        below.addView(meta, mp);
+        column.addView(meta, column.indexOfChild(below), mp);
+        metaView = meta;
 
         TextView blurb = host.text(summary(g), 30, 0xBFFFFFFF, false);
         blurb.setLineSpacing(0, 1.25f);
@@ -458,12 +576,14 @@ final class DetailsPage {
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(host.px(760), host.px(82));
             rp.bottomMargin = host.px(14);
             below.addView(row, rp);
+            if (i == 0) row0 = row;
         }
 
         FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(host.px(980), -2, Gravity.TOP | Gravity.START);
         colp.leftMargin = host.px(870);
         column.measure(View.MeasureSpec.makeMeasureSpec(host.px(980), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         titleOff = hero ? eyeb.getMeasuredHeight() + host.px(8) : 0;
+        metaOff = titleOff + t.getMeasuredHeight() + host.px(14);
         colTop = Math.max(host.px(120), (host.px(1080) - column.getMeasuredHeight()) / 2); // centred on the screen, like the cover
         colp.topMargin = colTop;
         view.addView(column, colp);

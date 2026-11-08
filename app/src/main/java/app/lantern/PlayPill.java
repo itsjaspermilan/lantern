@@ -33,6 +33,11 @@ final class PlayPill extends TextView {
         invalidate();
     }
 
+    /** The button's three colours, for a shape that grows out of it. */
+    int[] colours() {
+        return colours;
+    }
+
     private static int[] colours(int hue) {
         return new int[]{
                 Color.HSVToColor(new float[]{(hue + 340) % 360, .50f, .82f}),

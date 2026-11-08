@@ -317,12 +317,29 @@ public class HomeActivity extends Activity {
         return m < 60 ? m + " min" : (m / 60) + " h" + (m % 60 == 0 ? "" : " " + (m % 60) + " min");
     }
 
-    /** Long titles get a smaller size on Recent so they stay on a line or two. */
+    /**
+     * On Recent every title has the same size and the same two-line box, so the line under it and the Play button
+     * never move between games. A title too long for two lines at that size shrinks until it fits (never below 70%).
+     */
     private void fitTitle(String text) {
         boolean hero = shelf != null && shelf.mode() == Shelf.HERO;
-        float k = hero ? Math.max(.62f, Math.min(1f, 24f / Math.max(1, text.length()))) : 1f;
-        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * k * FONT * s);
+        float base = (hero ? HERO_TITLE : 52) * FONT * s;
+        float size = base;
+        if (hero) {
+            int avail = Math.round(u(980) - title.getPaddingLeft() - title.getPaddingRight());
+            android.text.TextPaint tp = new android.text.TextPaint(title.getPaint());
+            while (size > base * .7f) {
+                tp.setTextSize(size);
+                android.text.StaticLayout sl = android.text.StaticLayout.Builder.obtain(text, 0, text.length(), tp, avail).build();
+                if (sl.getLineCount() <= 2) break;
+                size *= .95f;
+            }
+        }
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, size);
     }
+
+    /** The title on Recent, in mockup pixels (before FONT): two lines of it fit most titles. */
+    private static final float HERO_TITLE = 64;
 
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
@@ -330,9 +347,15 @@ public class HomeActivity extends Activity {
         infoLp.topMargin = u(hero ? 164 : 866); // Recent: the title starts level with the big tile's top edge
         infoLp.width = u(hero ? 980 : 1700);
         eyebrow.setVisibility(View.GONE); // its text is still kept: the details page shows it
-        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * FONT * s);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? HERO_TITLE : 52) * FONT * s);
         title.setSingleLine(!hero);
-        title.setMaxLines(hero ? 3 : 1);
+        if (hero) { // always a two-line box: a short title leaves the second line empty
+            title.setLines(2);
+            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        } else {
+            title.setMinLines(0);
+            title.setMaxLines(1);
+        }
         LinearLayout.LayoutParams mp = (LinearLayout.LayoutParams) ((View) chipView.getParent()).getLayoutParams();
         mp.topMargin = u(hero ? 18 : 6);
         infoBlock.requestLayout();

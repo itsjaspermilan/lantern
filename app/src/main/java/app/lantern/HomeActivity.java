@@ -860,7 +860,7 @@ public class HomeActivity extends Activity {
                     : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
                     : Cores.infoFor(g.sysId) != null ? "Add its emulator from the menu (Select)"
                     : "No emulator for this system yet");
-            glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
+            glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .46f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .28f})); // the game's colours, a little dark
             glow.art(null);
             compactInfo();
             boolean heroMode = shelf.mode() == Shelf.HERO;
@@ -884,8 +884,8 @@ public class HomeActivity extends Activity {
         sub.setText(g.isRom() && !Cores.has(this, g.sysId)
                 ? (Cores.infoFor(g.sysId) != null ? "Press A to add the emulator for " + g.system : "No emulator for " + g.system + " yet")
                 : saved > 0 ? "Resume available · saved " + ago(saved) : "Ready to play");
-        glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .50f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .30f}));
-        glow.art(ArtCache.backdrop(g));
+        glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .46f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .28f})); // the game's colours, a little dark
+        glow.art(null); // no blurred cover behind the screen: just the colours
         compactInfo();
         if (shelf.mode() == Shelf.HERO) {
             if (g != lastFocused && !pageOpen() && infoBlock.getVisibility() == View.VISIBLE && lastHeroIndex >= 0) {

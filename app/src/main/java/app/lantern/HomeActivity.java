@@ -501,10 +501,11 @@ public class HomeActivity extends Activity {
         // Home pressed while Lantern is showing: Recent, if it is not there already (a system, Search or another tab);
         // on Recent itself, back to the first game.
         if (hasRecent() && (tab != 0 || filter != null || query != null)) {
-            topBar.snapNext(); // the tab bar must not animate while the screen is coming back: that shows as a flicker
-            setTab(0);
+            setTab(0); // the highlight slides over to Recent
+        } else {
+            if (shelf.getIndex() != 0) shelf.setIndex(0, true);
+            topBar.pulse(); // already on Recent: the highlight gives a small friendly pulse
         }
-        else if (shelf.getIndex() != 0) shelf.setIndex(0, true);
     }
 
     @Override

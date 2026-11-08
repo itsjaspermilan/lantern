@@ -191,24 +191,25 @@ final class DetailsPage {
             metaView.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             // The Play / Resume button turns into the first row of the page once that is laid out.
             row0.setAlpha(0f);
+            buildMorph();
             view.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
                 @Override
                 public boolean onPreDraw() {
                     view.getViewTreeObserver().removeOnPreDrawListener(this);
-                    if (open) morphRow(true);
+                    if (open) runMorph(true);
                     return true;
                 }
             });
             titleView.animate().cancel();
             titleView.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             eyeb.setAlpha(0f);
-            eyeb.animate().alpha(1f).setStartDelay(200).setDuration(PAGE_MS - 200).setInterpolator(ease).start();
+            eyeb.animate().alpha(1f).setStartDelay(120).setDuration(360).setInterpolator(ease).start();
             // What Recent shows under its title (chips, status, Play) fades out instead of vanishing; its title is the
             // page's title now, so it goes in the same frame.
             for (int ci = 0; ci < info.getChildCount(); ci++) {
                 View cv = info.getChildAt(ci);
                 cv.animate().cancel();
-                if (ci < 3) cv.setAlpha(0f); // the title and the line under it are the page's now
+                if (ci < 3 || ci == info.getChildCount() - 1) cv.setAlpha(0f); // the pill is covered by its copy, the title and the line under it are the page's now
                 else {
                     cv.animate().alpha(0f).setStartDelay(0).setDuration(110).withEndAction(() -> { if (open) host.infoVisible(false); }).start();
                 }
@@ -249,64 +250,105 @@ final class DetailsPage {
         return new float[]{a[0] - b[0], a[1] - b[1], v.getWidth(), v.getHeight()};
     }
 
+    // The pieces of the button that turns into the first row (and back): the shape, its ring, and the pill it replaces.
+    private View ringV;
+    private android.graphics.drawable.GradientDrawable mBg, mRing;
+    private TextView mWord;
+    private PlayPill mPill;
+    private float[] mA;
+
     /**
      * Recent's Play / Resume button and the page's first row are one thing: a shape that grows from the pill into the
-     * row (opening) or shrinks back (closing), with the pill's word fading into the row's own content.
+     * row (opening) or shrinks back (closing), with the pill's word fading into the row's own content and its white
+     * ring fading away. This puts a copy of the pill exactly over the real one and hides the real one, in the same frame.
      */
-    private void morphRow(final boolean opening) {
+    private boolean buildMorph() {
         final ViewGroup info = host.info();
         final View pill = info.getChildCount() > 0 ? info.getChildAt(info.getChildCount() - 1) : null;
         if (morphAnim != null) morphAnim.cancel();
+        if (morph != null) view.removeView(morph);
+        if (ringV != null) view.removeView(ringV);
+        morph = null;
+        ringV = null;
         if (!(pill instanceof PlayPill) || pill.getWidth() == 0 || row0 == null) {
             if (row0 != null) row0.setAlpha(1f);
-            return;
+            return false;
         }
-        final float[] a = rectIn(pill), b = rectIn(row0);
-        final PlayPill pp = (PlayPill) pill;
-        final android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TL_BR, pp.colours());
-        final int[] from = pp.colours();
-        final android.animation.ArgbEvaluator argb = new android.animation.ArgbEvaluator();
-        final TextView word = new TextView(ctx);
-        word.setText(pp.getText());
-        word.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, pp.getTextSize());
-        word.setTextColor(Color.WHITE);
-        word.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        word.setGravity(Gravity.CENTER);
-        final FrameLayout m = new FrameLayout(ctx);
-        m.setBackground(bg);
-        m.addView(word, new FrameLayout.LayoutParams(-1, -1));
-        if (morph != null) view.removeView(morph);
+        mPill = (PlayPill) pill;
+        mA = rectIn(pill);
+        mBg = new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, mPill.colours());
+        mWord = new TextView(ctx);
+        mWord.setText(mPill.getText());
+        mWord.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, mPill.getTextSize());
+        mWord.setTextColor(Color.WHITE);
+        mWord.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        mWord.setGravity(Gravity.CENTER);
+        FrameLayout m = new FrameLayout(ctx);
+        m.setBackground(mBg);
+        m.addView(mWord, new FrameLayout.LayoutParams(-1, -1));
         morph = m;
-        view.addView(m, new FrameLayout.LayoutParams((int) a[2], (int) a[3], Gravity.TOP | Gravity.START));
+        view.addView(m, new FrameLayout.LayoutParams((int) mA[2], (int) mA[3], Gravity.TOP | Gravity.START));
+        mRing = new android.graphics.drawable.GradientDrawable();
+        mRing.setColor(Color.TRANSPARENT);
+        ringV = new View(ctx);
+        ringV.setBackground(mRing);
+        view.addView(ringV, new FrameLayout.LayoutParams((int) mA[2], (int) mA[3], Gravity.TOP | Gravity.START));
+        layoutMorph(0f);
+        pill.setAlpha(0f); // the copy covers it from this frame on
+        return true;
+    }
+
+    /** Places the shape, its ring and its colours for t = 0 (the pill) to 1 (the row). */
+    private void layoutMorph(float t) {
+        if (morph == null) return;
+        float[] b = rectIn(row0);
+        if (b[2] == 0) b = mA; // not laid out yet: stay a pill
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) morph.getLayoutParams();
+        lp.leftMargin = Math.round(mA[0] + (b[0] - mA[0]) * t);
+        lp.topMargin = Math.round(mA[1] + (b[1] - mA[1]) * t);
+        lp.width = Math.round(mA[2] + (b[2] - mA[2]) * t);
+        lp.height = Math.round(mA[3] + (b[3] - mA[3]) * t);
+        morph.setLayoutParams(lp);
+        mBg.setCornerRadius(lp.height / 2f + (host.px(16) - lp.height / 2f) * t);
+        // The colours of the button drain to the row's white as it grows, then the row's own content shows.
+        float w = Math.max(0f, Math.min(1f, t / .8f));
+        int[] from = mPill.colours(), cc = new int[from.length];
+        for (int k = 0; k < cc.length; k++) cc[k] = (Integer) new android.animation.ArgbEvaluator().evaluate(w, from[k], Color.WHITE);
+        mBg.setColors(cc);
+        morph.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .9f) / .1f)));
+        mWord.setAlpha(1f - Math.max(0f, Math.min(1f, t / .4f)));
+        // The pill's white ring (the same gap and thickness as on Recent) fades away as the shape grows, and back in on return.
+        float gap = lp.height * .1f, stroke = Math.max(2f, lp.height * .04f), off = gap + stroke;
+        FrameLayout.LayoutParams rp = (FrameLayout.LayoutParams) ringV.getLayoutParams();
+        rp.leftMargin = Math.round(lp.leftMargin - off);
+        rp.topMargin = Math.round(lp.topMargin - off);
+        rp.width = Math.round(lp.width + 2 * off);
+        rp.height = Math.round(lp.height + 2 * off);
+        ringV.setLayoutParams(rp);
+        mRing.setStroke(Math.round(stroke), Color.WHITE);
+        mRing.setCornerRadius(rp.height / 2f + (host.px(16) - rp.height / 2f) * t);
+        ringV.setAlpha(1f - Math.max(0f, Math.min(1f, t / .3f)));
+        row0.setAlpha(Math.max(0f, Math.min(1f, (t - .6f) / .4f)));
+    }
+
+    private void runMorph(final boolean opening) {
+        if (morph == null) return;
+        final View m = morph;
         morphAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
         morphAnim.setDuration(PAGE_MS);
         morphAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
         morphAnim.addUpdateListener(an -> {
             float f = (Float) an.getAnimatedValue();
-            float t = opening ? f : 1f - f;
-            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) m.getLayoutParams();
-            lp.leftMargin = Math.round(a[0] + (b[0] - a[0]) * t);
-            lp.topMargin = Math.round(a[1] + (b[1] - a[1]) * t);
-            lp.width = Math.round(a[2] + (b[2] - a[2]) * t);
-            lp.height = Math.round(a[3] + (b[3] - a[3]) * t);
-            m.setLayoutParams(lp);
-            bg.setCornerRadius(lp.height / 2f + (host.px(16) - lp.height / 2f) * t);
-            // The colours of the button drain to the row's white as it grows, then the row's own content shows.
-            float w = Math.max(0f, Math.min(1f, t / .8f));
-            int[] cc = new int[from.length];
-            for (int k = 0; k < cc.length; k++) cc[k] = (Integer) argb.evaluate(w, from[k], Color.WHITE);
-            bg.setColors(cc);
-            m.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .9f) / .1f)));
-            word.setAlpha(1f - Math.max(0f, Math.min(1f, t / .4f)));
-            row0.setAlpha(Math.max(0f, Math.min(1f, (t - .6f) / .4f)));
+            layoutMorph(opening ? f : 1f - f);
         });
         morphAnim.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(android.animation.Animator an) {
                 if (morph == m) {
                     view.removeView(m);
+                    view.removeView(ringV);
                     morph = null;
+                    ringV = null;
                 }
                 if (open && row0 != null) row0.setAlpha(1f);
             }
@@ -385,7 +427,7 @@ final class DetailsPage {
             rest.animate().alpha(0f).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
             metaView.animate().cancel();
             metaView.animate().translationX(metaDX).translationY(metaDY).scaleX(META_FROM).scaleY(META_FROM).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
-            morphRow(false);
+            if (buildMorph()) runMorph(false);
             titleView.animate().cancel();
             titleView.animate().translationY(host.px(Shelf.HERO_TEXT_TOP) - colTop - titleOff).scaleX(titleFrom).scaleY(titleFrom).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             eyeb.animate().cancel();
@@ -491,6 +533,7 @@ final class DetailsPage {
         view.removeAllViews();
         view.setClipChildren(false);
         morph = null;
+        ringV = null;
 
         Cover big = new Cover(ctx, host.scale());
         big.setGame(g);

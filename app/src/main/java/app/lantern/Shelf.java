@@ -42,7 +42,7 @@ final class Shelf extends ViewGroup {
     // Each tile also has a LABEL strip under it for the title.
     /** Grids never have more than this many columns. */
     private static final int MAX_COLS = 4;
-    private static final float DEF_W = 330, DEF_H = 200, SYS_W = 330, SYS_H = 200, LABEL = 42;
+    private static final float TILE_W = 330, TILE_H = 200, LABEL = 42; // the tile shape (about 1.65 : 1); its size follows the width
     // The hero tile and the small row beside and below it.
     // The big tile and the row under it are the same landscape shape as the grid tiles (about 1.65 : 1).
     private static final float HERO_W = 720, HERO_H = 436, HERO_Y = 200; // the same size and place as the cover on the details page
@@ -58,8 +58,6 @@ final class Shelf extends ViewGroup {
     private int mode = GRID;
     /** Grid scroll, in mockup pixels from the top of the first row. */
     private float scroll;
-    /** Game tile size for the list on show: it follows the shape of the covers (see fitCells). */
-    private float gameW = DEF_W, gameH = DEF_H;
     private int index;
     /** Where the hero layout is, as a game number that glides between whole numbers. */
     private float heroPos;
@@ -178,17 +176,17 @@ final class Shelf extends ViewGroup {
     }
 
     private int cols() {
-        float w = cellW();
-        return Math.max(1, Math.min(MAX_COLS, (int) Math.floor((1920 - LEFT - RIGHT + GAP) / (w + GAP))));
+        return MAX_COLS;
     }
 
+    /** The grid fills the width between the margins: MAX_COLS tiles and the gaps between them. */
     private float cellW() {
-        return mode == SYSTEMS ? SYS_W : gameW;
+        return (1920 - LEFT - RIGHT - (MAX_COLS - 1) * GAP) / MAX_COLS;
     }
 
     /** A grid cell's full height: the picture and the title strip under it. */
     private float cellH() {
-        return mode == SYSTEMS ? SYS_H : gameH; // grid tiles carry no title: the focused game's name is under the grid
+        return cellW() * TILE_H / TILE_W; // grid tiles carry no title: the focused game's name is under the grid
     }
 
     private float maxScroll() {

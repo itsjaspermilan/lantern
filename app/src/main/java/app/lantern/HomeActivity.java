@@ -228,7 +228,7 @@ public class HomeActivity extends Activity {
         dots.setVisibility(View.GONE);
         FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(u(720), u(24), Gravity.TOP | Gravity.START);
         dlp.leftMargin = u(EDGE_L);
-        dlp.topMargin = u(604);
+        dlp.topMargin = u(650); // just under the big tile (which ends at 636)
         stage.addView(dots, dlp);
         details = new DetailsPage(this, detailsHost);
         FrameLayout.LayoutParams ucp = new FrameLayout.LayoutParams(u(170), u(44), Gravity.TOP | Gravity.START);
@@ -327,7 +327,7 @@ public class HomeActivity extends Activity {
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
         infoLp.leftMargin = u(hero ? 870 : EDGE_L);
-        infoLp.topMargin = u(hero ? 200 : 866);
+        infoLp.topMargin = u(hero ? 124 : 866); // Recent: the small line sits above the big tile's top edge, the title starts level with it
         infoLp.width = u(hero ? 980 : 1700);
         eyebrow.setVisibility(hero ? View.VISIBLE : View.GONE);
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * FONT * s);

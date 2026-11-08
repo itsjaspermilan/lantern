@@ -481,7 +481,12 @@ public class HomeActivity extends Activity {
         super.onNewIntent(intent);
         if (searchOpen()) search.close();
         if (menuOpen()) menu.close();
-        if (shelf != null) shelf.setIndex(0, true); // Home pressed while Lantern is showing: back to the first game
+        if (pageOpen()) details.close();
+        if (shelf == null) return;
+        // Home pressed while Lantern is showing: Recent, if it is not there already (a system, Search or another tab);
+        // on Recent itself, back to the first game.
+        if (hasRecent() && (tab != 0 || filter != null || query != null)) setTab(0);
+        else shelf.setIndex(0, true);
     }
 
     @Override

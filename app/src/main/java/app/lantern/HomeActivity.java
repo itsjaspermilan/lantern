@@ -327,9 +327,9 @@ public class HomeActivity extends Activity {
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
         infoLp.leftMargin = u(hero ? 870 : EDGE_L);
-        infoLp.topMargin = u(hero ? 124 : 866); // Recent: the small line sits above the big tile's top edge, the title starts level with it
+        infoLp.topMargin = u(hero ? 164 : 866); // Recent: the title starts level with the big tile's top edge
         infoLp.width = u(hero ? 980 : 1700);
-        eyebrow.setVisibility(hero ? View.VISIBLE : View.GONE);
+        eyebrow.setVisibility(View.GONE); // its text is still kept: the details page shows it
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * FONT * s);
         title.setSingleLine(!hero);
         title.setMaxLines(hero ? 3 : 1);
@@ -365,7 +365,7 @@ public class HomeActivity extends Activity {
         boolean hero = shelf.mode() == Shelf.HERO && !pageOpen() && !shown.isEmpty();
         int rowStart = Math.max(0, shelf.getIndex() - 1); // the row keeps the focused game one tile in from its left edge
         chevL.setVisibility(hero && rowStart > 0 ? View.VISIBLE : View.GONE);
-        chevR.setVisibility(hero && rowStart + 5 < shelf.size() ? View.VISIBLE : View.GONE);
+        chevR.setVisibility(hero && rowStart + 4 < shelf.size() ? View.VISIBLE : View.GONE);
         dots.setVisibility(hero ? View.VISIBLE : View.GONE);
         dotsN = shelf.size();
         dotsAt = shelf.getIndex();

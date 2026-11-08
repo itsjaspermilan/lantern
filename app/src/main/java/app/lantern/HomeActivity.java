@@ -415,9 +415,9 @@ public class HomeActivity extends Activity {
     private void updateChevrons() {
         if (chevL == null || shelf == null) return;
         boolean hero = shelf.mode() == Shelf.HERO && !pageOpen() && !shown.isEmpty();
-        int rowStart = Math.max(0, shelf.getIndex() - 1); // the row keeps the focused game one tile in from its left edge
-        chevL.setVisibility(hero && rowStart > 0 ? View.VISIBLE : View.GONE);
-        chevR.setVisibility(hero && rowStart + 4 < shelf.size() ? View.VISIBLE : View.GONE);
+        int at = shelf.getIndex(); // an arrow shows whenever there is a game to go to on that side
+        chevL.setVisibility(hero && at > 0 ? View.VISIBLE : View.GONE);
+        chevR.setVisibility(hero && at < shelf.size() - 1 ? View.VISIBLE : View.GONE);
         dots.setVisibility(hero ? View.VISIBLE : View.GONE);
         dotsN = shelf.size();
         dotsAt = shelf.getIndex();
@@ -890,7 +890,7 @@ public class HomeActivity extends Activity {
         if (shelf.mode() == Shelf.HERO) {
             if (g != lastFocused && !pageOpen() && infoBlock.getVisibility() == View.VISIBLE && lastHeroIndex >= 0) {
                 infoBlock.animate().cancel(); // the text slides a little the way you moved
-                float dx = (index > lastHeroIndex ? 1 : -1) * u(50);
+                float dx = (index > lastHeroIndex ? 1 : -1) * u(28); // a gentle nudge
                 infoBlock.setTranslationX(dx);
                 infoBlock.animate().translationX(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
                 shelf.slideHero(dx, 260); // the big picture and the dots under it move with the text

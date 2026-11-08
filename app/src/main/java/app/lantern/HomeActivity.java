@@ -289,12 +289,15 @@ public class HomeActivity extends Activity {
         sp.topMargin = u(16);
         info.addView(sub, sp);
 
-        playPill = label("", 36, 0xFF17131F, true);
+        playPill = new PlayPill(this);
+        playPill.setTextSize(TypedValue.COMPLEX_UNIT_PX, 36 * FONT * s);
+        playPill.setTextColor(0xFF2A1420);
+        playPill.setTypeface(Typeface.DEFAULT_BOLD);
         playPill.setPadding(u(44), u(14), u(44), u(14));
-        GradientDrawable pd = new GradientDrawable();
+        GradientDrawable pd = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFFA07A, 0xFFFF7F96}); // coral to rose
         pd.setCornerRadius(u(99));
-        pd.setColor(AMBER);
         playPill.setBackground(pd);
+        info.setClipChildren(false); // the button's ring breathes out past its edge
         playPill.setVisibility(View.GONE);
         View gap = new View(this); // on Recent this takes the spare height, so the button sits at the foot of the block
         info.addView(gap, new LinearLayout.LayoutParams(1, 0, 1f));

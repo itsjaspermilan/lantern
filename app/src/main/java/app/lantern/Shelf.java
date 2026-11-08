@@ -419,11 +419,12 @@ final class Shelf extends ViewGroup {
                 float rs = Math.max(0f, heroPos - 1f), d = i - rs;
                 float lift = Math.max(0f, 1f - Math.abs(i - heroPos));
                 x = SMALL_X + d * (SMALL_W + SMALL_GAP);
-                y = SMALL_BOTTOM - SMALL_H - lift * 24f + pageT * 420f;
+                y = SMALL_BOTTOM - SMALL_H - lift * 44f + pageT * 420f; // the selected game stands well above the rest
                 w = SMALL_W;
                 h = SMALL_H;
                 label = 0f; // no titles in the row: the focused game's name is the big title
                 wt = lift;
+                alpha = .5f + .5f * lift; // and the others are dimmer
                 z = lift > 0f ? 2f : 0f;
                 ek = Math.max(0f, Math.min(1f, (ROW_R - x) / (SMALL_W * .5f))); // four tiles show; the next one fades in from the right edge (the arrow is there),
                 if (enterDirNow != 0 && enterT < 1f) { // arriving from the side of the tab that was pressed

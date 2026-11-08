@@ -551,14 +551,7 @@ final class DetailsPage {
         column.addView(meta, column.indexOfChild(below), mp);
         metaView = meta;
 
-        TextView blurb = host.text(summary(g), 30, 0xBFFFFFFF, false);
-        blurb.setLineSpacing(0, 1.25f);
-        blurb.setMaxLines(4);
-        blurb.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(host.px(900), -2);
-        bp.topMargin = host.px(22);
-        bp.bottomMargin = host.px(30);
-        below.addView(blurb, bp);
+        below.setPadding(0, host.px(40), 0, 0); // room between the line under the title and the actions
 
         List<Act> acts = actionsFor(g);
         actIdx = Math.max(0, Math.min(actIdx, acts.size() - 1));
@@ -633,15 +626,5 @@ final class DetailsPage {
         if (a.label.equals("Resume")) host.play(g, true);
         else if (a.label.equals("Play") || a.label.equals("Play from the start")) host.play(g, false);
         else if (a.label.equals("App settings")) host.appSettings(g);
-    }
-
-    private String summary(Game g) {
-        if (g.isRom()) {
-            return "A " + g.system + " game from your ROM folder. "
-                    + (Cores.has(ctx, g.sysId) ? "It opens in Lantern's own player."
-                    : Cores.infoFor(g.sysId) != null ? "Its emulator is not added yet: Play opens the list to download it."
-                    : "Lantern has no emulator for this system yet.");
-        }
-        return "An installed Android app. It opens as it normally does, and Home brings you back here.";
     }
 }

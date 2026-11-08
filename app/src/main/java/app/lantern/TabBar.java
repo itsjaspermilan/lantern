@@ -109,7 +109,7 @@ final class TabBar {
         android.graphics.Paint bold = new android.graphics.Paint(tabViews.get(0).getPaint());
         bold.setTypeface(Typeface.DEFAULT_BOLD);
         for (int i = 0; i < names.length; i++) tabNat[i] = bold.measureText(names[i]);
-        applyTabWeights(-1);
+        applyTabWeights(-1, false);
 
         top.addView(new View(ctx), new LinearLayout.LayoutParams(0, 1, 1f));
         batteryBox = new LinearLayout(ctx);
@@ -209,6 +209,8 @@ final class TabBar {
      * crumbText what it says (a back arrow comes with it). hue is the colour of the system being browsed, or -1.
      */
     void update(int activeTab, int crumbAt, String crumbText, int hue) {
+        final boolean now = snap; // see snapNext
+        snap = false;
         active = activeTab;
         for (int i = 0; i < tabViews.size(); i++) {
             TextView t = tabViews.get(i);
@@ -234,7 +236,9 @@ final class TabBar {
             float want = on ? 1f : 0.55f;
             t.setBackground(null); // the shared pill behind the tabs does the highlighting
             t.animate().cancel();
-            if (!before.equals(String.valueOf(t.getText())) && !before.isEmpty()) {
+            if (now) {
+                t.setAlpha(want);
+            } else if (!before.equals(String.valueOf(t.getText())) && !before.isEmpty()) {
                 t.setAlpha(0f); // a changed label fades in
                 t.animate().alpha(want).setDuration(220).start();
             } else {
@@ -247,8 +251,18 @@ final class TabBar {
             ct.postDelayed(() -> startMarquee(ct), 450); // after the tabs have settled into their new widths
         }
         pillBg.setColor(hue >= 0 ? (0x55000000 | (0xFFFFFF & Color.HSVToColor(new float[]{hue, .45f, 1f}))) : DEFAULT_PILL);
-        applyTabWeights(crumbAt);
-        glidePill();
+        applyTabWeights(crumbAt, now);
+        glidePill(now);
+    }
+
+    private boolean snap;
+
+    /**
+     * The next update() takes effect at once, with no fades or sliding: for a change made while the screen is
+     * coming back (Home pressed), where animations would show as a flicker.
+     */
+    void snapNext() {
+        snap = true;
     }
 
     /** The tabs fade up and away (or come back): used while the details page is open. */
@@ -305,7 +319,7 @@ final class TabBar {
     private float[] curW, curM, curP;
     private android.animation.ValueAnimator weightAnim;
 
-    private void applyTabWeights(int crumb) {
+    private void applyTabWeights(int crumb, boolean now) {
         int n = tabViews.size();
         float total = 0, others = 0;
         for (int i = 0; i < tabNat.length; i++) {
@@ -327,6 +341,13 @@ final class TabBar {
             return;
         }
         if (weightAnim != null) weightAnim.cancel();
+        if (now) {
+            curW = tw.clone();
+            curM = tm.clone();
+            curP = tp.clone();
+            applyTabValues();
+            return;
+        }
         final float[] fw = curW.clone(), fm = curM.clone(), fp = curP.clone();
         boolean same = true;
         for (int i = 0; i < n; i++) if (Math.abs(fw[i] - tw[i]) > .5f || Math.abs(fm[i] - tm[i]) > .5f) same = false;
@@ -380,7 +401,7 @@ final class TabBar {
     }
 
     /** Moves the highlight to the active tab once the bar has been laid out with its new labels. */
-    private void glidePill() {
+    private void glidePill(final boolean now) {
         if (tabHost == null) return;
         tabHost.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
             @Override
@@ -395,7 +416,7 @@ final class TabBar {
                 lp.height = toH;
                 tabPill.setTranslationY(toY);
                 if (pillAnim != null) pillAnim.cancel();
-                if (pillW == 0) { // first time: just put it there
+                if (pillW == 0 || now) { // first time (or a change that must not animate): just put it there
                     pillX = toX;
                     pillW = toW;
                     lp.width = toW;

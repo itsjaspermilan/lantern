@@ -890,8 +890,13 @@ public class HomeActivity extends Activity {
         if (shelf.mode() == Shelf.HERO) {
             if (g != lastFocused && !pageOpen() && infoBlock.getVisibility() == View.VISIBLE && lastHeroIndex >= 0) {
                 infoBlock.animate().cancel(); // the text slides a little the way you moved
-                infoBlock.setTranslationX((index > lastHeroIndex ? 1 : -1) * u(50));
+                float dx = (index > lastHeroIndex ? 1 : -1) * u(50);
+                infoBlock.setTranslationX(dx);
                 infoBlock.animate().translationX(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+                shelf.slideHero(dx, 260); // the big picture and the dots under it move with the text
+                dots.animate().cancel();
+                dots.setTranslationX(dx);
+                dots.animate().translationX(0f).setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
             }
             lastHeroIndex = index;
             if (g != lastFocused) { // the status line fades in on a new game

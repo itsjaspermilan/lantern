@@ -71,6 +71,16 @@ final class Shelf extends ViewGroup {
     /** Which way the next list arrives: +1 from the right (R1), -1 from the left (L1), 0 rising from below. */
     private int enterDir, enterDirNow;
 
+    /** Recent: the big picture slides in from dx pixels to the side, the same move as the text beside it. */
+    void slideHero(float dx, long ms) {
+        for (Cover c : new Cover[]{heroCur, heroPrev}) {
+            if (c == null) continue;
+            c.animate().cancel();
+            c.setTranslationX(dx);
+            c.animate().translationX(0f).setDuration(ms).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        }
+    }
+
     /** Called just before a new list is shown after a tab change: its tiles arrive from the side of that tab. */
     void setEnterDirection(int d) {
         enterDir = d;

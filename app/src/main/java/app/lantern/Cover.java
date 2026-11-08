@@ -21,7 +21,6 @@ import android.view.View;
  * the art is generated from the game's colours.
  */
 final class Cover extends View {
-    private static final int AMBER = 0xFF8FE3CF;
 
     private Game g;
     private final float s;
@@ -233,7 +232,7 @@ final class Cover extends View {
         if (g.resume && shotA < .5f) { // a small amber play button: this game has a resume point
             float rr = 15 * s / vs, cx = 28 * s / vs, cy = 28 * s / vs;
             p.setStyle(Paint.Style.FILL);
-            p.setColor(AMBER);
+            p.setColor(Theme.t().accent);
             c.drawCircle(cx, cy, rr, p);
             p.setColor(0xFF17131F);
             shape.reset();

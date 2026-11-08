@@ -45,6 +45,12 @@ final class MenuPanel {
 
         void toggleClock();
 
+        /** The name of the colour theme in use. */
+        String themeName();
+
+        /** Moves to the next (1) or previous (-1) colour theme; the screen is rebuilt in it and the menu comes back. */
+        void stepTheme(int dir);
+
         /** The menu has closed (a row that leaves it was chosen): show the Android apps list. */
         void openAppsList();
 
@@ -61,6 +67,8 @@ final class MenuPanel {
     }
 
     private static final int APPS = 0, SHOW_APPS = 1, ART = 2, FILES = 3, CLOCK = 4, CORES = 5, BATTERY = 6;
+    /** The row that picks the colour theme (the launcher reopens the menu on it after a change). */
+    static final int THEME = 7;
     private static final int WIDTH = 760;
 
     private final Context ctx;
@@ -97,6 +105,7 @@ final class MenuPanel {
         l.add(ART);
         l.add(CLOCK);
         l.add(BATTERY);
+        l.add(THEME);
         l.add(CORES);
         if (!host.hasFileAccess()) l.add(FILES);
         return l;
@@ -104,6 +113,13 @@ final class MenuPanel {
 
     void open() {
         openAt(false, null);
+    }
+
+    /** Opens the menu with one of its rows focused. */
+    void openOn(int item) {
+        openAt(false, null);
+        index = Math.max(0, items().indexOf(item));
+        render();
     }
 
     /** Opens the Emulators page with the given core focused (from Play on a game whose system has no core yet). */
@@ -170,6 +186,9 @@ final class MenuPanel {
             case BATTERY:
                 host.toggleBatteryNumber();
                 render();
+                break;
+            case THEME:
+                host.stepTheme(1);
                 break;
             case FILES:
                 close();
@@ -245,6 +264,7 @@ final class MenuPanel {
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 // Left and right flip a switch, but do not open a list.
                 int it = items.get(index);
+                if (first && it == THEME) { host.stepTheme(keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1); return true; }
                 if (first && it != APPS && it != FILES && it != CORES) choose(items.get(index));
                 return true;
             case KeyEvent.KEYCODE_BUTTON_A:
@@ -298,7 +318,7 @@ final class MenuPanel {
     }
 
     private void renderCores(LinearLayout panel) {
-        panel.addView(host.text("Emulators", 52, Color.WHITE, true));
+        panel.addView(host.text("Emulators", 52, Theme.t().ink, true));
         for (int i = 0; i < Cores.CATALOG.length; i++) {
             final Cores.Info c = Cores.CATALOG[i];
             boolean on = i == index;
@@ -308,9 +328,9 @@ final class MenuPanel {
             row.setPadding(host.px(28), 0, host.px(28), 0);
             GradientDrawable rd = new GradientDrawable();
             rd.setCornerRadius(host.px(16));
-            rd.setColor(on ? Color.WHITE : 0x14FFFFFF);
+            rd.setColor(on ? Theme.t().selected : Theme.t().ink(0x14));
             row.setBackground(rd);
-            int ink = on ? 0xFF17131F : Color.WHITE;
+            int ink = on ? Theme.t().onSelected : Theme.t().ink;
             LinearLayout top = new LinearLayout(ctx);
             top.setGravity(Gravity.CENTER_VERTICAL);
             TextView nm = host.text(c.name, 30, ink, true);
@@ -319,10 +339,10 @@ final class MenuPanel {
             String status = coreStatus(c, on);
             boolean good = status.startsWith("Installed") || status.equals("Built in");
             boolean bad = status.startsWith("Failed");
-            int sc = good ? (on ? 0xFF1F7A3A : 0xFF8BE28F) : bad ? (on ? 0xFFB3261E : 0xFFFF8A80) : on ? 0xBF17131F : 0xB3FFFFFF;
+            int sc = good ? (on ? 0xFF1F7A3A : 0xFF8BE28F) : bad ? (on ? 0xFFB3261E : 0xFFFF8A80) : on ? Theme.t().onSelected(0xBF) : Theme.t().ink(0xB3);
             top.addView(host.text(status, 24, sc, good));
             row.addView(top);
-            TextView plays = host.text(c.plays + " · " + c.licence, 20, on ? 0x9917131F : 0x80FFFFFF, false);
+            TextView plays = host.text(c.plays + " · " + c.licence, 20, on ? Theme.t().onSelected(0x99) : Theme.t().ink(0x80), false);
             plays.setSingleLine(true);
             plays.setEllipsize(android.text.TextUtils.TruncateAt.END);
             row.addView(plays);
@@ -333,7 +353,7 @@ final class MenuPanel {
             panel.addView(row, rp);
         }
         TextView note = host.text("Emulators are downloaded from libretro's build server (buildbot.libretro.com) into Lantern's"
-                + " own storage. Each has its own licence: the non-commercial ones may not be used to make money.", 22, 0x99FFFFFF, false);
+                + " own storage. Each has its own licence: the non-commercial ones may not be used to make money.", 22, Theme.t().ink(0x99), false);
         note.setLineSpacing(0, 1.2f);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, -2);
         np.topMargin = host.px(26);
@@ -358,7 +378,7 @@ final class MenuPanel {
         panel.setClickable(true); // taps on the panel are not taps on the scrim
         panel.setPadding(host.px(HomeActivity.EDGE_L), host.px(70), host.px(48), host.px(40));
         GradientDrawable pd = new GradientDrawable();
-        pd.setColor(0xF2141119);
+        pd.setColor(Theme.t().panel(0xF2));
         pd.setCornerRadii(new float[]{0, 0, host.px(28), host.px(28), host.px(28), host.px(28), 0, 0});
         panel.setBackground(pd);
         if (coresPage) {
@@ -366,7 +386,7 @@ final class MenuPanel {
             view.addView(panel, new FrameLayout.LayoutParams(host.px(WIDTH), -1, Gravity.START));
             return;
         }
-        panel.addView(host.text("Menu", 52, Color.WHITE, true));
+        panel.addView(host.text("Menu", 52, Theme.t().ink, true));
 
         List<Integer> items = items();
         for (int i = 0; i < items.size(); i++) {
@@ -379,6 +399,7 @@ final class MenuPanel {
                 case ART: name = "Cover art"; value = host.coverArt() ? "On" : "Off"; break;
                 case CLOCK: name = "Clock"; value = host.clock24() ? "24 hour" : "12 hour"; break;
                 case BATTERY: name = "Battery number"; value = host.batteryNumber() ? "On" : "Off"; break;
+                case THEME: name = "Colours"; value = "‹  " + host.themeName() + "  ›"; break;
                 case CORES: name = "Emulators"; value = installedCount() + " of " + Cores.CATALOG.length + "  ›"; break;
                 default: name = "Allow file access"; value = "›";
             }
@@ -387,14 +408,14 @@ final class MenuPanel {
             row.setPadding(host.px(28), 0, host.px(28), 0);
             GradientDrawable rd = new GradientDrawable();
             rd.setCornerRadius(host.px(16));
-            rd.setColor(on ? Color.WHITE : 0x14FFFFFF);
+            rd.setColor(on ? Theme.t().selected : Theme.t().ink(0x14));
             row.setBackground(rd);
-            int ink = on ? 0xFF17131F : Color.WHITE;
+            int ink = on ? Theme.t().onSelected : Theme.t().ink;
             TextView nm = host.text(name, 30, ink, true);
             nm.setSingleLine(true);
             row.addView(nm, new LinearLayout.LayoutParams(0, -2, 1f));
             boolean toggle = item == SHOW_APPS || item == ART || item == BATTERY;
-            TextView val = host.text(value, 28, toggle && value.equals("On") ? (on ? 0xFF1F7A3A : 0xFF8BE28F) : on ? 0xBF17131F : 0xB3FFFFFF, toggle);
+            TextView val = host.text(value, 28, toggle && value.equals("On") ? (on ? 0xFF1F7A3A : 0xFF8BE28F) : on ? Theme.t().onSelected(0xBF) : Theme.t().ink(0xB3), toggle);
             row.addView(val);
             final int idx = i;
             row.setOnClickListener(x -> { index = idx; choose(item); });
@@ -402,7 +423,7 @@ final class MenuPanel {
             rp.topMargin = host.px(i == 0 ? 36 : 14);
             panel.addView(row, rp);
         }
-        TextView note = host.text("Apps are hidden from the shelves unless the switch is on. Open the list here any time.", 24, 0x99FFFFFF, false);
+        TextView note = host.text("Apps are hidden from the shelves unless the switch is on. Open the list here any time.", 24, Theme.t().ink(0x99), false);
         note.setLineSpacing(0, 1.2f);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, -2);
         np.topMargin = host.px(30);

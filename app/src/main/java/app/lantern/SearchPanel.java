@@ -203,26 +203,26 @@ final class SearchPanel {
     private void render() {
         view.removeAllViews();
         View dim = new View(ctx);
-        dim.setBackgroundColor(0xF20B0A10);
+        dim.setBackgroundColor(Theme.t().base(0xF2));
         dim.setClickable(true); // swallows touches so the shelf underneath is not tapped
         FrameLayout.LayoutParams dimp = new FrameLayout.LayoutParams(-1, -1);
         dimp.topMargin = host.px(104); // the tab bar stays above the keyboard: L1 and R1 still move between tabs
         view.addView(dim, dimp);
 
-        TextView head = host.text("Search", 56, Color.WHITE, true);
+        TextView head = host.text("Search", 56, Theme.t().ink, true);
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
         hp.leftMargin = host.px(HomeActivity.EDGE_L);
         hp.topMargin = host.px(DOWN + 110);
         view.addView(head, hp);
 
-        TextView box = host.text(draft.isEmpty() ? "Type a game name" : draft + "│", 44, draft.isEmpty() ? 0x66FFFFFF : Color.WHITE, false);
+        TextView box = host.text(draft.isEmpty() ? "Type a game name" : draft + "│", 44, draft.isEmpty() ? Theme.t().ink(0x66) : Theme.t().ink, false);
         box.setSingleLine(true);
         box.setGravity(Gravity.CENTER_VERTICAL);
         box.setPadding(host.px(28), 0, host.px(28), 0);
         GradientDrawable bd = new GradientDrawable();
         bd.setCornerRadius(host.px(18));
-        bd.setColor(0x1FFFFFFF);
-        bd.setStroke(host.px(3), HomeActivity.AMBER);
+        bd.setColor(Theme.t().ink(0x1F));
+        bd.setStroke(host.px(3), Theme.t().accent);
         box.setBackground(bd);
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(host.px(1040), host.px(96), Gravity.TOP | Gravity.START);
         bp.leftMargin = host.px(HomeActivity.EDGE_L);
@@ -236,11 +236,11 @@ final class SearchPanel {
                 final String k = KEYS[r][c];
                 boolean on = r == kbRow && c == kbCol;
                 boolean word = k.length() > 1;
-                TextView v = host.text(word ? k : k.toUpperCase(), word ? 26 : 38, on ? 0xFF17131F : Color.WHITE, true);
+                TextView v = host.text(word ? k : k.toUpperCase(), word ? 26 : 38, on ? Theme.t().onSelected : Theme.t().ink, true);
                 v.setGravity(Gravity.CENTER);
                 GradientDrawable kd = new GradientDrawable();
                 kd.setCornerRadius(host.px(16));
-                kd.setColor(on ? Color.WHITE : k.equals("OK") ? 0x40FFB454 : 0x1AFFFFFF);
+                kd.setColor(on ? Theme.t().selected : k.equals("OK") ? Theme.t().accent(0x40) : Theme.t().ink(0x1A));
                 v.setBackground(kd);
                 FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(host.px(cell), host.px(cell - 8), Gravity.TOP | Gravity.START);
                 kp.leftMargin = host.px(HomeActivity.EDGE_L + (r == 2 ? (cell + gap) / 2 : 0) + c * (cell + gap)); // the home row is indented, as on a keyboard
@@ -256,11 +256,11 @@ final class SearchPanel {
         }
 
         // Touch: close, and show the results.
-        TextView cancel = host.text("Cancel", 28, Color.WHITE, true);
+        TextView cancel = host.text("Cancel", 28, Theme.t().ink, true);
         cancel.setGravity(Gravity.CENTER);
         GradientDrawable cdr = new GradientDrawable();
         cdr.setCornerRadius(host.px(99));
-        cdr.setColor(0x24FFFFFF);
+        cdr.setColor(Theme.t().ink(0x24));
         cancel.setBackground(cdr);
         cancel.setOnClickListener(x -> close());
         FrameLayout.LayoutParams cap = new FrameLayout.LayoutParams(host.px(170), host.px(64), Gravity.TOP | Gravity.START);
@@ -274,7 +274,7 @@ final class SearchPanel {
         col.setOrientation(LinearLayout.VERTICAL);
         String sum = draft.trim().isEmpty() ? "Start typing to search"
                 : hits.size() + (hits.size() == 1 ? " game" : " games");
-        TextView sumView = host.text(sum, 28, HomeActivity.AMBER, true);
+        TextView sumView = host.text(sum, 28, Theme.t().accent, true);
         if (!hits.isEmpty()) {
             sumView.setText(sum + "  —  tap to show all");
             sumView.setOnClickListener(x -> apply());
@@ -284,11 +284,11 @@ final class SearchPanel {
             final Game g = hits.get(i);
             LinearLayout row = new LinearLayout(ctx);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            TextView name = host.text(g.title, 30, Color.WHITE, false);
+            TextView name = host.text(g.title, 30, Theme.t().ink, false);
             name.setSingleLine(true);
             name.setEllipsize(android.text.TextUtils.TruncateAt.END);
             row.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
-            row.addView(host.text(g.system, 22, 0x99FFFFFF, false));
+            row.addView(host.text(g.system, 22, Theme.t().ink(0x99), false));
             row.setPadding(0, host.px(6), 0, host.px(6));
             row.setOnClickListener(x -> pick(g));
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
@@ -296,7 +296,7 @@ final class SearchPanel {
             col.addView(row, rp);
         }
         if (hits.size() > 6) {
-            TextView more = host.text("and " + (hits.size() - 6) + " more", 24, 0x99FFFFFF, false);
+            TextView more = host.text("and " + (hits.size() - 6) + " more", 24, Theme.t().ink(0x99), false);
             LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-2, -2);
             mp.topMargin = host.px(18);
             col.addView(more, mp);

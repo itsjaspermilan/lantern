@@ -12,6 +12,13 @@ but never confirmed on a device.
   `VERSION_NAME` / `VERSION_CODE` in `build.sh`, tag `vX.Y`, attach the APK and its SHA-256.
 - GitHub: turn on Issues, add topics (android, launcher, retro-gaming, libretro).
 
+## Colour themes
+
+*Select > Colours* steps through four themes (Lantern, Ember, Ocean, Night); a roles table is in `Theme.java`. Only the
+home screen, its menu, the search and the details page use it so far. Open: the in-game menu (`PlayerMenu`) and the
+Emulators page still have fixed colours, and `Cover` keeps white text over art on purpose; a light theme would need the
+blur, glow and shadows rethought; changing a theme rebuilds the screen (no live fade between themes).
+
 ## N64 follow-ups
 
 N64 works (Mupen64Plus-Next, OpenGL ES). Checked only with Super Mario 64 on the Pocket 6: 60 fps, sound, menu, resume.

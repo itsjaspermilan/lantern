@@ -30,6 +30,7 @@ an app. Press A and you are playing. There are no menus to dig through, and ever
   per game or per console, fast-forward, integer scaling and scanlines.
 - **Cover art** from your own pictures, or fetched from the public libretro thumbnail server if you turn that on
   (it is off by default). Games without art get a generated tile.
+- **Colour themes**: press Select, then pick *Colours* (Lantern, Ember, Ocean or Night).
 - Smooth, direction-aware motion: the screen moves the way you press.
 
 <p align="center">

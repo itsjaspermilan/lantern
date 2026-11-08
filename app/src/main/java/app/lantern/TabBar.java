@@ -71,7 +71,7 @@ final class TabBar {
         fp.rightMargin = host.px(22);
         top.addView(logo, fp);
         // Spaced capitals with a lantern-lit gradient; the first letter is the warmest.
-        final TextView word = host.text("LANTERN", 30, Color.WHITE, true);
+        final TextView word = host.text("LANTERN", 30, Theme.t().ink, true);
         word.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         word.setLetterSpacing(0.3f);
         word.setShadowLayer(host.px(12), 0, 0, 0x55FFB454);
@@ -87,7 +87,7 @@ final class TabBar {
         tabPill = new View(ctx);
         pillBg = new GradientDrawable();
         pillBg.setCornerRadius(host.px(99));
-        pillBg.setColor(DEFAULT_PILL);
+        pillBg.setColor(Theme.t().ink(0x2E));
         tabPill.setBackground(pillBg);
         tabHost.addView(tabPill, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
         tabHost.addView(tabs, new FrameLayout.LayoutParams(-1, -2));
@@ -95,9 +95,9 @@ final class TabBar {
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(host.px(1000), -2);
         tp.leftMargin = host.px(60);
         top.addView(tabHost, tp);
-        tabs.addView(host.glyph("L1", Color.WHITE, false));
+        tabs.addView(host.glyph("L1", Theme.t().ink, false));
         for (String name : names) {
-            TextView t = host.text(name, 32, Color.WHITE, false);
+            TextView t = host.text(name, 32, Theme.t().ink, false);
             t.setPadding(host.px(18), host.px(6), host.px(18), host.px(10));
             t.setSingleLine(true);
             t.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -108,7 +108,7 @@ final class TabBar {
             tabs.addView(t, lp);
             tabViews.add(t);
         }
-        tabs.addView(host.glyph("R1", Color.WHITE, false));
+        tabs.addView(host.glyph("R1", Theme.t().ink, false));
         tabNat = new float[names.length];
         android.graphics.Paint bold = new android.graphics.Paint(tabViews.get(0).getPaint());
         bold.setTypeface(Typeface.DEFAULT_BOLD);
@@ -118,7 +118,7 @@ final class TabBar {
         top.addView(new View(ctx), new LinearLayout.LayoutParams(0, 1, 1f));
         batteryBox = new LinearLayout(ctx);
         batteryBox.setGravity(Gravity.CENTER_VERTICAL);
-        batteryNum = host.text("", 36, Color.WHITE, false);
+        batteryNum = host.text("", 36, Theme.t().ink, false);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-2, -2);
         np.rightMargin = host.px(10);
         batteryBox.addView(batteryNum, np);
@@ -130,12 +130,12 @@ final class TabBar {
         top.addView(batteryBox, bp);
         clock = new TextClock(ctx);
         setClock24(clock24);
-        clock.setTextColor(Color.WHITE);
+        clock.setTextColor(Theme.t().ink);
         clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, host.px(36 * HomeActivity.FONT));
         top.addView(clock);
     }
 
-    private static final int DEFAULT_PILL = 0x2EFFFFFF;
+
 
     /** The strip itself, to put at the top of the screen (120 mockup pixels tall). */
     View view() {
@@ -173,14 +173,14 @@ final class TabBar {
             float bodyR = w - nub - 1f;
             p.setStyle(android.graphics.Paint.Style.STROKE);
             p.setStrokeWidth(stroke);
-            p.setColor(Color.WHITE);
+            p.setColor(Theme.t().ink);
             android.graphics.RectF body = new android.graphics.RectF(stroke / 2, stroke / 2, bodyR - stroke / 2, h - stroke / 2);
             cv.drawRoundRect(body, h * .22f, h * .22f, p);
             p.setStyle(android.graphics.Paint.Style.FILL);
             cv.drawRoundRect(new android.graphics.RectF(bodyR, h * .32f, w, h * .68f), nub / 2, nub / 2, p);
             float in = stroke * 2.1f, fw = (bodyR - in * 2) * Math.max(0, Math.min(100, level)) / 100f;
             // Green while charging; otherwise yellow when low (30 or less) and red when very low (15 or less).
-            p.setColor(charging ? 0xFF5BD66F : level <= 15 ? 0xFFFF5A4F : level <= 30 ? 0xFFFFC94D : Color.WHITE);
+            p.setColor(charging ? 0xFF5BD66F : level <= 15 ? 0xFFFF5A4F : level <= 30 ? 0xFFFFC94D : Theme.t().ink);
             if (fw > 0) cv.drawRoundRect(new android.graphics.RectF(in, in, in + Math.max(fw, h * .1f), h - in), h * .1f, h * .1f, p);
             if (charging) { // a bolt over the middle, dark with a white edge so it shows on the fill and on the gap
                 float cx = bodyR / 2f, t = h * .14f, b = h * .86f, hw = h * .2f;
@@ -192,11 +192,11 @@ final class TabBar {
                 bolt.lineTo(cx + hw, h * .42f);
                 bolt.lineTo(cx + hw * .05f, h * .42f);
                 bolt.close();
-                p.setColor(0xFF17131F);
+                p.setColor(Theme.t().onSelected(0xFF));
                 cv.drawPath(bolt, p);
                 p.setStyle(android.graphics.Paint.Style.STROKE);
                 p.setStrokeWidth(stroke * .6f);
-                p.setColor(Color.WHITE);
+                p.setColor(Theme.t().ink);
                 cv.drawPath(bolt, p);
             }
         }
@@ -250,7 +250,7 @@ final class TabBar {
             stopMarquee();
             ct.postDelayed(() -> startMarquee(ct), 450); // after the tabs have settled into their new widths
         }
-        pillBg.setColor(hue >= 0 ? (0x55000000 | (0xFFFFFF & Color.HSVToColor(new float[]{hue, .45f, 1f}))) : DEFAULT_PILL);
+        pillBg.setColor(hue >= 0 ? (0x55000000 | (0xFFFFFF & Color.HSVToColor(new float[]{hue, .45f, 1f}))) : Theme.t().ink(0x2E));
         applyTabWeights(crumbAt);
         glidePill();
     }

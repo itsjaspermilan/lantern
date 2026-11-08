@@ -112,7 +112,7 @@ final class DetailsPage {
                 cp.setStrokeWidth(7 * host.scale());
                 cp.setStrokeCap(android.graphics.Paint.Cap.ROUND);
                 cp.setStrokeJoin(android.graphics.Paint.Join.ROUND);
-                cp.setColor(0xCCFFFFFF);
+                cp.setColor(Theme.t().ink(0xCC));
                 path.reset();
                 path.moveTo(.08f * w, .78f * h);
                 path.lineTo(.5f * w, .24f * h);
@@ -538,7 +538,7 @@ final class DetailsPage {
         // do not move when the page opens; only what is below them slides in.
         boolean hero = shelf.mode() == Shelf.HERO;
         if (hero) {
-            TextView eb = host.text(host.eyebrow(), 24, HomeActivity.AMBER, true);
+            TextView eb = host.text(host.eyebrow(), 24, Theme.t().accent, true);
             eb.setLetterSpacing(.16f);
             eb.setSingleLine(true);
             LinearLayout.LayoutParams ebp = new LinearLayout.LayoutParams(-2, -2);
@@ -547,7 +547,7 @@ final class DetailsPage {
             eyeb = eb;
         }
         float tk = hero ? Math.max(.62f, Math.min(1f, 24f / Math.max(1, g.title.length()))) : 1f;
-        TextView t = host.text(g.title, 84 * tk, Color.WHITE, true);
+        TextView t = host.text(g.title, 84 * tk, Theme.t().ink, true);
         t.setMaxLines(3);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         column.addView(t);
@@ -561,14 +561,14 @@ final class DetailsPage {
 
         LinearLayout meta = new LinearLayout(ctx);
         meta.setGravity(Gravity.CENTER_VERTICAL);
-        TextView chip = host.text(g.system.toUpperCase(), 26, Color.WHITE, true);
+        TextView chip = host.text(g.system.toUpperCase(), 26, Theme.t().ink, true);
         GradientDrawable cd = new GradientDrawable();
         cd.setCornerRadius(host.px(99));
-        cd.setColor(0x29FFFFFF);
+        cd.setColor(Theme.t().ink(0x29));
         chip.setBackground(cd);
         chip.setPadding(host.px(18), host.px(4), host.px(18), host.px(4));
         meta.addView(chip);
-        TextView when = host.text(g.lastPlayed == 0 ? "Never played" : "Played " + host.ago(g.lastPlayed), 30, 0xC7FFFFFF, false);
+        TextView when = host.text(g.lastPlayed == 0 ? "Never played" : "Played " + host.ago(g.lastPlayed), 30, Theme.t().ink(0xC7), false);
         LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-2, -2);
         wp.leftMargin = host.px(22);
         meta.addView(when, wp);
@@ -589,16 +589,16 @@ final class DetailsPage {
             row.setPadding(host.px(30), 0, host.px(30), 0);
             GradientDrawable rd = new GradientDrawable();
             rd.setCornerRadius(host.px(16));
-            rd.setColor(on ? Color.WHITE : 0x14FFFFFF);
+            rd.setColor(on ? Theme.t().selected : Theme.t().ink(0x14));
             row.setBackground(rd);
             if (on) row.setTranslationX(host.px(14));
-            int ink = on ? 0xFF17131F : Color.WHITE;
+            int ink = on ? Theme.t().onSelected : Theme.t().ink;
             TextView ic = host.text(a.icon, 30, ink, true);
             ic.setGravity(Gravity.CENTER);
             row.addView(ic, new LinearLayout.LayoutParams(host.px(46), -2));
             row.addView(host.text(a.label, 34, ink, true));
             row.addView(new View(ctx), new LinearLayout.LayoutParams(0, 1, 1f));
-            row.addView(host.text(a.hint, 24, on ? 0xBF17131F : 0xB3FFFFFF, false));
+            row.addView(host.text(a.hint, 24, on ? Theme.t().onSelected(0xBF) : Theme.t().ink(0xB3), false));
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(host.px(760), host.px(82));
             rp.bottomMargin = host.px(14);
             below.addView(row, rp);

@@ -30,7 +30,6 @@ import java.util.Map;
  * D-pad to browse, A to open, X to search. Every size below is in mockup pixels, scaled to the screen.
  */
 public class HomeActivity extends Activity {
-    static final int AMBER = 0xFF8FE3CF;
     private static final String[] TABS = {"Recent", "Systems", "All games", "Search"};
     private static final int TAB_SYSTEMS = 1, TAB_ALL = 2, TAB_SEARCH = 3;
     /** The tab to go back to when the search is left with B. */
@@ -49,6 +48,8 @@ public class HomeActivity extends Activity {
     private FrameLayout root, safe, stage;
     private LinearLayout infoBlock, hintsRow, menuHintRow;
     private DetailsPage details;
+    /** A new colour theme rebuilds the screen: the menu then opens again on its Colours row, so the choice can be stepped through. */
+    private static boolean reopenMenuOnTheme;
     private ArtFetcher fetcher;
     private boolean artOn;
     /** When set, the shelf shows only this system's games (opened from the Systems shelf). */
@@ -86,6 +87,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        Theme.load(this);
         // The screen is built once the window's real size is known: some devices keep space for
         // system bars even in full screen, and the 16:9 layout then has to fit what is left.
         if (android.os.Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
@@ -100,7 +102,7 @@ public class HomeActivity extends Activity {
                 post(HomeActivity.this::recompute);
             }
         };
-        root.setBackgroundColor(0xFF0B0A10);
+        root.setBackgroundColor(Theme.t().base);
         glow = new Glow(this, s);
         root.addView(glow, new FrameLayout.LayoutParams(-1, -1));
         // Everything that must stay readable sits inside `safe`, which is padded by whatever
@@ -156,7 +158,7 @@ public class HomeActivity extends Activity {
 
     private void buildUi() {
         safe.removeAllViews();
-        glow.to(0xFF2A2438, 0xFF14121C);
+        glow.to(Theme.t().glowA, Theme.t().glowB);
         stage = new FrameLayout(this);
         stage.setClipChildren(false); // on screens wider than 16:9 the row may run past the layout box
         safe.addView(stage, new FrameLayout.LayoutParams(u(1920), u(1080), Gravity.CENTER));
@@ -183,18 +185,18 @@ public class HomeActivity extends Activity {
         batteryNumber = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("batteryNumber", true);
         topBar = new TabBar(this, tabBarHost, TABS, clock24);
         stage.addView(topBar.view(), new FrameLayout.LayoutParams(-1, u(120), Gravity.TOP));
-        crumb = label("", 28, 0xCCFFFFFF, false);
+        crumb = label("", 28, Theme.t().ink(0xCC), false);
         crumb.setVisibility(View.GONE);
         FrameLayout.LayoutParams cr = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
         cr.leftMargin = u(EDGE_L);
         cr.topMargin = u(104);
         stage.addView(crumb, cr);
-        letterBadge = label("", 64, Color.WHITE, true);
+        letterBadge = label("", 64, Theme.t().ink, true);
         letterBadge.setGravity(Gravity.CENTER);
         GradientDrawable lb = new GradientDrawable();
         lb.setCornerRadius(u(28));
-        lb.setColor(0xCC17131F);
-        lb.setStroke(u(3), AMBER);
+        lb.setColor(Theme.t().onSelected(0xCC));
+        lb.setStroke(u(3), Theme.t().accent);
         letterBadge.setBackground(lb);
         letterBadge.setAlpha(0f);
         FrameLayout.LayoutParams lbp = new FrameLayout.LayoutParams(u(120), u(120), Gravity.TOP | Gravity.END);
@@ -216,10 +218,10 @@ public class HomeActivity extends Activity {
                 int at = Math.min(dotsAt, n - 1);
                 for (int i = 0; i < n; i++) {
                     if (i == at) {
-                        dp.setColor(AMBER);
+                        dp.setColor(Theme.t().accent);
                         c.drawRoundRect(x0 + i * sp - 13 * s, cy - r, x0 + i * sp + 13 * s, cy + r, r, r, dp);
                     } else {
-                        dp.setColor(0x80FFFFFF);
+                        dp.setColor(Theme.t().ink(0x80));
                         c.drawCircle(x0 + i * sp, cy, r * .8f, dp);
                     }
                 }
@@ -235,7 +237,7 @@ public class HomeActivity extends Activity {
         ucp.leftMargin = u(960 - 85);
         ucp.topMargin = u(38);
         stage.addView(details.chevron(), ucp);
-        empty = label("", 44, 0x99FFFFFF, true);
+        empty = label("", 44, Theme.t().ink(0x99), true);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(u(EDGE_L), 0, u(EDGE_L), 0);
         stage.addView(empty, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
@@ -250,33 +252,37 @@ public class HomeActivity extends Activity {
         if (loaded) {
             refresh(true);
         }
+        if (reopenMenuOnTheme && loaded) { // after the library has loaded: that rebuilds the screen once more
+            reopenMenuOnTheme = false;
+            menu.openOn(MenuPanel.THEME);
+        }
     }
 
     private void buildInfo() {
         LinearLayout info = new LinearLayout(this);
         infoBlock = info;
         info.setOrientation(LinearLayout.VERTICAL);
-        eyebrow = label("", 24, AMBER, true);
+        eyebrow = label("", 24, Theme.t().accent, true);
         eyebrow.setLetterSpacing(.16f);
         eyebrow.setSingleLine(true);
         eyebrow.setVisibility(View.GONE);
         LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-2, -2);
         ep.bottomMargin = u(8);
         info.addView(eyebrow, ep);
-        title =label("", 76, Color.WHITE, true);
+        title =label("", 76, Theme.t().ink, true);
         title.setSingleLine(true);
         info.addView(title);
 
         LinearLayout meta = new LinearLayout(this);
         meta.setGravity(Gravity.CENTER_VERTICAL);
-        chipView = label("", 26, Color.WHITE, true);
+        chipView = label("", 26, Theme.t().ink, true);
         GradientDrawable cd = new GradientDrawable();
         cd.setCornerRadius(u(99));
-        cd.setColor(0x29FFFFFF);
+        cd.setColor(Theme.t().ink(0x29));
         chipView.setBackground(cd);
         chipView.setPadding(u(18), u(4), u(18), u(4));
         meta.addView(chipView);
-        when = label("", 30, 0xC7FFFFFF, false);
+        when = label("", 30, Theme.t().ink(0xC7), false);
         LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-2, -2);
         wp.leftMargin = u(22);
         meta.addView(when, wp);
@@ -284,14 +290,14 @@ public class HomeActivity extends Activity {
         mp.topMargin = u(14);
         info.addView(meta, mp);
 
-        sub = label("", 30, AMBER, false);
+        sub = label("", 30, Theme.t().accent, false);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
         sp.topMargin = u(16);
         info.addView(sub, sp);
 
         playPill = new PlayPill(this);
         playPill.setTextSize(TypedValue.COMPLEX_UNIT_PX, 36 * FONT * s);
-        playPill.setTextColor(Color.WHITE);
+        playPill.setTextColor(Theme.t().ink);
         playPill.setShadowLayer(u(3), 0, u(1.5f), 0x59000000); // a soft shadow keeps the white text crisp
         playPill.setTypeface(Typeface.DEFAULT_BOLD);
         playPill.setPadding(u(44), u(14), u(44), u(14));
@@ -428,7 +434,7 @@ public class HomeActivity extends Activity {
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
         bottom.setPadding(u(EDGE_L), 0, u(EDGE_R), 0);
-        banner = label("", 28, AMBER, true);
+        banner = label("", 28, Theme.t().accent, true);
         banner.setVisibility(View.GONE); // no longer used: the Start hint says what is needed
         bottom.addView(banner);
 
@@ -449,7 +455,7 @@ public class HomeActivity extends Activity {
         LinearLayout h = new LinearLayout(this);
         h.setGravity(Gravity.CENTER_VERTICAL);
         h.addView(glyph);
-        TextView t = label(text, 28, 0xD1FFFFFF, false);
+        TextView t = label(text, 28, Theme.t().ink(0xD1), false);
         t.setPadding(u(12), 0, 0, 0);
         h.addView(t);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -799,7 +805,7 @@ public class HomeActivity extends Activity {
             chipView.setVisibility(View.GONE);
             sub.setText("");
             playPill.setVisibility(View.GONE);
-            glow.to(0xFF2A2438, 0xFF14121C);
+            glow.to(Theme.t().glowA, Theme.t().glowB);
             glow.art(null);
         }
     }
@@ -860,7 +866,7 @@ public class HomeActivity extends Activity {
                     : Cores.has(this, g.sysId) ? "Plays in Lantern's built-in player"
                     : Cores.infoFor(g.sysId) != null ? "Add its emulator from the menu (Select)"
                     : "No emulator for this system yet");
-            glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .46f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .28f})); // the game's colours, a little dark
+            glow.to(Theme.t().glowOne(g.hue), Theme.t().glowTwo(g.hue)); // the game's colours, a little dark
             glow.art(null);
             compactInfo();
             boolean heroMode = shelf.mode() == Shelf.HERO;
@@ -884,7 +890,7 @@ public class HomeActivity extends Activity {
         sub.setText(g.isRom() && !Cores.has(this, g.sysId)
                 ? (Cores.infoFor(g.sysId) != null ? "Press A to add the emulator for " + g.system : "No emulator for " + g.system + " yet")
                 : saved > 0 ? "Resume available · saved " + ago(saved) : "Ready to play");
-        glow.to(Color.HSVToColor(new float[]{g.hue, .60f, .46f}), Color.HSVToColor(new float[]{(g.hue + 35) % 360, .60f, .28f})); // the game's colours, a little dark
+        glow.to(Theme.t().glowOne(g.hue), Theme.t().glowTwo(g.hue)); // the game's colours, a little dark
         glow.art(null); // no blurred cover behind the screen: just the colours
         compactInfo();
         if (shelf.mode() == Shelf.HERO) {
@@ -1044,7 +1050,7 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Select");
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Close");
         } else if (searchOpen()) {
-            hint(menuHintRow, glyph("Select", Color.WHITE, false), "Menu");
+            hint(menuHintRow, glyph("Select", Theme.t().ink, false), "Menu");
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), "Type");
             hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Delete");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Show results");
@@ -1054,12 +1060,12 @@ public class HomeActivity extends Activity {
             hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
         } else {
             hint(hintsRow, glyph("A", 0xFF8BE28F, true), shelf != null && shelf.mode() == Shelf.HERO && !heroAll ? "Play" : "Open");
-            if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("▼", Color.WHITE, true), "Details");
+            if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("▼", Theme.t().ink, true), "Details");
             if (shelf != null && shelf.mode() == Shelf.HERO && !heroAll) hint(hintsRow, glyph("Y", 0xFFFFD36E, true), "Remove");
             hint(hintsRow, glyph("X", 0xFF8FC7FF, true), "Search");
             if (filter != null || tab == TAB_SEARCH) hint(hintsRow, glyph("B", 0xFFFF8F8F, true), "Back");
             // Select opens the menu: settings, file access and the Android apps list.
-            hint(menuHintRow, glyph("Select", Color.WHITE, false), Library.hasFileAccess() ? "Menu" : "Menu (file access)");
+            hint(menuHintRow, glyph("Select", Theme.t().ink, false), Library.hasFileAccess() ? "Menu" : "Menu (file access)");
         }
     }
 
@@ -1159,6 +1165,18 @@ public class HomeActivity extends Activity {
             batteryNumber = !batteryNumber;
             getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("batteryNumber", batteryNumber).apply();
             topBar.setBattery(batteryLevel, batteryCharging, batteryNumber);
+        }
+
+        @Override
+        public String themeName() {
+            return Theme.t().name;
+        }
+
+        @Override
+        public void stepTheme(int dir) {
+            Theme.step(HomeActivity.this, dir);
+            reopenMenuOnTheme = true;
+            recreate();
         }
 
         @Override

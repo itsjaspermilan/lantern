@@ -16,8 +16,8 @@ final class Glow extends View {
     private static final ArgbEvaluator EVAL = new ArgbEvaluator();
     private final Paint p = new Paint();
     private final float s;
-    private int a1 = 0xFF2A2438;
-    private int a2 = 0xFF14121C;
+    private int a1 = Theme.t().glowA;
+    private int a2 = Theme.t().glowB;
     private ValueAnimator anim;
     private Bitmap cur, prev;
     private float fade = 1f;
@@ -70,7 +70,7 @@ final class Glow extends View {
     @Override
     protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight();
-        c.drawColor(0xFF0B0A10);
+        c.drawColor(Theme.t().base);
         drawArt(c, prev, .50f * (1f - fade));
         drawArt(c, cur, .50f * fade);
         pool(c, w * .28f, h * .45f, 1250 * s, a1, .70f);

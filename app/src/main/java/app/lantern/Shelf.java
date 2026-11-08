@@ -40,10 +40,12 @@ final class Shelf extends ViewGroup {
     private static final float LEFT = 90, RIGHT = 70, GRID_TOP = 150, GRID_BOTTOM = 860, GAP = 24;
     // Every grid tile, games and systems, is the same landscape rectangle (like SteamOS); covers are fitted inside it.
     // Each tile also has a LABEL strip under it for the title.
+    /** Grids never have more than this many columns. */
+    private static final int MAX_COLS = 4;
     private static final float DEF_W = 330, DEF_H = 200, SYS_W = 330, SYS_H = 200, LABEL = 42;
     // The hero tile and the small row beside and below it.
     // The big tile and the row under it are the same landscape shape as the grid tiles (about 1.65 : 1).
-    private static final float HERO_W = 720, HERO_H = 436, HERO_Y = 150; // the same size and place as the cover on the details page
+    private static final float HERO_W = 720, HERO_H = 436, HERO_Y = 200; // the same size and place as the cover on the details page
     private static final float SMALL_X = 90, SMALL_W = 336, SMALL_H = 204, SMALL_GAP = 24, SMALL_BOTTOM = 952;
     /** How many recent games the hero layout carries. The focused one is large; the next six show beside it. */
     static final int HERO_COUNT = 12;
@@ -177,7 +179,7 @@ final class Shelf extends ViewGroup {
 
     private int cols() {
         float w = cellW();
-        return Math.max(1, (int) Math.floor((1920 - LEFT - RIGHT + GAP) / (w + GAP)));
+        return Math.max(1, Math.min(MAX_COLS, (int) Math.floor((1920 - LEFT - RIGHT + GAP) / (w + GAP))));
     }
 
     private float cellW() {

@@ -46,7 +46,9 @@ final class TabBar {
     private final GradientDrawable pillBg;
     private final List<TextView> tabViews = new ArrayList<>();
     private final float[] tabNat;
-    private final TextView battery;
+    private final TextView batteryNum;
+    private final BatteryIcon batteryIcon;
+    private final LinearLayout batteryBox;
     private final TextClock clock;
     private int active = -1;
     private int pillX, pillW;
@@ -110,10 +112,18 @@ final class TabBar {
         applyTabWeights(-1);
 
         top.addView(new View(ctx), new LinearLayout.LayoutParams(0, 1, 1f));
-        battery = host.text("", 30, Color.WHITE, false);
+        batteryBox = new LinearLayout(ctx);
+        batteryBox.setGravity(Gravity.CENTER_VERTICAL);
+        batteryNum = host.text("", 30, Color.WHITE, false);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-2, -2);
+        np.rightMargin = host.px(10);
+        batteryBox.addView(batteryNum, np);
+        batteryIcon = new BatteryIcon(ctx);
+        batteryBox.addView(batteryIcon, new LinearLayout.LayoutParams(host.px(52), host.px(26)));
+        batteryBox.setVisibility(View.GONE); // until the level is known
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
         bp.rightMargin = host.px(26);
-        top.addView(battery, bp);
+        top.addView(batteryBox, bp);
         clock = new TextClock(ctx);
         setClock24(clock24);
         clock.setTextColor(Color.WHITE);
@@ -128,8 +138,63 @@ final class TabBar {
         return top;
     }
 
-    void setBattery(String text) {
-        battery.setText(text);
+    /** The battery: a drawn icon (with a bolt while charging), and the number beside it if showNumber. level < 0: unknown. */
+    void setBattery(int level, boolean charging, boolean showNumber) {
+        batteryBox.setVisibility(level < 0 ? View.GONE : View.VISIBLE);
+        batteryIcon.set(level, charging);
+        batteryNum.setText(String.valueOf(level));
+        batteryNum.setVisibility(showNumber ? View.VISIBLE : View.GONE);
+    }
+
+    /** A small battery drawn in white: the outline, a fill for the level (red when low), and a bolt when charging. */
+    private static final class BatteryIcon extends View {
+        private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path bolt = new android.graphics.Path();
+        private int level;
+        private boolean charging;
+
+        BatteryIcon(Context c) {
+            super(c);
+        }
+
+        void set(int level, boolean charging) {
+            this.level = level;
+            this.charging = charging;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas cv) {
+            float w = getWidth(), h = getHeight(), stroke = h * .09f, nub = w * .07f;
+            float bodyR = w - nub - 1f;
+            p.setStyle(android.graphics.Paint.Style.STROKE);
+            p.setStrokeWidth(stroke);
+            p.setColor(Color.WHITE);
+            android.graphics.RectF body = new android.graphics.RectF(stroke / 2, stroke / 2, bodyR - stroke / 2, h - stroke / 2);
+            cv.drawRoundRect(body, h * .22f, h * .22f, p);
+            p.setStyle(android.graphics.Paint.Style.FILL);
+            cv.drawRoundRect(new android.graphics.RectF(bodyR, h * .32f, w, h * .68f), nub / 2, nub / 2, p);
+            float in = stroke * 2.1f, fw = (bodyR - in * 2) * Math.max(0, Math.min(100, level)) / 100f;
+            p.setColor(level <= 15 && !charging ? 0xFFFF5A4F : Color.WHITE);
+            if (fw > 0) cv.drawRoundRect(new android.graphics.RectF(in, in, in + Math.max(fw, h * .1f), h - in), h * .1f, h * .1f, p);
+            if (charging) { // a bolt over the middle, dark with a white edge so it shows on the fill and on the gap
+                float cx = bodyR / 2f, t = h * .14f, b = h * .86f, hw = h * .2f;
+                bolt.reset();
+                bolt.moveTo(cx + hw * .3f, t);
+                bolt.lineTo(cx - hw, h * .55f);
+                bolt.lineTo(cx - hw * .05f, h * .55f);
+                bolt.lineTo(cx - hw * .3f, b);
+                bolt.lineTo(cx + hw, h * .42f);
+                bolt.lineTo(cx + hw * .05f, h * .42f);
+                bolt.close();
+                p.setColor(0xFF17131F);
+                cv.drawPath(bolt, p);
+                p.setStyle(android.graphics.Paint.Style.STROKE);
+                p.setStrokeWidth(stroke * .6f);
+                p.setColor(Color.WHITE);
+                cv.drawPath(bolt, p);
+            }
+        }
     }
 
     void setClock24(boolean h24) {

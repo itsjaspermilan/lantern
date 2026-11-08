@@ -33,6 +33,10 @@ final class MenuPanel {
 
         boolean clock24();
 
+        boolean batteryNumber();
+
+        void toggleBatteryNumber();
+
         boolean hasFileAccess();
 
         void toggleShowApps();
@@ -56,7 +60,7 @@ final class MenuPanel {
         void coresChanged();
     }
 
-    private static final int APPS = 0, SHOW_APPS = 1, ART = 2, FILES = 3, CLOCK = 4, CORES = 5;
+    private static final int APPS = 0, SHOW_APPS = 1, ART = 2, FILES = 3, CLOCK = 4, CORES = 5, BATTERY = 6;
     private static final int WIDTH = 760;
 
     private final Context ctx;
@@ -92,6 +96,7 @@ final class MenuPanel {
         l.add(SHOW_APPS);
         l.add(ART);
         l.add(CLOCK);
+        l.add(BATTERY);
         l.add(CORES);
         if (!host.hasFileAccess()) l.add(FILES);
         return l;
@@ -160,6 +165,10 @@ final class MenuPanel {
                 break;
             case CLOCK:
                 host.toggleClock();
+                render();
+                break;
+            case BATTERY:
+                host.toggleBatteryNumber();
                 render();
                 break;
             case FILES:
@@ -369,6 +378,7 @@ final class MenuPanel {
                 case SHOW_APPS: name = "Show apps on every shelf"; value = host.showApps() ? "On" : "Off"; break;
                 case ART: name = "Cover art"; value = host.coverArt() ? "On" : "Off"; break;
                 case CLOCK: name = "Clock"; value = host.clock24() ? "24 hour" : "12 hour"; break;
+                case BATTERY: name = "Battery number"; value = host.batteryNumber() ? "On" : "Off"; break;
                 case CORES: name = "Emulators"; value = installedCount() + " of " + Cores.CATALOG.length + "  ›"; break;
                 default: name = "Allow file access"; value = "›";
             }
@@ -383,7 +393,7 @@ final class MenuPanel {
             TextView nm = host.text(name, 30, ink, true);
             nm.setSingleLine(true);
             row.addView(nm, new LinearLayout.LayoutParams(0, -2, 1f));
-            boolean toggle = item == SHOW_APPS || item == ART;
+            boolean toggle = item == SHOW_APPS || item == ART || item == BATTERY;
             TextView val = host.text(value, 28, toggle && value.equals("On") ? (on ? 0xFF1F7A3A : 0xFF8BE28F) : on ? 0xBF17131F : 0xB3FFFFFF, toggle);
             row.addView(val);
             final int idx = i;

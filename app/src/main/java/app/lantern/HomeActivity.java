@@ -44,7 +44,8 @@ public class HomeActivity extends Activity {
     static final float FONT = 1.1f;
     static final int EDGE_L = 90, EDGE_R = 70;
     private boolean loaded;
-    private String batteryText = "";
+    private int batteryLevel = -1;
+    private boolean batteryCharging, batteryNumber;
     private FrameLayout root, safe, stage;
     private LinearLayout infoBlock, hintsRow;
     private DetailsPage details;
@@ -179,6 +180,7 @@ public class HomeActivity extends Activity {
         });
         stage.addView(shelf, new FrameLayout.LayoutParams(-1, -1));
         clock24 = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("clock24", android.text.format.DateFormat.is24HourFormat(this));
+        batteryNumber = getSharedPreferences("lantern", MODE_PRIVATE).getBoolean("batteryNumber", true);
         topBar = new TabBar(this, tabBarHost, TABS, clock24);
         stage.addView(topBar.view(), new FrameLayout.LayoutParams(-1, u(120), Gravity.TOP));
         crumb = label("", 28, 0xCCFFFFFF, false);
@@ -244,7 +246,7 @@ public class HomeActivity extends Activity {
         menu = new MenuPanel(this, menuHost);
         stage.addView(menu.view(), new FrameLayout.LayoutParams(-1, -1));
 
-        topBar.setBattery(batteryText);
+        topBar.setBattery(batteryLevel, batteryCharging, batteryNumber);
         if (loaded) {
             refresh(true);
         }
@@ -325,7 +327,7 @@ public class HomeActivity extends Activity {
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
         infoLp.leftMargin = u(hero ? 870 : EDGE_L);
-        infoLp.topMargin = u(hero ? 150 : 866);
+        infoLp.topMargin = u(hero ? 200 : 866);
         infoLp.width = u(hero ? 980 : 1700);
         eyebrow.setVisibility(hero ? View.VISIBLE : View.GONE);
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? 84 : 52) * FONT * s);
@@ -401,9 +403,29 @@ public class HomeActivity extends Activity {
 
     // ---- lifecycle ----
 
+    private final android.content.BroadcastReceiver batteryReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context c, Intent i) {
+            readBattery(i);
+        }
+    };
+
+    private void readBattery(Intent b) {
+        if (b == null) return;
+        int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+        int status = b.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+        batteryLevel = level >= 0 ? level * 100 / Math.max(1, scale) : -1;
+        batteryCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
+        if (topBar != null) topBar.setBattery(batteryLevel, batteryCharging, batteryNumber);
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
+        try {
+            unregisterReceiver(batteryReceiver);
+        } catch (IllegalArgumentException ignored) {
+        }
         if (topBar != null) topBar.pause(true);
     }
 
@@ -423,12 +445,7 @@ public class HomeActivity extends Activity {
         ArtCache.clearShots();
         Library.forgetFileFacts(); // the player (another process) may have saved a resume point or added play time
         unveil(true);
-        Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-        if (b != null) {
-            int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
-            batteryText = level >= 0 ? (level * 100 / scale) + "%" : "";
-            if (topBar != null) topBar.setBattery(batteryText);
-        }
+        readBattery(registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED))); // and again on every change
         // When a cover finishes decoding, its colour may change the glow behind the focused game.
         ArtCache.setListener(g -> {
             int i = shelf == null ? -1 : shelf.getIndex();
@@ -1039,6 +1056,18 @@ public class HomeActivity extends Activity {
         @Override
         public void toggleCoverArt() {
             toggleArt();
+        }
+
+        @Override
+        public boolean batteryNumber() {
+            return batteryNumber;
+        }
+
+        @Override
+        public void toggleBatteryNumber() {
+            batteryNumber = !batteryNumber;
+            getSharedPreferences("lantern", MODE_PRIVATE).edit().putBoolean("batteryNumber", batteryNumber).apply();
+            topBar.setBattery(batteryLevel, batteryCharging, batteryNumber);
         }
 
         @Override

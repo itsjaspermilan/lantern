@@ -36,8 +36,8 @@ final class UiIcons {
             case "Y": return "btn_y";
             case "L1": return "btn_l";
             case "R1": return "btn_r";
-            case "Select": return "btn_minus";
-            case "Start": return "btn_plus";
+            case "Select": return "btn_square";
+            case "Start": return "btn_triangle";
             case "▲ ▼": return "dpad_vertical";
             case "◀ ▶": return "dpad_horizontal";
             case "◀ ▶ ▲ ▼": return "dpad_all";

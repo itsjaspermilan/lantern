@@ -175,7 +175,8 @@ final class TabBar {
             p.setStyle(android.graphics.Paint.Style.FILL);
             cv.drawRoundRect(new android.graphics.RectF(bodyR, h * .32f, w, h * .68f), nub / 2, nub / 2, p);
             float in = stroke * 2.1f, fw = (bodyR - in * 2) * Math.max(0, Math.min(100, level)) / 100f;
-            p.setColor(level <= 15 && !charging ? 0xFFFF5A4F : Color.WHITE);
+            // Green while charging; otherwise yellow when low (30 or less) and red when very low (15 or less).
+            p.setColor(charging ? 0xFF5BD66F : level <= 15 ? 0xFFFF5A4F : level <= 30 ? 0xFFFFC94D : Color.WHITE);
             if (fw > 0) cv.drawRoundRect(new android.graphics.RectF(in, in, in + Math.max(fw, h * .1f), h - in), h * .1f, h * .1f, p);
             if (charging) { // a bolt over the middle, dark with a white edge so it shows on the fill and on the gap
                 float cx = bodyR / 2f, t = h * .14f, b = h * .86f, hw = h * .2f;

@@ -30,7 +30,7 @@ import java.util.Map;
  * D-pad to browse, A to open, X to search. Every size below is in mockup pixels, scaled to the screen.
  */
 public class HomeActivity extends Activity {
-    static final int AMBER = 0xFFFF9E7A;
+    static final int AMBER = 0xFF8FE3CF;
     private static final String[] TABS = {"Recent", "Systems", "All games", "Search"};
     private static final int TAB_SYSTEMS = 1, TAB_ALL = 2, TAB_SEARCH = 3;
     /** The tab to go back to when the search is left with B. */
@@ -56,7 +56,7 @@ public class HomeActivity extends Activity {
     private int loadGeneration;
     private Glow glow;
     private Shelf shelf;
-    private TextView playPill;
+    private PlayPill playPill;
     /** The highlight behind the active tab: it glides from tab to tab and grows or shrinks with the label. */
     private TextView eyebrow;
     private Game lastFocused;
@@ -291,12 +291,10 @@ public class HomeActivity extends Activity {
 
         playPill = new PlayPill(this);
         playPill.setTextSize(TypedValue.COMPLEX_UNIT_PX, 36 * FONT * s);
-        playPill.setTextColor(0xFF2A1420);
+        playPill.setTextColor(Color.WHITE);
+        playPill.setShadowLayer(u(3), 0, u(1.5f), 0x59000000); // a soft shadow keeps the white text crisp
         playPill.setTypeface(Typeface.DEFAULT_BOLD);
         playPill.setPadding(u(44), u(14), u(44), u(14));
-        GradientDrawable pd = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFFA07A, 0xFFFF7F96}); // coral to rose
-        pd.setCornerRadius(u(99));
-        playPill.setBackground(pd);
         info.setClipChildren(false); // the button's ring breathes out past its edge
         playPill.setVisibility(View.GONE);
         View gap = new View(this); // on Recent this takes the spare height, so the button sits at the foot of the block
@@ -374,7 +372,7 @@ public class HomeActivity extends Activity {
         infoLp.leftMargin = u(hero ? 870 : EDGE_L);
         infoLp.topMargin = u(hero ? 164 : 866); // Recent: the title starts level with the big tile's top edge
         infoLp.width = u(hero ? 980 : 1700);
-        infoLp.height = hero ? u(HERO_BOTTOM - 164) : -2; // Recent: the block ends level with the bottom of the big tile
+        infoLp.height = hero ? u(HERO_BOTTOM - 14 - 164) : -2; // (14: the button's ring reaches that far below it) // Recent: the block ends level with the bottom of the big tile
         eyebrow.setVisibility(View.GONE); // its text is still kept: the details page shows it
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? HERO_TITLE : 52) * FONT * s);
         title.setSingleLine(true);
@@ -866,6 +864,7 @@ public class HomeActivity extends Activity {
             glow.art(null);
             compactInfo();
             boolean heroMode = shelf.mode() == Shelf.HERO;
+            playPill.setHue(g.hue);
             playPill.setVisibility(heroMode ? View.VISIBLE : View.GONE);
             playPill.setText("\u25A6  Browse all");
             return;
@@ -900,6 +899,7 @@ public class HomeActivity extends Activity {
                 sub.animate().alpha(1f).setStartDelay(120).setDuration(280).start();
             }
             boolean h = true; // the selected game is always the big one
+            playPill.setHue(g.hue);
             playPill.setVisibility(View.VISIBLE);
             playPill.setText(saved > 0 ? "\u25B6  Resume" : "\u25B6  Play");
             if (h != heroFocused) {

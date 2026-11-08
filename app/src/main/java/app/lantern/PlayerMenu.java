@@ -57,7 +57,7 @@ final class PlayerMenu extends FrameLayout {
     static final String[] EFFECT = {"Off", "Scanlines"};
     static final String[] FAST = {"2×", "3×", "4×", "Max"};
 
-    private static final int AMBER = 0xFFFF9E7A;
+    private static final int AMBER = 0xFF8FE3CF;
     private static final String[] MAIN = {"Continue", "Save", "Load", "Options", "Controls", "Quit"};
     private static final String[] MAIN_CHEATS = {"Continue", "Save", "Load", "Options", "Controls", "Cheats", "Quit"};
     /** Level 3 rows: where changes are kept, the 16 buttons (Controls.ORDER), then reset. */

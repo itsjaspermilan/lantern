@@ -21,7 +21,7 @@ import android.view.View;
  * the art is generated from the game's colours.
  */
 final class Cover extends View {
-    private static final int AMBER = 0xFFFF9E7A;
+    private static final int AMBER = 0xFF8FE3CF;
 
     private Game g;
     private final float s;

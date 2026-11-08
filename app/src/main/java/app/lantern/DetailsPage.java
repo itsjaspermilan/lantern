@@ -320,7 +320,7 @@ final class DetailsPage {
         titleView.setPivotY(0f);
         titleView.setScaleX(titleFrom);
         titleView.setScaleY(titleFrom);
-        titleView.setTranslationY(host.px(164) - colTop - titleOff);
+        titleView.setTranslationY(host.px(Shelf.HERO_TEXT_TOP) - colTop - titleOff);
     }
 
     void close() {
@@ -387,7 +387,7 @@ final class DetailsPage {
             metaView.animate().translationX(metaDX).translationY(metaDY).scaleX(META_FROM).scaleY(META_FROM).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             morphRow(false);
             titleView.animate().cancel();
-            titleView.animate().translationY(host.px(164) - colTop - titleOff).scaleX(titleFrom).scaleY(titleFrom).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            titleView.animate().translationY(host.px(Shelf.HERO_TEXT_TOP) - colTop - titleOff).scaleX(titleFrom).scaleY(titleFrom).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
             eyeb.animate().cancel();
             eyeb.animate().alpha(0f).setStartDelay(0).setDuration(80).setInterpolator(ease).start();
         } else {

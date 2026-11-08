@@ -122,6 +122,9 @@ final class Shelf extends ViewGroup {
         return new float[]{c.getLeft() / s, (c.getTop() + c.getTranslationY()) / s, c.getWidth() / s, (c.getHeight() - 0f) / s};
     }
 
+    /** Where the top of Recent's title block sits (mockup pixels): the capital letters line up with the big tile's top edge. */
+    static final float HERO_TEXT_TOP = 169;
+
     static float[] heroBox(Game g) {
         return new float[]{LEFT, HERO_Y, HERO_W, HERO_H};
     }

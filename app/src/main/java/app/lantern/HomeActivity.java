@@ -370,9 +370,9 @@ public class HomeActivity extends Activity {
     /** The info block sits under the grid, or (Recent) beside the big first game. */
     private void placeInfo(boolean hero) {
         infoLp.leftMargin = u(hero ? 870 : EDGE_L);
-        infoLp.topMargin = u(hero ? 164 : 866); // Recent: the title starts level with the big tile's top edge
+        infoLp.topMargin = u(hero ? Shelf.HERO_TEXT_TOP : 866); // Recent: the title starts level with the big tile's top edge
         infoLp.width = u(hero ? 980 : 1700);
-        infoLp.height = hero ? u(HERO_BOTTOM - 14 - 164) : -2; // (14: the button's ring reaches that far below it) // Recent: the block ends level with the bottom of the big tile
+        infoLp.height = hero ? u(HERO_BOTTOM - 14 - Shelf.HERO_TEXT_TOP) : -2; // (14: the button's ring reaches that far below it) // Recent: the block ends level with the bottom of the big tile
         eyebrow.setVisibility(View.GONE); // its text is still kept: the details page shows it
         title.setTextSize(TypedValue.COMPLEX_UNIT_PX, (hero ? HERO_TITLE : 52) * FONT * s);
         title.setSingleLine(true);

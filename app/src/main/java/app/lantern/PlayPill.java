@@ -85,6 +85,7 @@ final class PlayPill extends TextView {
                 sh = new LinearGradient(w * .3f, -h * .7f, w * .7f, h * 1.7f, cc, new float[]{0f, .5f, 1f}, Shader.TileMode.CLAMP);
             }
             float rad = corner >= 0f ? corner : h / 2f;
+            paint.setAlpha(255); // the ring below changes this, and the fill must not inherit it
             paint.setShader(sh);
             box.set(0, 0, w, h);
             c.drawRoundRect(box, rad, rad, paint);

@@ -276,13 +276,13 @@ final class DetailsPage {
         mCopy.copyLook(mPill);
         morph = mCopy;
         view.addView(mCopy, new FrameLayout.LayoutParams((int) mA[2], (int) mA[3], Gravity.TOP | Gravity.START));
-        layoutMorph(0f);
+        layoutMorph(0f, 0f);
         pill.setAlpha(0f); // the copy covers it from this frame on
         return true;
     }
 
-    /** Places the shape and sets its colours, ring and word for t = 0 (the pill) to 1 (the row). */
-    private void layoutMorph(float t) {
+    /** Places the shape (t: its eased move) and sets its colours, ring and word (f: plain time), 0 = the pill, 1 = the row. */
+    private void layoutMorph(float t, float f) {
         if (morph == null) return;
         float[] b = rectIn(row0);
         if (b[2] == 0) b = mA; // not laid out yet: stay a pill
@@ -292,14 +292,19 @@ final class DetailsPage {
         lp.width = Math.round(mA[2] + (b[2] - mA[2]) * t);
         lp.height = Math.round(mA[3] + (b[3] - mA[3]) * t);
         mCopy.setLayoutParams(lp);
-        float word = 1f - Math.max(0f, Math.min(1f, t / .4f));
+        float word = 1f - clamp01(f / .45f);
         mCopy.setTextColor(Color.argb(Math.round(255 * word), 255, 255, 255));
         mCopy.setShadowLayer(mPill.getShadowRadius(), mPill.getShadowDx(), mPill.getShadowDy(), (Math.round(Color.alpha(mPill.getShadowColor()) * word) << 24));
-        mCopy.setMorph(Math.max(0f, Math.min(1f, t / .8f)),
+        float cf = clamp01((f - .1f) / .65f); // the colours drain slowly: over most of the move, not in its first frames
+        mCopy.setMorph(cf * cf * (3f - 2f * cf),
                 lp.height / 2f + (host.px(16) - lp.height / 2f) * t,
-                1f - Math.max(0f, Math.min(1f, t / .3f)));
-        mCopy.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .9f) / .1f)));
-        row0.setAlpha(Math.max(0f, Math.min(1f, (t - .6f) / .4f)));
+                1f - clamp01(f / .5f));
+        mCopy.setAlpha(1f - clamp01((f - .88f) / .12f));
+        row0.setAlpha(clamp01((f - .6f) / .35f));
+    }
+
+    private static float clamp01(float v) {
+        return Math.max(0f, Math.min(1f, v));
     }
 
     private void runMorph(final boolean opening) {
@@ -307,10 +312,12 @@ final class DetailsPage {
         final View m = morph;
         morphAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
         morphAnim.setDuration(PAGE_MS);
-        morphAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
+        morphAnim.setInterpolator(new android.view.animation.LinearInterpolator());
+        final android.view.animation.DecelerateInterpolator dec = new android.view.animation.DecelerateInterpolator(2f);
         morphAnim.addUpdateListener(an -> {
             float f = (Float) an.getAnimatedValue();
-            layoutMorph(opening ? f : 1f - f);
+            float g = opening ? f : 1f - f;
+            layoutMorph(dec.getInterpolation(g), g);
         });
         morphAnim.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override

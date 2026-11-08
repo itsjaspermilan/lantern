@@ -266,6 +266,8 @@ final class DetailsPage {
         final PlayPill pp = (PlayPill) pill;
         final android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.TL_BR, pp.colours());
+        final int[] from = pp.colours();
+        final android.animation.ArgbEvaluator argb = new android.animation.ArgbEvaluator();
         final TextView word = new TextView(ctx);
         word.setText(pp.getText());
         word.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, pp.getTextSize());
@@ -291,9 +293,14 @@ final class DetailsPage {
             lp.height = Math.round(a[3] + (b[3] - a[3]) * t);
             m.setLayoutParams(lp);
             bg.setCornerRadius(lp.height / 2f + (host.px(16) - lp.height / 2f) * t);
-            m.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .5f) / .5f)));
+            // The colours of the button drain to the row's white as it grows, then the row's own content shows.
+            float w = Math.max(0f, Math.min(1f, t / .8f));
+            int[] cc = new int[from.length];
+            for (int k = 0; k < cc.length; k++) cc[k] = (Integer) argb.evaluate(w, from[k], Color.WHITE);
+            bg.setColors(cc);
+            m.setAlpha(1f - Math.max(0f, Math.min(1f, (t - .9f) / .1f)));
             word.setAlpha(1f - Math.max(0f, Math.min(1f, t / .4f)));
-            row0.setAlpha(Math.max(0f, Math.min(1f, (t - .4f) / .6f)));
+            row0.setAlpha(Math.max(0f, Math.min(1f, (t - .6f) / .4f)));
         });
         morphAnim.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override

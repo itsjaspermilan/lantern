@@ -79,7 +79,11 @@ final class DetailsPage {
     private final View chevron;
     private boolean open;
     private int actIdx;
-    private View cover, col, rest;
+    private View cover, col, rest, eyeb;
+    private TextView titleView;
+    /** Where the title sits inside the column, and how small it starts (Recent's title is smaller than the page's). */
+    private int titleOff;
+    private float titleFrom = 1f;
     /** Top of the text column on screen, in pixels: it is centred on the screen like the cover. */
     private int colTop;
     private android.animation.ValueAnimator coverAnim;
@@ -160,13 +164,28 @@ final class DetailsPage {
         view.setAlpha(1f);
         view.setTranslationY(0f);
         if (fromHero) {
-            // The line above the title and the title start where they are on Recent and move down with the cover.
-            col.setTranslationY(host.px(150) - colTop);
-            col.animate().translationY(0f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            // The title starts exactly where (and as big as) Recent's title is and grows into its place on the page;
+            // the line above it fades in.
+            titleToRecent();
+            titleView.animate().cancel();
+            titleView.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            eyeb.setAlpha(0f);
+            eyeb.animate().alpha(1f).setStartDelay(120).setDuration(PAGE_MS - 120).setInterpolator(ease).start();
+            // What Recent shows under its title (chips, status, Play) fades out instead of vanishing; its title is the
+            // page's title now, so it goes in the same frame.
+            final ViewGroup info = host.info();
+            for (int ci = 0; ci < info.getChildCount(); ci++) {
+                View cv = info.getChildAt(ci);
+                cv.animate().cancel();
+                if (ci < 2) cv.setAlpha(0f);
+                else {
+                    cv.animate().alpha(0f).setStartDelay(0).setDuration(110).withEndAction(() -> { if (open) host.infoVisible(false); }).start();
+                }
+            }
             // Down moves the screen down: the row under the big tile slides away, and the details drop in from above.
             rest.setAlpha(0f);
             rest.setTranslationY(-host.px(70));
-            rest.animate().alpha(1f).translationY(0f).setStartDelay(110).setDuration(340).setInterpolator(ease).start();
+            rest.animate().alpha(1f).translationY(0f).setStartDelay(170).setDuration(300).setInterpolator(ease).start();
             shelf.setPage(0f, true);
             android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
             va.setDuration(PAGE_MS);
@@ -182,8 +201,17 @@ final class DetailsPage {
                 if (open) shelf.setVisibility(View.INVISIBLE);
             }).start();
         }
-        host.infoVisible(false);
+        if (!fromHero) host.infoVisible(false);
         host.hints(true);
+    }
+
+    /** Puts the title (as a copy of Recent's) at Recent's place: the same size, the same spot on the screen. */
+    private void titleToRecent() {
+        titleView.setPivotX(0f);
+        titleView.setPivotY(0f);
+        titleView.setScaleX(titleFrom);
+        titleView.setScaleY(titleFrom);
+        titleView.setTranslationY(host.px(164) - colTop - titleOff);
     }
 
     void close() {
@@ -245,7 +273,10 @@ final class DetailsPage {
             });
             va.start();
             rest.animate().alpha(0f).translationY(-host.px(70)).setStartDelay(0).setDuration(240).setInterpolator(ease).start();
-            col.animate().translationY(host.px(150) - colTop).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            titleView.animate().cancel();
+            titleView.animate().translationY(host.px(164) - colTop - titleOff).scaleX(titleFrom).scaleY(titleFrom).setStartDelay(0).setDuration(PAGE_MS).setInterpolator(ease).start();
+            eyeb.animate().cancel();
+            eyeb.animate().alpha(0f).setStartDelay(0).setDuration(PAGE_MS / 2).setInterpolator(ease).start();
         } else {
             shelf.setAlpha(0f);
             shelf.animate().alpha(1f).setStartDelay(PAGE_MS / 2).setDuration(PAGE_MS / 2).start(); // under the landing cover
@@ -363,12 +394,15 @@ final class DetailsPage {
             LinearLayout.LayoutParams ebp = new LinearLayout.LayoutParams(-2, -2);
             ebp.bottomMargin = host.px(8);
             column.addView(eb, ebp);
+            eyeb = eb;
         }
         float tk = hero ? Math.max(.62f, Math.min(1f, 24f / Math.max(1, g.title.length()))) : 1f;
         TextView t = host.text(g.title, 84 * tk, Color.WHITE, true);
         t.setMaxLines(3);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         column.addView(t);
+        titleView = t;
+        titleFrom = hero ? 62f / (84 * tk) : 1f; // Recent's title is 62 (in mockup pixels)
 
         LinearLayout below = new LinearLayout(ctx);
         below.setOrientation(LinearLayout.VERTICAL);
@@ -429,6 +463,7 @@ final class DetailsPage {
         FrameLayout.LayoutParams colp = new FrameLayout.LayoutParams(host.px(980), -2, Gravity.TOP | Gravity.START);
         colp.leftMargin = host.px(870);
         column.measure(View.MeasureSpec.makeMeasureSpec(host.px(980), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        titleOff = hero ? eyeb.getMeasuredHeight() + host.px(8) : 0;
         colTop = Math.max(host.px(120), (host.px(1080) - column.getMeasuredHeight()) / 2); // centred on the screen, like the cover
         colp.topMargin = colTop;
         view.addView(column, colp);

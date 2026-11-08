@@ -292,7 +292,7 @@ final class DetailsPage {
         lp.width = Math.round(mA[2] + (b[2] - mA[2]) * t);
         lp.height = Math.round(mA[3] + (b[3] - mA[3]) * t);
         mCopy.setLayoutParams(lp);
-        float word = 1f - clamp01(f / .45f);
+        float word = 1f - clamp01((f - .05f) / .45f);
         mCopy.setTextColor(Color.argb(Math.round(255 * word), 255, 255, 255));
         mCopy.setShadowLayer(mPill.getShadowRadius(), mPill.getShadowDx(), mPill.getShadowDy(), (Math.round(Color.alpha(mPill.getShadowColor()) * word) << 24));
         float cf = clamp01((f - .1f) / .65f); // the colours drain slowly: over most of the move, not in its first frames
@@ -300,7 +300,7 @@ final class DetailsPage {
                 lp.height / 2f + (host.px(16) - lp.height / 2f) * t,
                 1f - clamp01(f / .5f));
         mCopy.setAlpha(1f - clamp01((f - .88f) / .12f));
-        row0.setAlpha(clamp01((f - .6f) / .35f));
+        row0.setAlpha(clamp01((f - .25f) / .4f)); // its words cross-fade with the pill's word
     }
 
     private static float clamp01(float v) {
@@ -317,7 +317,8 @@ final class DetailsPage {
         morphAnim.addUpdateListener(an -> {
             float f = (Float) an.getAnimatedValue();
             float g = opening ? f : 1f - f;
-            layoutMorph(dec.getInterpolation(g), g);
+            // Going back, the move eases out from the start like the other pieces (the reverse of an ease-out lags at first).
+            layoutMorph(opening ? dec.getInterpolation(f) : 1f - dec.getInterpolation(f), g);
         });
         morphAnim.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override

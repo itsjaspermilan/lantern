@@ -27,7 +27,7 @@ needs only libc, libm and libdl. None of them was scanned or reviewed beyond tha
 | Mupen64Plus-Next (`mupen64plus_next_gles3`) | Nintendo 64 | 3.0-Vulkan 15bada8 | 2,201,377 | b39f1f708e174540 | GPL-2.0 (from packager metadata, LICENSE file not re-read); needs OpenGL ES 3 |
 | melonDS (`melonds`) | Nintendo DS | 0.9.3 | 690,401 | c44d46ef21c64791 | GPL-3.0 (from packager metadata, LICENSE file not re-read); runs without BIOS files (FreeBIOS) |
 | Dolphin (`dolphin`) | Nintendo GameCube | 2609.0.169+32c61f9d0e | 6,421,348 | 0c67e48c6008608a | GPL-2.0-or-later (from packager metadata, LICENSE file not re-read); needs OpenGL ES 3 |
-| Play! (`play`) | PlayStation 2 | not read | 1,750,259 | b94006d6ced7632c | **Not confirmed**: GitHub lists jpd002/Play- as "Other" and no licence file was found at the usual names; read its repository before sharing a build. Needs OpenGL ES 3; no BIOS needed for the game tried; slow on this device (see below) |
+| ParaLLEl PS2 (`pcsx2`) | PlayStation 2 | shown as "ParaLLEl PS2" | 2,894,475 | d276acef74e0a1f1 | PCSX2 is GPL-3.0; **not confirmed for this build** (no licence file was found in the libretro repository by the usual names). **Needs the person's own PS2 BIOS** in `Lantern/bios/pcsx2/bios/`. Draws with OpenGL ES; 60 fps in the one game tried |
 | Genesis Plus GX | Mega Drive, Master System, Game Gear | v1.7.4 f27655b | 1,133,700 | dde6f5b31b227d68 | Custom BSD-style, **non-commercial only**, source must accompany a modified binary; bundled parts have their own terms (`Genesis-Plus-GX/LICENSE.txt`) |
 
 ## What this means
@@ -48,4 +48,4 @@ needs only libc, libm and libdl. None of them was scanned or reviewed beyond tha
 
 `Cores.java` lists the downloadable cores (`CATALOG`, with the licence shown in the app) and maps a folder under `Lantern/roms/` to a core: gba to mGBA; gb and gbc to Gambatte; nes to FCEUmm;
 snes to Snes9x; md, mastersystem and gamegear to Genesis Plus GX. n64 to Mupen64Plus-Next; nds to melonDS; gc to Dolphin (GameCube only: .iso, .gcm, .ciso, .gcz, .rvz). Other folders (psx, psp, ps2, dc, saturn,
-xbox) have no core yet (ps2 uses Play!; libretro's `pcsx2` core was also downloaded and tried only up to its needing Vulkan and a BIOS, so it is not used); libretro has no Xbox core at all. BIOS files are the person's own; none is bundled or needed for the systems above.
+xbox) have no core yet (ps2 uses ParaLLEl PS2 (`pcsx2`). libretro's `play` (Play!) core was tried first: it needs no BIOS but ran at 25 to 45 frames a second, and its licence could not be confirmed, so it is not used); libretro has no Xbox core at all. BIOS files are the person's own; none is bundled or needed for the systems above.

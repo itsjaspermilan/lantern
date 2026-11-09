@@ -46,7 +46,7 @@ public final class LogicTest {
         // Cores: only some systems have one bundled.
         eq("mgba", Cores.libFor("gba"), "gba core");
         eq("gambatte", Cores.libFor("gbc"), "gbc core");
-        eq("play", Cores.libFor("ps2"), "ps2 plays on Play!");
+        eq("pcsx2", Cores.libFor("ps2"), "ps2 plays on PCSX2");
         eq(null, Cores.libFor("xbox"), "no xbox core");
 
         // Cover art names for the fetcher.

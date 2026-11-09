@@ -37,7 +37,7 @@ final class Cores {
         new Info("mupen64plus_next_gles3", "Mupen64Plus-Next", "Nintendo 64", "GPL-2.0", false),
         new Info("melonds", "melonDS", "Nintendo DS", "GPL-3.0", false),
         new Info("dolphin", "Dolphin", "Nintendo GameCube", "GPL-2.0", false),
-        new Info("play", "Play!", "PlayStation 2", "custom (not confirmed: see its repository)", false),
+        new Info("pcsx2", "ParaLLEl PS2 (PCSX2)", "PlayStation 2 (needs your own BIOS file)", "GPL-3.0 (PCSX2's; not confirmed for this build)", false),
     };
 
     /** Library name without "lib" and ".so", or null when Lantern has no core for the system. */
@@ -61,7 +61,7 @@ final class Cores {
             case "gc":
                 return "dolphin";
             case "ps2":
-                return "play";
+                return "pcsx2";
             case "md":
             case "mastersystem":
             case "gamegear":

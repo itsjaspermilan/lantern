@@ -37,6 +37,7 @@ final class Cores {
         new Info("mupen64plus_next_gles3", "Mupen64Plus-Next", "Nintendo 64", "GPL-2.0", false),
         new Info("melonds", "melonDS", "Nintendo DS", "GPL-3.0", false),
         new Info("dolphin", "Dolphin", "Nintendo GameCube", "GPL-2.0", false),
+        new Info("play", "Play!", "PlayStation 2", "custom (not confirmed: see its repository)", false),
     };
 
     /** Library name without "lib" and ".so", or null when Lantern has no core for the system. */
@@ -59,6 +60,8 @@ final class Cores {
                 return "melonds";
             case "gc":
                 return "dolphin";
+            case "ps2":
+                return "play";
             case "md":
             case "mastersystem":
             case "gamegear":

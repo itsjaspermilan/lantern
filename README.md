@@ -51,7 +51,7 @@ an app. Press A and you are playing. There are no menus to dig through, and ever
 Early (version 0.1). It is built and tested on a **Retroid Pocket 6** (Android 13, 1920x1080, landscape). It should
 run on other 64-bit ARM Android devices (Android 8 or newer) but has not been tried on them, and the layout assumes a
 16:9 landscape screen. It is sideloaded: there is an APK on the [Releases](https://github.com/itsjaspermilan/lantern/releases)
-page, but no Play Store listing and no auto-update. Emulation covers Game Boy, GBA, NES, SNES, Mega Drive and friends, Nintendo 64 (Mupen64Plus-Next), Nintendo DS (melonDS) and GameCube (Dolphin); there are
+page, but no Play Store listing and no auto-update. Emulation covers Game Boy, GBA, NES, SNES, Mega Drive and friends, Nintendo 64 (Mupen64Plus-Next), Nintendo DS (melonDS), GameCube (Dolphin) and, slowly, PlayStation 2 (Play!); there are
 no PlayStation, DS or PSP cores yet. See [TODO.md](TODO.md).
 
 ## Set it up
@@ -117,7 +117,8 @@ Then put your games here, one folder per system. Lantern does not create the `ro
 | `n64` | Nintendo 64 | `.z64` `.n64` `.v64` | Mupen64Plus-Next |
 | `nds` | Nintendo DS | `.nds` | melonDS |
 | `gc` | Nintendo GameCube | `.iso` `.gcm` `.ciso` `.gcz` `.rvz` | Dolphin |
-| `psx`, `psp`, `saturn`, `dc`, `ps2` | listed, but **no core yet** | various | none |
+| `ps2` | PlayStation 2 | `.iso` `.chd` | Play! (starts games, but slow: roughly 25 to 45 frames a second in the one game tried) |
+| `psx`, `psp`, `saturn`, `dc` | listed, but **no core yet** | various | none |
 
 Copy the folders over USB, with `adb push roms /sdcard/Lantern/` (from a local folder named `roms`), or with any file manager. Installed Android games
 and apps appear on their own (apps are hidden from the shelves until you switch them on in the menu).

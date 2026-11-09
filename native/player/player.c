@@ -592,11 +592,22 @@ static bool environment_cb(unsigned cmd, void *data) {
 }
 
 /* ---- loading ---- */
+/* Some cores (Play!) call back into Java from their own threads and expect the JavaVM that the app's own
+ * JNI_OnLoad would have given them: they are loaded with dlopen here, so that never runs for them. */
+static JavaVM *g_vm;
+JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+    (void)reserved;
+    g_vm = vm;
+    return JNI_VERSION_1_6;
+}
+
 #define SYM(field, name) do { *(void **)&C.field = dlsym(C.lib, name); if (!C.field) { set_status("ERROR: core has no %s", name); return false; } } while (0)
 
 static bool load_core(void) {
     C.lib = dlopen(g_core_path, RTLD_NOW | RTLD_LOCAL);
     if (!C.lib) { set_status("ERROR: %s", dlerror()); return false; }
+    void (*set_vm)(JavaVM *) = (void (*)(JavaVM *))dlsym(C.lib, "_ZN9Framework7CJavaVM9SetJavaVMEP7_JavaVM");
+    if (set_vm && g_vm) set_vm(g_vm);
     SYM(set_environment, "retro_set_environment");
     SYM(set_video_refresh, "retro_set_video_refresh");
     SYM(set_audio_sample, "retro_set_audio_sample");

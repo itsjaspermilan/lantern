@@ -357,10 +357,22 @@ static const uint32_t *ds_compose(const uint32_t *src, size_t pitch_px) {
     return g_ds_buf;
 }
 
+/* While fast-forwarding, a picture is drawn at most about 60 times a second. Drawing waits for the screen's refresh,
+ * so drawing every frame would hold the game to the screen's speed however fast the core could run. */
+static double g_last_post;
+static bool skip_picture(void) {
+    if (atomic_load(&g_speed) == 1) return false;
+    double t = now_s();
+    if (t - g_last_post < 0.0165) return true;
+    g_last_post = t;
+    return false;
+}
+
 /* ---- video: copy the core's frame into the window (RGBX 8888) and keep an ARGB copy ---- */
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
-    if (data == RETRO_HW_FRAME_BUFFER_VALID) { if (g_hw_on) hw_present(w, h); return; }
+    if (data == RETRO_HW_FRAME_BUFFER_VALID) { if (g_hw_on && !skip_picture()) hw_present(w, h); return; }
     if (!data || !g_win) { g_dupe_calls++; return; } /* NULL means "repeat the last frame" */
+    if (skip_picture()) return;
     if (atomic_load(&g_ds_big) && w == 512 && h == 192 && g_pixel_format == RETRO_PIXEL_FORMAT_XRGB8888) {
         const uint32_t *c = ds_compose((const uint32_t *)data, pitch / 4);
         if (c) {

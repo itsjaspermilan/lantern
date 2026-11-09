@@ -46,7 +46,8 @@ public final class LogicTest {
         // Cores: only some systems have one bundled.
         eq("mgba", Cores.libFor("gba"), "gba core");
         eq("gambatte", Cores.libFor("gbc"), "gbc core");
-        eq(null, Cores.libFor("ps2"), "no ps2 core");
+        eq("play", Cores.libFor("ps2"), "ps2 plays on Play!");
+        eq(null, Cores.libFor("xbox"), "no xbox core");
 
         // Cover art names for the fetcher.
         eq("Super Mario_ Bros_", ArtFetcher.thumbName("Super Mario: Bros?"), "characters the thumbnail server replaces");

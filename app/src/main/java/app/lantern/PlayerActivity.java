@@ -479,18 +479,57 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         return true;
     }
 
-    /** The sticks go to the game as they are; the core applies its own dead zone. Nothing moves while the menu is open. */
+    private static final int[] DIR_KEYS = {KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT};
+    private final boolean[] dirHeld = new boolean[4];
+    private final Runnable dirRepeat = new Runnable() {
+        @Override
+        public void run() {
+            if (!menu.isOpen()) return;
+            boolean any = false;
+            for (int i = 0; i < 4; i++) {
+                if (dirHeld[i]) {
+                    any = true;
+                    dispatchKeyEvent(new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, DIR_KEYS[i], 1));
+                }
+            }
+            if (any) getWindow().getDecorView().postDelayed(this, 110);
+        }
+    };
+
+    /**
+     * Sticks and the D-pad. The Pocket's D-pad (and, for Android, its left stick) arrives as motion, not as keys, and
+     * Android only turns that into arrow keys when the app leaves the event alone. Taking the sticks for the game
+     * would therefore kill the D-pad, so the arrows are made here: the D-pad always, the left stick as well unless the
+     * game reads it as analog (N64) and the menu is closed. The sticks go to the game as they are; the core applies
+     * its own dead zone. Nothing moves in the game while the menu is open.
+     */
     @Override
     public boolean onGenericMotionEvent(android.view.MotionEvent e) {
         if ((e.getSource() & android.view.InputDevice.SOURCE_JOYSTICK) != 0 && e.getAction() == android.view.MotionEvent.ACTION_MOVE) {
             boolean live = !failed && !menu.isOpen();
-            Player.nativeAxis(0, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_X)) : 0);
-            Player.nativeAxis(1, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_Y)) : 0);
+            float sx = e.getAxisValue(android.view.MotionEvent.AXIS_X), sy = e.getAxisValue(android.view.MotionEvent.AXIS_Y);
+            Player.nativeAxis(0, live ? stick(sx) : 0);
+            Player.nativeAxis(1, live ? stick(sy) : 0);
             Player.nativeAxis(2, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_Z)) : 0);
             Player.nativeAxis(3, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_RZ)) : 0);
+            float hx = e.getAxisValue(android.view.MotionEvent.AXIS_HAT_X), hy = e.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y);
+            boolean digitalStick = !live || !"n64".equals(sysId);
+            if (!digitalStick) { sx = 0f; sy = 0f; }
+            setDir(0, hy < -.5f || (digitalStick && (dirHeld[0] ? sy < -.4f : sy < -.6f)));
+            setDir(1, hy > .5f || (digitalStick && (dirHeld[1] ? sy > .4f : sy > .6f)));
+            setDir(2, hx < -.5f || (digitalStick && (dirHeld[2] ? sx < -.4f : sx < -.6f)));
+            setDir(3, hx > .5f || (digitalStick && (dirHeld[3] ? sx > .4f : sx > .6f)));
             return true;
         }
         return super.onGenericMotionEvent(e);
+    }
+
+    /** One arrow key goes down or up, the same as if the pad had sent it as a key. */
+    private void setDir(int i, boolean want) {
+        if (dirHeld[i] == want) return;
+        dirHeld[i] = want;
+        dispatchKeyEvent(new KeyEvent(0, 0, want ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP, DIR_KEYS[i], 0));
+        if (want && menu.isOpen()) getWindow().getDecorView().postDelayed(dirRepeat, 380);
     }
 
     private static int stick(float v) {

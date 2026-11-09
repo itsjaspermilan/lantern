@@ -25,7 +25,7 @@ needs only libc, libm and libdl. None of them was scanned or reviewed beyond tha
 | FCEUmm | NES | (SVN) e0f3086 | 452,046 | af71a4a924381d7d | GPL-2.0 (`libretro-fceumm/Copying`) |
 | Snes9x | Super Nintendo | 1.63 fae2fea | 890,362 | 0c9f532b595ff220 | Snes9x licence: custom, **non-commercial only** (`snes9x/LICENSE`) |
 | Mupen64Plus-Next (`mupen64plus_next_gles3`) | Nintendo 64 | 3.0-Vulkan 15bada8 | 2,201,377 | b39f1f708e174540 | GPL-2.0 (from packager metadata, LICENSE file not re-read); needs OpenGL ES 3 |
-| melonDS (`melonds`) | Nintendo DS | 0.9.3 | 690,401 | c44d46ef21c64791 | GPL-3.0 (from packager metadata, LICENSE file not re-read); runs without BIOS files (FreeBIOS) |
+| melonDS (`melonds`) | Nintendo DS | 0.9.3 | 690,401 | c44d46ef21c64791 | GPL-3.0 (from packager metadata, LICENSE file not re-read); runs without BIOS files (FreeBIOS); its cheat calls do nothing, so Lantern applies DS cheats itself (player.c, ar_run) |
 | Dolphin (`dolphin`) | Nintendo GameCube | 2609.0.169+32c61f9d0e | 6,421,348 | 0c67e48c6008608a | GPL-2.0-or-later (from packager metadata, LICENSE file not re-read); needs OpenGL ES 3 |
 | ParaLLEl PS2 (`pcsx2`) | PlayStation 2 | shown as "ParaLLEl PS2" | 2,894,475 | d276acef74e0a1f1 | PCSX2 is GPL-3.0; **not confirmed for this build** (no licence file was found in the libretro repository by the usual names). **Needs the person's own PS2 BIOS** in `Lantern/bios/pcsx2/bios/`. Draws with OpenGL ES; 60 fps in the one game tried |
 | Genesis Plus GX | Mega Drive, Master System, Game Gear | v1.7.4 f27655b | 1,133,700 | dde6f5b31b227d68 | Custom BSD-style, **non-commercial only**, source must accompany a modified binary; bundled parts have their own terms (`Genesis-Plus-GX/LICENSE.txt`) |

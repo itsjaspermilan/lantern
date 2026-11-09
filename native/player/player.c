@@ -811,11 +811,93 @@ static char **g_cheats;
 static int g_cheat_count;
 static atomic_bool g_cheats_changed;
 
+/* ---- Action Replay codes, for the Nintendo DS. The melonDS build here accepts cheats but has no engine behind them, so
+ * Lantern runs the codes itself: after each frame it writes into the core's main RAM (the 4 MB at 0x02000000).
+ * Supported lines: 0/1/2 write 32/16/8 bits; 3/4/5/6 if greater/less/equal/different (32 bit); 94000130 if the
+ * pad's keys are held (a 0 bit in the value's top half means "this key must be down"); D0 end if; D2 end all.
+ * A condition covers the lines up to its D0 or D2, and conditions nest. Other lines are skipped. ---- */
+static bool g_cheat_ar;       /* the core is melonDS: use the interpreter, not retro_cheat_set */
+static uint32_t *g_ar;        /* the lines of every cheat that is on, each cheat closed by D2000000 00000000 */
+static int g_ar_n;            /* number of 32-bit words */
+
+static void ar_load(const char *code) {
+    uint32_t w;
+    for (const char *p = code; *p;) {
+        int n = 0;
+        while (p[n] && ((p[n] >= '0' && p[n] <= '9') || (p[n] >= 'A' && p[n] <= 'F') || (p[n] >= 'a' && p[n] <= 'f'))) n++;
+        if (n == 8) {
+            char tmp[9];
+            memcpy(tmp, p, 8);
+            tmp[8] = 0;
+            w = (uint32_t)strtoul(tmp, NULL, 16);
+            uint32_t *g = realloc(g_ar, (size_t)(g_ar_n + 1) * sizeof *g);
+            if (!g) return;
+            g_ar = g;
+            g_ar[g_ar_n++] = w;
+        }
+        p += n ? n : 1;
+    }
+    if (g_ar_n & 1) g_ar_n--; /* a code is made of pairs */
+    uint32_t *g = realloc(g_ar, (size_t)(g_ar_n + 2) * sizeof *g);
+    if (!g) return;
+    g_ar = g;
+    g_ar[g_ar_n++] = 0xD2000000u;
+    g_ar[g_ar_n++] = 0;
+}
+
+static uint32_t ar_pad_bits(void) { /* the pad as AR knows it: A0 B1 Select2 Start3 Right4 Left5 Up6 Down7 R8 L9, 1 = down */
+    unsigned b = atomic_load(&g_buttons);
+    static const int map[10] = {8, 0, 2, 3, 7, 6, 4, 5, 11, 10}; /* RetroPad id for each bit */
+    uint32_t out = 0;
+    for (int i = 0; i < 10; i++) if (b & (1u << map[i])) out |= 1u << i;
+    return out;
+}
+
+static void ar_run(void) {
+    if (!g_ar_n) return;
+    uint8_t *ram = C.get_memory_data(2);
+    size_t size = C.get_memory_size(2);
+    if (!ram || size < 0x400000) return;
+    int skip = 0;
+    for (int i = 0; i + 1 < g_ar_n; i += 2) {
+        uint32_t a = g_ar[i], b = g_ar[i + 1], top = a >> 28, off = a & 0x003FFFFFu;
+        if (top == 0xD) {
+            if ((a >> 24) == 0xD0) { if (skip) skip--; }
+            else if ((a >> 24) == 0xD2) skip = 0;
+            continue;
+        }
+        if ((top >= 3 && top <= 6) || top == 9) {
+            if (skip) { skip++; continue; }
+            bool ok = false;
+            if (top == 9) {
+                uint32_t want = ~(b >> 16) & 0x3FFu;
+                ok = (ar_pad_bits() & want) == want;
+            } else {
+                uint32_t v;
+                memcpy(&v, ram + (off & ~3u), 4);
+                ok = top == 3 ? b > v : top == 4 ? b < v : top == 5 ? b == v : b != v;
+            }
+            if (!ok) skip = 1;
+            continue;
+        }
+        if (skip) continue;
+        if (top == 0) { uint32_t v = b; memcpy(ram + (off & ~3u), &v, 4); }
+        else if (top == 1) { uint16_t v = (uint16_t)b; memcpy(ram + (off & ~1u), &v, 2); }
+        else if (top == 2) ram[off] = (uint8_t)b;
+    }
+}
+
 /* Starts over each time: mGBA, for one, ignores the "enabled" flag, so a cheat is only ever turned off by leaving it out. */
 static void apply_cheats(void) {
     pthread_mutex_lock(&g_cheat_lock);
     C.cheat_reset();
-    for (int i = 0; i < g_cheat_count; i++) C.cheat_set((unsigned)i, true, g_cheats[i]);
+    free(g_ar);
+    g_ar = NULL;
+    g_ar_n = 0;
+    for (int i = 0; i < g_cheat_count; i++) {
+        if (g_cheat_ar) ar_load(g_cheats[i]);
+        else C.cheat_set((unsigned)i, true, g_cheats[i]);
+    }
     LOGI("%d cheats on", g_cheat_count);
     pthread_mutex_unlock(&g_cheat_lock);
 }
@@ -851,6 +933,7 @@ static void *emulation_thread(void *arg) {
     memset(&si, 0, sizeof si);
     C.get_system_info(&si);
     LOGI("core: %s %s", si.library_name, si.library_version);
+    g_cheat_ar = strstr(si.library_name, "melonDS") != NULL;
 
     struct retro_game_info gi;
     memset(&gi, 0, sizeof gi);
@@ -935,6 +1018,7 @@ static void *emulation_thread(void *arg) {
         g_latched = atomic_exchange(&g_pressed, 0);
         double t_run = now_s();
         run_core();
+        if (g_cheat_ar) ar_run();
         g_run_s += now_s() - t_run;
         if (now_s() - t_run > 0.1) LOGI("retro_run took %.0f ms (frame %u)", (now_s() - t_run) * 1000.0, frames);
         frames++;

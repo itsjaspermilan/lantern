@@ -396,8 +396,8 @@ final class PlayerMenu extends FrameLayout {
 
         String[] names = names();
         boolean wide = level == 2 || level == 3 || level == LEVEL_EMULATOR || level == LEVEL_SCREENS; // cheat names are long, so the list takes the preview's place
-        int first = wide ? Math.max(0, Math.min(idx - CHEATS_SHOWN / 2, names.length - CHEATS_SHOWN)) : 0;
-        int end = wide ? Math.min(names.length, first + CHEATS_SHOWN) : names.length;
+        int first = Math.max(0, Math.min(idx - CHEATS_SHOWN / 2, names.length - CHEATS_SHOWN)); // every page scrolls with the selection
+        int end = Math.min(names.length, first + CHEATS_SHOWN);
         for (int i = first; i < end; i++) {
             boolean on = i == idx;
             LinearLayout row = new LinearLayout(getContext());
@@ -422,6 +422,12 @@ final class PlayerMenu extends FrameLayout {
         cp.topMargin = u(110);
         stage.addView(col, cp);
 
+        if (first > 0 || end < names.length) { // arrows: there is more above / below
+            int right = u(140) + u(wide ? 1640 : 820);
+            if (first > 0) stage.addView(more("▲"), moreParams(right, u(120)));
+            if (end < names.length) stage.addView(more("▼"), moreParams(right, u(110) + u(80) + CHEATS_SHOWN * u(106) + u(6)));
+        }
+
         if (!wide) addPreview(stage);
 
         TextView msg = label(message, 30, AMBER, true);
@@ -438,6 +444,17 @@ final class PlayerMenu extends FrameLayout {
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, u(96), Gravity.BOTTOM | Gravity.END);
         hp.rightMargin = u(140);
         stage.addView(hints, hp);
+    }
+
+    private TextView more(String arrow) {
+        return label(arrow, 30, 0x99FFFFFF, true);
+    }
+
+    private FrameLayout.LayoutParams moreParams(int right, int top) {
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
+        p.leftMargin = right + u(12);
+        p.topMargin = top;
+        return p;
     }
 
     private String valueOf(int i) {

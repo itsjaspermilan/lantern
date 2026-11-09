@@ -644,7 +644,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         if (dirHeld[i] == want) return;
         dirHeld[i] = want;
         dispatchKeyEvent(new KeyEvent(0, 0, want ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP, DIR_KEYS[i], 0));
-        if (want && menu.isOpen()) getWindow().getDecorView().postDelayed(dirRepeat, 380);
+        if (want && menu.isOpen()) { // one repeat loop at a time: a quick second tap must not leave the first one's timer running
+            getWindow().getDecorView().removeCallbacks(dirRepeat);
+            getWindow().getDecorView().postDelayed(dirRepeat, 380);
+        }
     }
 
     private static int stick(float v) {

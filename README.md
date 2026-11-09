@@ -117,7 +117,7 @@ Then put your games here, one folder per system. Lantern does not create the `ro
 | `n64` | Nintendo 64 | `.z64` `.n64` `.v64` | Mupen64Plus-Next |
 | `nds` | Nintendo DS | `.nds` | melonDS |
 | `gc` | Nintendo GameCube | `.iso` `.gcm` `.ciso` `.gcz` `.rvz` | Dolphin |
-| `nds`, `psx`, `psp`, `saturn`, `dc`, `ps2` | listed, but **no core yet** | various | none |
+| `psx`, `psp`, `saturn`, `dc`, `ps2` | listed, but **no core yet** | various | none |
 
 Copy the folders over USB, with `adb push roms /sdcard/Lantern/` (from a local folder named `roms`), or with any file manager. Installed Android games
 and apps appear on their own (apps are hidden from the shelves until you switch them on in the menu).

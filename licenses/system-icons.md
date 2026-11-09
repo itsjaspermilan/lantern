@@ -9,7 +9,7 @@ repository, folder `xmb/monochrome/png`, downloaded on 2026-11-05 from
 - Attribution: icons by the RetroArch / libretro contributors, from https://github.com/libretro/retroarch-assets.
 - Changes: none to the pictures. They are renamed to Lantern's system ids (`snes.png`, `gba.png`, and so on) and drawn
   tinted white and slightly transparent at run time.
-- Files (15 PNG, 256 x 256, about 49 KB): NES, SNES, Game Boy, Game Boy Color, Game Boy Advance, Mega Drive, Master
-  System, Game Gear, N64, PlayStation, DS, PSP, Dreamcast, Saturn, PS2.
+- Files (16 PNG, 256 x 256, about 54 KB; the GameCube one was added on 2026-11-08 from the same folder): NES, SNES, Game Boy, Game Boy Color, Game Boy Advance, Mega Drive, Master
+  System, Game Gear, N64, GameCube, PlayStation, DS, PSP, Dreamcast, Saturn, PS2.
 - The pictures show console shapes. Console names and shapes may be trademarks of their owners; Lantern is not
   affiliated with them.

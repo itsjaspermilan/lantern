@@ -8,7 +8,7 @@ Lantern's own, and what is deliberately **not** in it.
 | Material | Where | Licence | Notes |
 |---|---|---|---|
 | libretro API header (`libretro.h`) | `native/third_party/libretro/` | MIT, (c) 2010-2024 The RetroArch team | Unmodified. Its licence text is at the top of the file and applies to that header only. |
-| Console icons (15 PNG) | `app/src/main/assets/system-icons/` | CC BY 4.0 | From libretro's [retroarch-assets](https://github.com/libretro/retroarch-assets) (`xmb/monochrome/png`). Credit: the RetroArch / libretro contributors. Renamed, otherwise unchanged; Lantern tints them at run time. Licence text: `licenses/retroarch-assets-COPYING.txt`; details: `licenses/system-icons.md`. |
+| Console icons (16 PNG) | `app/src/main/assets/system-icons/` | CC BY 4.0 | From libretro's [retroarch-assets](https://github.com/libretro/retroarch-assets) (`xmb/monochrome/png`). Credit: the RetroArch / libretro contributors. Renamed, otherwise unchanged; Lantern tints them at run time. Licence text: `licenses/retroarch-assets-COPYING.txt`; details: `licenses/system-icons.md`. |
 | Button prompts, arrows, grid icon | `app/src/main/assets/ui/` | CC0 1.0 | From [Kenney](https://kenney.nl/assets) (Input Prompts, Game Icons). Credit is welcome, not required. Their licence files: `licenses/kenney-*`. |
 | "android" icon | `app/src/main/res/drawable/ic_android.xml` | Apache-2.0 | Google's [Material icons](https://github.com/google/material-design-icons), written as an Android vector drawable. Licence text: `licenses/material-icons-LICENSE.txt`. |
 | README screenshots and their made-up cover art | `docs/images/` | MIT (Lantern's own) | The games shown are invented, and their covers were drawn for this project. |

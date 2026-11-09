@@ -53,6 +53,7 @@ static struct {
     bool (*load_game)(const struct retro_game_info *);
     void (*unload_game)(void);
     void (*run)(void);
+    void (*set_controller_port_device)(unsigned, unsigned);
     size_t (*serialize_size)(void);
     bool (*serialize)(void *, size_t);
     bool (*unserialize)(const void *, size_t);
@@ -435,6 +436,7 @@ static char g_opt_path[620];
 
 static const char *const g_better[][2] = {
     {"mupen64plus-43screensize", "1280x960"}, /* four times the console's own picture: easy for this chip */
+    {"melonds_touch_mode", "Joystick"}, /* the right stick moves a pointer on the lower screen: no touch needed */
 };
 
 static void options_clear(void) {
@@ -573,8 +575,14 @@ static bool environment_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
     case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
     case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL:
-    case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO:
         return true;
+    case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO: {
+        const struct retro_controller_info *ci = data;
+        for (int p = 0; ci && ci[p].types; p++)
+            for (unsigned k = 0; k < ci[p].num_types; k++)
+                LOGI("port %d controller type %u: %s", p, ci[p].types[k].id, ci[p].types[k].desc);
+        return true;
+    }
     case RETRO_ENVIRONMENT_SET_VARIABLES:
         options_set(data);
         return true;
@@ -603,6 +611,7 @@ static bool load_core(void) {
     SYM(load_game, "retro_load_game");
     SYM(unload_game, "retro_unload_game");
     SYM(run, "retro_run");
+    *(void **)&C.set_controller_port_device = dlsym(C.lib, "retro_set_controller_port_device"); /* optional */
     SYM(serialize_size, "retro_serialize_size");
     SYM(serialize, "retro_serialize");
     SYM(unserialize, "retro_unserialize");
@@ -794,6 +803,7 @@ static void *emulation_thread(void *arg) {
         gi.size = (size_t)n;
     }
     if (!C.load_game(&gi)) { set_status("ERROR: the core would not load this game"); goto done; }
+    if (C.set_controller_port_device) C.set_controller_port_device(0, RETRO_DEVICE_JOYPAD); /* some cores (Dolphin) leave the port empty until asked */
     loaded = true;
     sram_load();
 

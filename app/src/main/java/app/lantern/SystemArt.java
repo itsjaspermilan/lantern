@@ -81,6 +81,7 @@ final class SystemArt {
             case "gamegear": landscape(c, p, 48, 26, 10, 30, 18, 6, 5f); break;
             case "psp": landscape(c, p, 50, 22, 16, 28, 16, 6, 3.5f); break;
             case "nds": clamshell(c, p); break;
+            case "gc": landscape(c, p, 40, 34, 14, 22, 18, 6, 6f); break;
             case Library.GAMES: nes(c, p); break;
             case Library.APPS: phone(c, p); break;
             default: nes(c, p);

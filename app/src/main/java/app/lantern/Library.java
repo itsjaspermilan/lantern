@@ -50,6 +50,7 @@ final class Library {
         new Sys("md", "Mega Drive", "Mega Drive and Genesis", "md", "gen", "smd"),
         new Sys("n64", "N64", "Nintendo 64", "z64", "n64", "v64"),
         new Sys("nds", "DS", "Nintendo DS", "nds"),
+        new Sys("gc", "GameCube", "Nintendo GameCube", "iso", "gcm", "ciso", "gcz", "rvz"),
         new Sys("psx", "PlayStation", "PlayStation", "cue", "chd", "pbp"),
         new Sys("psp", "PSP", "PlayStation Portable", "iso", "cso"),
         new Sys("saturn", "Saturn", "Sega Saturn", "cue", "chd"),
@@ -345,6 +346,7 @@ final class Library {
             case "md": base = 225; break;
             case "n64": base = 140; break;
             case "nds": base = 195; break;
+            case "gc": base = 275; break;
             case "psx": base = 30; break;
             case "psp": base = 285; break;
             case "saturn": base = 345; break;

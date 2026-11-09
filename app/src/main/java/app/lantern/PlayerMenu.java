@@ -66,7 +66,9 @@ final class PlayerMenu extends FrameLayout {
             "mupen64plus-43screensize", "mupen64plus-aspect", "mupen64plus-169screensize", "mupen64plus-MultiSampling",
             "mupen64plus-FXAA", "mupen64plus-BilinearMode", "mupen64plus-Framerate", "mupen64plus-cpucore",
             "mupen64plus-rdp-plugin", "mupen64plus-astick-deadzone", "mupen64plus-astick-sensitivity",
-            "mupen64plus-alt-map", "mupen64plus-pak1", "mupen64plus-ForceDisableExtraMem"));
+            "mupen64plus-alt-map", "mupen64plus-pak1", "mupen64plus-ForceDisableExtraMem",
+            "melonds_screen_layout", "melonds_hybrid_small_screen", "melonds_screen_gap", "melonds_swapscreen_mode",
+            "melonds_touch_mode"));
     private static final int LEVEL_EMULATOR = 4;
     /** Level 3 rows: where changes are kept, the 16 buttons (Controls.ORDER), then reset. */
     private static final int CONTROL_ROWS = Controls.ORDER.length + 2;

@@ -513,7 +513,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             Player.nativeAxis(2, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_Z)) : 0);
             Player.nativeAxis(3, live ? stick(e.getAxisValue(android.view.MotionEvent.AXIS_RZ)) : 0);
             float hx = e.getAxisValue(android.view.MotionEvent.AXIS_HAT_X), hy = e.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y);
-            boolean digitalStick = !live || !"n64".equals(sysId);
+            boolean digitalStick = !live || !("n64".equals(sysId) || "gc".equals(sysId));
             if (!digitalStick) { sx = 0f; sy = 0f; }
             setDir(0, hy < -.5f || (digitalStick && (dirHeld[0] ? sy < -.4f : sy < -.6f)));
             setDir(1, hy > .5f || (digitalStick && (dirHeld[1] ? sy > .4f : sy > .6f)));

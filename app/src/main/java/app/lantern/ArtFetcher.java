@@ -63,6 +63,7 @@ final class ArtFetcher {
             case "md": return "Sega - Mega Drive - Genesis";
             case "n64": return "Nintendo - Nintendo 64";
             case "nds": return "Nintendo - Nintendo DS";
+            case "gc": return "Nintendo - GameCube";
             case "psx": return "Sony - PlayStation";
             case "psp": return "Sony - PlayStation Portable";
             case "saturn": return "Sega - Saturn";

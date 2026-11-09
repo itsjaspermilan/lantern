@@ -35,6 +35,8 @@ final class Cores {
         new Info("genesis_plus_gx", "Genesis Plus GX", "Mega Drive, Master System, Game Gear",
                 "non-commercial", true),
         new Info("mupen64plus_next_gles3", "Mupen64Plus-Next", "Nintendo 64", "GPL-2.0", false),
+        new Info("melonds", "melonDS", "Nintendo DS", "GPL-3.0", false),
+        new Info("dolphin", "Dolphin", "Nintendo GameCube", "GPL-2.0", false),
     };
 
     /** Library name without "lib" and ".so", or null when Lantern has no core for the system. */
@@ -53,6 +55,10 @@ final class Cores {
                 return "fceumm";
             case "n64":
                 return "mupen64plus_next_gles3";
+            case "nds":
+                return "melonds";
+            case "gc":
+                return "dolphin";
             case "md":
             case "mastersystem":
             case "gamegear":

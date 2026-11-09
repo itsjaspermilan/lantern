@@ -12,10 +12,11 @@ final class ScreenViews {
     static final String[] NAMES = {
             "Both, one above the other", "Both, side by side", "Top screen big", "Bottom screen big",
             "Top screen only", "Bottom screen only"};
-    static final String[] LAYOUT = {"Top/Bottom", "Left/Right", "Hybrid Top", "Hybrid Bottom", "Top Only", "Bottom Only"};
-    /** For the big/small views: which screen is the small one (melonDS's "Hybrid Small Screen Mode"). */
-    static final String SMALL_OPTION = "melonds_hybrid_small_screen";
-    static final String[] SMALL = {null, null, "Bottom", "Top", null, null};
+    /** The core's layout for each view. The big ones use side by side: Lantern redraws that one bigger itself. */
+    static final String[] LAYOUT = {"Top/Bottom", "Left/Right", "Left/Right", "Left/Right", "Top Only", "Bottom Only"};
+    /** Lantern's own setting (not the core's): 1 draws the top screen big, 2 the bottom one, 0 as the core drew it. */
+    static final String BIG_OPTION = "lantern_screen_big";
+    static final String[] BIG = {"0", "0", "1", "2", "0", "0"};
     /** Kept in the cycle until the person says otherwise: both, top big, bottom big. */
     static final String DEFAULT_CYCLE = "0,2,3";
 
@@ -44,8 +45,9 @@ final class ScreenViews {
         return -1;
     }
 
-    static int indexOfLayout(String layout) {
-        for (int i = 0; i < LAYOUT.length; i++) if (LAYOUT[i].equals(layout)) return i;
+    /** Which view the core's layout and Lantern's big-screen setting add up to, or -1. */
+    static int viewOf(String layout, String big) {
+        for (int i = 0; i < LAYOUT.length; i++) if (LAYOUT[i].equals(layout) && BIG[i].equals(big)) return i;
         return -1;
     }
 }

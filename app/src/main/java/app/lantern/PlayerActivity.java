@@ -145,6 +145,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         setContentView(root);
         surface.getHolder().addCallback(this);
         applyOptions();
+        if (hasScreenViews()) Player.nativeSetOption(ScreenViews.BIG_OPTION, prefs.getString("screens:big:" + sysId, "0"));
     }
 
     // ---- picture ----
@@ -405,7 +406,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             if (!ScreenViews.OPTION.equals(o[0])) continue;
             String[] vals = o[2].split("\u0002");
             int cur = Integer.parseInt(o[3]);
-            return cur >= 0 && cur < vals.length ? ScreenViews.indexOfLayout(vals[cur]) : -1;
+            return cur >= 0 && cur < vals.length ? ScreenViews.viewOf(vals[cur], prefs.getString("screens:big:" + sysId, "0")) : -1;
         }
         return -1;
     }
@@ -413,7 +414,9 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     @Override
     public void showScreenView(int view) {
         setCoreOption(ScreenViews.OPTION, ScreenViews.LAYOUT[view]);
-        if (ScreenViews.SMALL[view] != null) setCoreOption(ScreenViews.SMALL_OPTION, ScreenViews.SMALL[view]); // the other screen is the small one
+        prefs.edit().putString("screens:big:" + sysId, ScreenViews.BIG[view]).apply();
+        Player.nativeSetOption(ScreenViews.BIG_OPTION, ScreenViews.BIG[view]);
+        root.postDelayed(this::fitPicture, 400); // the picture's shape may have changed
     }
 
     /** The switch key: the next screen view in the cycle. */

@@ -329,10 +329,52 @@ static void hw_present(unsigned w, unsigned h) {
     g_lock_s += now_s() - t;
 }
 
+/* Nintendo DS, one screen bigger: melonDS draws the two screens side by side (512x192, top on the left). When the
+ * person wants one screen big (g_ds_big: 1 top, 2 bottom) they are redrawn here at 2x and 1x, the top still on the
+ * left and the bottom on the right, in a 768x384 picture. */
+static atomic_int g_ds_big;
+static bool g_ds_composed;
+static uint32_t *g_ds_buf;
+
+static const uint32_t *ds_compose(const uint32_t *src, size_t pitch_px) {
+    enum { OW = 768, OH = 384 };
+    if (!g_ds_buf) g_ds_buf = malloc((size_t)OW * OH * sizeof *g_ds_buf);
+    if (!g_ds_buf) return NULL;
+    memset(g_ds_buf, 0, (size_t)OW * OH * sizeof *g_ds_buf);
+    int big = atomic_load(&g_ds_big);
+    const uint32_t *top = src, *bottom = src + 256;
+    const uint32_t *bigsrc = big == 1 ? top : bottom, *smallsrc = big == 1 ? bottom : top;
+    unsigned bigx = big == 1 ? 0 : 256, smallx = big == 1 ? 512 : 0;
+    for (unsigned y = 0; y < 384; y++) {
+        const uint32_t *s = bigsrc + (size_t)(y / 2) * pitch_px;
+        uint32_t *d = g_ds_buf + (size_t)y * OW + bigx;
+        for (unsigned x = 0; x < 512; x++) d[x] = s[x / 2];
+    }
+    for (unsigned y = 0; y < 192; y++) {
+        const uint32_t *s = smallsrc + (size_t)y * pitch_px;
+        memcpy(g_ds_buf + (size_t)(y + 96) * OW + smallx, s, 256 * sizeof *s);
+    }
+    return g_ds_buf;
+}
+
 /* ---- video: copy the core's frame into the window (RGBX 8888) and keep an ARGB copy ---- */
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
     if (data == RETRO_HW_FRAME_BUFFER_VALID) { if (g_hw_on) hw_present(w, h); return; }
     if (!data || !g_win) { g_dupe_calls++; return; } /* NULL means "repeat the last frame" */
+    if (atomic_load(&g_ds_big) && w == 512 && h == 192 && g_pixel_format == RETRO_PIXEL_FORMAT_XRGB8888) {
+        const uint32_t *c = ds_compose((const uint32_t *)data, pitch / 4);
+        if (c) {
+            data = c;
+            w = 768;
+            h = 384;
+            pitch = 768 * 4;
+            g_aspect = 2.0f;
+            g_ds_composed = true;
+        }
+    } else if (g_ds_composed) {
+        g_ds_composed = false;
+        g_aspect = h ? (float)w / (float)h : g_aspect;
+    }
     g_video_calls++;
     if ((int)w != g_win_w || (int)h != g_win_h) {
         ANativeWindow_setBuffersGeometry(g_win, (int32_t)w, (int32_t)h, WINDOW_FORMAT_RGBX_8888);
@@ -436,6 +478,7 @@ static char g_opt_path[620];
 
 static const char *const g_better[][2] = {
     {"mupen64plus-43screensize", "1280x960"}, /* four times the console's own picture: easy for this chip */
+    {"melonds_threaded_renderer", "disabled"}, /* with it on, the picture went white for seconds and the sound starved */
     {"melonds_touch_mode", "Joystick"}, /* the right stick moves a pointer on the lower screen: no touch needed */
 };
 
@@ -1070,6 +1113,10 @@ JNIEXPORT jboolean JNICALL Java_app_lantern_Player_nativeSetOption(JNIEnv *env, 
     copy_jstring(env, key, k, sizeof k);
     copy_jstring(env, value, v, sizeof v);
     jboolean ok = JNI_FALSE;
+    if (strcmp(k, "lantern_screen_big") == 0) { /* Lantern's own, not the core's: see ds_compose */
+        atomic_store(&g_ds_big, atoi(v));
+        return JNI_TRUE;
+    }
     pthread_mutex_lock(&g_opt_lock);
     for (int i = 0; i < g_opt_count && !ok; i++) {
         if (strcmp(g_opts[i].key, k) != 0) continue;

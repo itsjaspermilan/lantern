@@ -131,7 +131,7 @@ Other folders under `/sdcard/Lantern/` (all optional):
 | `saves/<system>/` | Created by Lantern: in-game saves, save states, the resume point and its screenshot, and the emulator settings you chose (`<core>.options`, from *Emulator* in the game menu). |
 | `art/<system>/<game>.png` (or `.jpg`) | Your own cover for a game, named like its ROM without the extension. |
 | `art/androidgames/<package>.png` | Cover for an Android game, named after its package (or its title). |
-| `cheats/<system>/<game>.cht` | Cheats in RetroArch's `.cht` format, named like the ROM. |
+| `cheats/<system>/<game>.cht` | Cheats in RetroArch's `.cht` format, named like the ROM. If a game has none, *Get cheats* in the game menu downloads them from the [libretro database](https://github.com/libretro/libretro-database) when it has a file for that game (all cheats start off). |
 
 ### 3. Add emulators
 

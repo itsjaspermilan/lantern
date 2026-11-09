@@ -43,6 +43,10 @@ final class PlayerMenu extends FrameLayout {
         void quit();
         void optionsChanged();
         void cheatsChanged();
+        /** Whether the database has cheats for this system, and this game has none yet. */
+        boolean canGetCheats();
+        /** Downloads this game's cheats; when done the player sets {@link #cheats} and calls {@link #refresh}. */
+        void getCheats();
         /** Short name of the console, for "All SNES games". */
         String consoleName();
         boolean controlsPerGame();
@@ -289,6 +293,11 @@ final class PlayerMenu extends FrameLayout {
             return;
         }
         String item = names()[idx];
+        if (item.equals("Get cheats")) {
+            message = "Getting cheats...";
+            host.getCheats();
+            return;
+        }
         if (item.equals("Options") || item.equals("Controls") || item.equals("Cheats") || item.equals("Emulator") || item.equals("Screens")) {
             level = item.equals("Options") ? 1 : item.equals("Cheats") ? 2 : item.equals("Emulator") ? LEVEL_EMULATOR : item.equals("Screens") ? LEVEL_SCREENS : 3;
             if (level == LEVEL_EMULATOR) loadEmulator();
@@ -318,6 +327,7 @@ final class PlayerMenu extends FrameLayout {
     private String[] mainNames() {
         List<String> n = new java.util.ArrayList<>(java.util.Arrays.asList("Continue", "Save", "Load", "Options", "Controls"));
         if (!cheats.isEmpty()) n.add("Cheats");
+        else if (host.canGetCheats()) n.add("Get cheats");
         if (host.hasScreenViews()) n.add("Screens");
         if (hasEmulator) n.add("Emulator");
         n.add("Quit");
@@ -357,6 +367,12 @@ final class PlayerMenu extends FrameLayout {
     }
 
     // ---- drawing ----
+
+    /** Shows the menu again after something changed behind it (a download finished), with a line of text. */
+    void refresh(String text) {
+        message = text;
+        render();
+    }
 
     private void render() {
         removeAllViews();

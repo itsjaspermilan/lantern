@@ -23,6 +23,9 @@ No fonts are bundled; the interface uses the device's own system font.
   GX) are **non-commercial only**. They are not committed, and a build that bundles them must not be redistributed
   without checking each licence. The git-ignored folder `native/cores/` is where a person's own copies go.
 - **Games, BIOS files, save files.** Never included. The person supplies their own.
+- **Cheats.** Not included. *Get cheats* in the game menu downloads one game's `.cht` file from the libretro database
+  (github.com/libretro/libretro-database, CC BY-SA 4.0) when the person asks. The file is kept as it came, in their
+  own `Lantern/cheats/` folder.
 - **Cover art.** Not included. Lantern can fetch box art from the public libretro thumbnail server when the person
   turns that on (off by default). That art belongs to its publishers and artists; Lantern only displays it on the
   person's own device and does not store or redistribute it. The screenshots in this repository use made-up games with

@@ -52,10 +52,14 @@ final class ArtFetcher {
 
     /** The libretro thumbnail folder name for a system, or null when there is none. */
     static String systemName(Game g) {
-        switch (g.sysId == null ? "" : g.sysId) {
+        return systemName(g.sysId, g.file);
+    }
+
+    static String systemName(String sysId, java.io.File file) {
+        switch (sysId == null ? "" : sysId) {
             case "nes": return "Nintendo - Nintendo Entertainment System";
             case "snes": return "Nintendo - Super Nintendo Entertainment System";
-            case "gb": return g.file.getName().toLowerCase().endsWith(".gbc") ? "Nintendo - Game Boy Color" : "Nintendo - Game Boy";
+            case "gb": return file.getName().toLowerCase().endsWith(".gbc") ? "Nintendo - Game Boy Color" : "Nintendo - Game Boy";
             case "gba": return "Nintendo - Game Boy Advance";
             case "gbc": return "Nintendo - Game Boy Color";
             case "mastersystem": return "Sega - Master System - Mark III";

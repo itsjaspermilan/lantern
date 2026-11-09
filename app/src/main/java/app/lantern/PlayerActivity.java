@@ -473,6 +473,32 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         Cheats.write(cheatFile, menu.cheats);
     }
 
+    private boolean fetchingCheats;
+
+    @Override
+    public boolean canGetCheats() {
+        return menu.cheats.isEmpty() && CheatFetcher.supported(sysId, romFile);
+    }
+
+    @Override
+    public void getCheats() {
+        if (fetchingCheats) return;
+        fetchingCheats = true;
+        new Thread(() -> {
+            int r = CheatFetcher.fetch(sysId, romFile, cheatFile);
+            runOnUiThread(() -> {
+                fetchingCheats = false;
+                if (isFinishing()) return;
+                if (r == CheatFetcher.GOT) {
+                    menu.cheats = Cheats.read(cheatFile);
+                    Player.nativeCheats(Cheats.codesOn(menu.cheats));
+                }
+                menu.refresh(r == CheatFetcher.GOT ? (menu.cheats.isEmpty() ? "No cheats in the file" : menu.cheats.size() + " cheats added, all off")
+                        : r == CheatFetcher.NONE ? "No cheats for this game" : "Could not get cheats (no connection?)");
+            });
+        }, "cheats").start();
+    }
+
     private void openMenu() {
         Player.nativePause(true);
         selectDown = startDown = false;

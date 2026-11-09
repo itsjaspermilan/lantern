@@ -39,7 +39,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private FrameLayout root, picture;
     private SurfaceView surface;
     private ScanlineView scan;
-    private TextView hud;
+    private TextView hud, notice;
     private PlayerMenu menu;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Map<Integer, Bitmap> slotCache = new HashMap<>();
@@ -107,6 +107,16 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
         hp.setMargins(24, 16, 24, 0);
         root.addView(hud, hp);
+
+        notice = new TextView(this); // a few words that fade (the DS's screen view, after the switch key)
+        notice.setTextColor(Color.WHITE);
+        notice.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        notice.setPadding(40, 18, 40, 18);
+        notice.setBackground(roundRect(0xB0000000, 40));
+        notice.setAlpha(0f);
+        FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        np.bottomMargin = 48;
+        root.addView(notice, np);
 
         menu = new PlayerMenu(this, this);
         menu.scaling = prefs.getInt(sysId + ":scaling", 0);
@@ -345,6 +355,78 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         Player.nativeSetOption(key, value);
     }
 
+    private static android.graphics.drawable.GradientDrawable roundRect(int color, float radius) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radius);
+        return d;
+    }
+
+    private void say(String text) {
+        notice.setText(text);
+        notice.animate().cancel();
+        notice.setAlpha(1f);
+        notice.animate().alpha(0f).setStartDelay(1400).setDuration(400).start();
+    }
+
+    // ---- the DS's screen views ----
+
+    @Override
+    public boolean hasScreenViews() {
+        return "nds".equals(sysId);
+    }
+
+    @Override
+    public int screenKey() {
+        return prefs.getInt("screens:key:" + sysId, 0);
+    }
+
+    @Override
+    public void bindScreenKey(int keyCode) {
+        prefs.edit().putInt("screens:key:" + sysId, keyCode).apply();
+    }
+
+    private String screenCycle() {
+        return prefs.getString("screens:cycle:" + sysId, ScreenViews.DEFAULT_CYCLE);
+    }
+
+    @Override
+    public boolean screenInCycle(int view) {
+        return ScreenViews.contains(screenCycle(), view);
+    }
+
+    @Override
+    public void setScreenInCycle(int view, boolean on) {
+        prefs.edit().putString("screens:cycle:" + sysId, ScreenViews.with(screenCycle(), view, on)).apply();
+    }
+
+    private int currentScreenView() {
+        for (String[] o : coreOptions()) {
+            if (!ScreenViews.OPTION.equals(o[0])) continue;
+            String[] vals = o[2].split("\u0002");
+            int cur = Integer.parseInt(o[3]);
+            return cur >= 0 && cur < vals.length ? ScreenViews.indexOfLayout(vals[cur]) : -1;
+        }
+        return -1;
+    }
+
+    @Override
+    public void showScreenView(int view) {
+        setCoreOption(ScreenViews.OPTION, ScreenViews.LAYOUT[view]);
+        if (ScreenViews.SMALL[view] != null) setCoreOption(ScreenViews.SMALL_OPTION, ScreenViews.SMALL[view]); // the other screen is the small one
+    }
+
+    /** The switch key: the next screen view in the cycle. */
+    private void cycleScreens() {
+        int next = ScreenViews.next(screenCycle(), currentScreenView());
+        if (next < 0) {
+            say("No screen views are in the cycle (Screens in the menu)");
+            return;
+        }
+        showScreenView(next);
+        say(ScreenViews.NAMES[next]);
+    }
+
     @Override
     public void optionsChanged() {
         prefs.edit().putInt(sysId + ":scaling", menu.scaling).putInt(sysId + ":effect", menu.effect)
@@ -460,6 +542,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         if (code == KeyEvent.KEYCODE_BUTTON_START) startDown = down;
         if (down && selectDown && startDown) { // Select and Start together
             openMenu();
+            return true;
+        }
+        if (hasScreenViews() && code == screenKey()) { // the switch key belongs to Lantern, not the game
+            if (down && e.getRepeatCount() == 0) cycleScreens();
             return true;
         }
         int id = controls.idFor(code, nintendoPad);

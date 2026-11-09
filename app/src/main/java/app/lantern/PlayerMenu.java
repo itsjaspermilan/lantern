@@ -54,6 +54,13 @@ final class PlayerMenu extends FrameLayout {
         /** The core's settings: {key, description, values joined by \u0002, index in use} each. */
         List<String[]> coreOptions();
         void setCoreOption(String key, String value);
+        /** The Nintendo DS's screen views (see {@link ScreenViews}): only for that system. */
+        boolean hasScreenViews();
+        int screenKey();
+        void bindScreenKey(int keyCode);
+        boolean screenInCycle(int view);
+        void setScreenInCycle(int view, boolean on);
+        void showScreenView(int view);
     }
 
     static final String[] SCALING = {"Aspect", "Integer", "Fill"};
@@ -69,9 +76,22 @@ final class PlayerMenu extends FrameLayout {
             "mupen64plus-alt-map", "mupen64plus-pak1", "mupen64plus-ForceDisableExtraMem",
             "melonds_screen_layout", "melonds_hybrid_small_screen", "melonds_screen_gap", "melonds_swapscreen_mode",
             "melonds_touch_mode"));
-    private static final int LEVEL_EMULATOR = 4;
+    private static final int LEVEL_EMULATOR = 4, LEVEL_SCREENS = 5;
     /** Level 3 rows: where changes are kept, the 16 buttons (Controls.ORDER), then reset. */
     private static final int CONTROL_ROWS = Controls.ORDER.length + 2;
+
+    /** Rows on the Controls page: the "save for" row, the buttons, the DS's screen-switch key when it has one, reset. */
+    private int controlRows() {
+        return CONTROL_ROWS + (host.hasScreenViews() ? 1 : 0);
+    }
+
+    private boolean onScreenKeyRow(int i) {
+        return host.hasScreenViews() && i == controlRows() - 2;
+    }
+
+    private static String pageName(int level) {
+        return level == 1 ? "Options" : level == 3 ? "Controls" : level == LEVEL_EMULATOR ? "Emulator" : level == LEVEL_SCREENS ? "Screens" : "Cheats";
+    }
     private static final int CHEATS_SHOWN = 7;
     /** Level 4: the core's settings, as shown (a short list unless "More settings" was chosen), and which are shown. */
     private List<String[]> emu = Collections.emptyList();
@@ -148,8 +168,13 @@ final class PlayerMenu extends FrameLayout {
             capturing = false;
             if (Controls.reserved(code)) message = "Cancelled";
             else {
-                host.bindControl(Controls.ORDER[idx - 1], code);
-                message = Controls.buttonName(Controls.ORDER[idx - 1]) + " is now " + Controls.keyName(code);
+                if (onScreenKeyRow(idx)) {
+                    host.bindScreenKey(code);
+                    message = "Switch screens is now " + Controls.keyName(code);
+                } else {
+                    host.bindControl(Controls.ORDER[idx - 1], code);
+                    message = Controls.buttonName(Controls.ORDER[idx - 1]) + " is now " + Controls.keyName(code);
+                }
             }
             render();
             return true;
@@ -177,7 +202,7 @@ final class PlayerMenu extends FrameLayout {
                 break;
             case KeyEvent.KEYCODE_BUTTON_B:
             case KeyEvent.KEYCODE_BACK:
-                if (level > 0) { idx = indexOf(level == 1 ? "Options" : level == 3 ? "Controls" : level == 4 ? "Emulator" : "Cheats"); level = 0; message = ""; }
+                if (level > 0) { idx = indexOf(pageName(level)); level = 0; message = ""; }
                 else { host.continueGame(); return true; }
                 break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
@@ -198,6 +223,10 @@ final class PlayerMenu extends FrameLayout {
         }
         if (level == 3) {
             if (idx == 0) host.setControlsPerGame(!host.controlsPerGame());
+            return;
+        }
+        if (level == LEVEL_SCREENS) {
+            host.setScreenInCycle(idx, !host.screenInCycle(idx));
             return;
         }
         if (level == LEVEL_EMULATOR) {
@@ -231,13 +260,22 @@ final class PlayerMenu extends FrameLayout {
     private void activate() {
         if (level == 3) {
             if (idx == 0) change(1);
-            else if (idx == CONTROL_ROWS - 1) {
+            else if (idx == controlRows() - 1) {
                 host.resetControls();
+                if (host.hasScreenViews()) host.bindScreenKey(0);
                 message = "Back to the usual buttons";
+            } else if (onScreenKeyRow(idx)) {
+                capturing = true;
+                message = "Press the button for switching screens  (Back cancels)";
             } else {
                 capturing = true;
                 message = "Press the button for " + Controls.buttonName(Controls.ORDER[idx - 1]) + "  (Back cancels)";
             }
+            return;
+        }
+        if (level == LEVEL_SCREENS) {
+            host.showScreenView(idx);
+            message = ScreenViews.NAMES[idx];
             return;
         }
         if (level == LEVEL_EMULATOR && idx == emu.size()) { // "More settings" / "Fewer settings"
@@ -251,8 +289,8 @@ final class PlayerMenu extends FrameLayout {
             return;
         }
         String item = names()[idx];
-        if (item.equals("Options") || item.equals("Controls") || item.equals("Cheats") || item.equals("Emulator")) {
-            level = item.equals("Options") ? 1 : item.equals("Cheats") ? 2 : item.equals("Emulator") ? LEVEL_EMULATOR : 3;
+        if (item.equals("Options") || item.equals("Controls") || item.equals("Cheats") || item.equals("Emulator") || item.equals("Screens")) {
+            level = item.equals("Options") ? 1 : item.equals("Cheats") ? 2 : item.equals("Emulator") ? LEVEL_EMULATOR : item.equals("Screens") ? LEVEL_SCREENS : 3;
             if (level == LEVEL_EMULATOR) loadEmulator();
             idx = 0;
             message = "";
@@ -280,6 +318,7 @@ final class PlayerMenu extends FrameLayout {
     private String[] mainNames() {
         List<String> n = new java.util.ArrayList<>(java.util.Arrays.asList("Continue", "Save", "Load", "Options", "Controls"));
         if (!cheats.isEmpty()) n.add("Cheats");
+        if (host.hasScreenViews()) n.add("Screens");
         if (hasEmulator) n.add("Emulator");
         n.add("Quit");
         return n.toArray(new String[0]);
@@ -302,11 +341,13 @@ final class PlayerMenu extends FrameLayout {
             return n;
         }
         if (level == 1) return OPTIONS;
+        if (level == LEVEL_SCREENS) return ScreenViews.NAMES;
         if (level == 3) {
-            String[] n = new String[CONTROL_ROWS];
+            String[] n = new String[controlRows()];
             n[0] = "Save changes for";
             for (int i = 0; i < Controls.ORDER.length; i++) n[i + 1] = Controls.buttonName(Controls.ORDER[i]);
-            n[CONTROL_ROWS - 1] = "Reset to usual buttons";
+            if (host.hasScreenViews()) n[controlRows() - 2] = "Switch screens";
+            n[controlRows() - 1] = "Reset to usual buttons";
             return n;
         }
         if (level == 0) return mainNames();
@@ -331,14 +372,14 @@ final class PlayerMenu extends FrameLayout {
 
         LinearLayout col = new LinearLayout(getContext());
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label(level == 0 ? host.gameTitle() : level == 1 ? "Options" : level == 3 ? "Controls" : level == LEVEL_EMULATOR ? "Emulator" : "Cheats", 44, 0xA6FFFFFF, true);
+        TextView title = label(level == 0 ? host.gameTitle() : level == 1 ? "Options" : level == 3 ? "Controls" : level == LEVEL_EMULATOR ? "Emulator" : level == LEVEL_SCREENS ? "Screens" : "Cheats", 44, 0xA6FFFFFF, true);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
         tp.bottomMargin = u(28);
         col.addView(title, tp);
 
         String[] names = names();
-        boolean wide = level == 2 || level == 3 || level == LEVEL_EMULATOR; // cheat names are long, so the list takes the preview's place
+        boolean wide = level == 2 || level == 3 || level == LEVEL_EMULATOR || level == LEVEL_SCREENS; // cheat names are long, so the list takes the preview's place
         int first = wide ? Math.max(0, Math.min(idx - CHEATS_SHOWN / 2, names.length - CHEATS_SHOWN)) : 0;
         int end = wide ? Math.min(names.length, first + CHEATS_SHOWN) : names.length;
         for (int i = first; i < end; i++) {
@@ -386,14 +427,16 @@ final class PlayerMenu extends FrameLayout {
     private String valueOf(int i) {
         if (level == 0) {
             String n = names()[i];
-            return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : n.equals("Options") || n.equals("Controls") || n.equals("Cheats") || n.equals("Emulator") ? "›" : "";
+            return i == 1 || i == 2 ? "◀ Slot " + slot + " ▶" : n.equals("Options") || n.equals("Controls") || n.equals("Cheats") || n.equals("Emulator") || n.equals("Screens") ? "›" : "";
         }
         if (level == 3) {
             if (i == 0) return host.controlsPerGame() ? "◀ This game ▶" : "◀ All " + host.consoleName() + " games ▶";
-            if (i == CONTROL_ROWS - 1) return "";
+            if (i == controlRows() - 1) return "";
             if (capturing && i == idx) return "Press a button…";
+            if (onScreenKeyRow(i)) return Controls.keyName(host.screenKey());
             return Controls.keyName(host.controlKey(Controls.ORDER[i - 1]));
         }
+        if (level == LEVEL_SCREENS) return host.screenInCycle(i) ? "◀ In the cycle ▶" : "◀ Left out ▶";
         if (level == LEVEL_EMULATOR) {
             if (i >= emu.size()) return "";
             String[] o = emu.get(i);

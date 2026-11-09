@@ -813,7 +813,7 @@ static atomic_bool g_cheats_changed;
 
 /* ---- Action Replay codes, for the Nintendo DS. The melonDS build here accepts cheats but has no engine behind them, so
  * Lantern runs the codes itself: after each frame it writes into the core's main RAM (the 4 MB at 0x02000000).
- * Supported lines: 0/1/2 write 32/16/8 bits; 3/4/5/6 if greater/less/equal/different (32 bit); 94000130 if the
+ * Supported lines: 0/1/2 write 32/16/8 bits; FA000000 xxxxxxxx finds that 32-bit value in RAM (an "if"; the game's code moves around), then FB00oooo / FC00oooo write 16 / 32 bits at that place plus oooo, and FD00oooo writes a Thumb BL there to the address in the second word; 3/4/5/6 if greater/less/equal/different (32 bit); 94000130 if the
  * pad's keys are held (a 0 bit in the value's top half means "this key must be down"); D0 end if; D2 end all.
  * A condition covers the lines up to its D0 or D2, and conditions nest. Other lines are skipped. ---- */
 static bool g_cheat_ar;       /* the core is melonDS: use the interpreter, not retro_cheat_set */
@@ -853,23 +853,46 @@ static uint32_t ar_pad_bits(void) { /* the pad as AR knows it: A0 B1 Select2 Sta
     return out;
 }
 
+static struct { int line; uint32_t base; bool ok; } g_fa[16]; /* what each "find" line found the last time it looked */
+static int g_fa_n;
+
 static void ar_run(void) {
     if (!g_ar_n) return;
     uint8_t *ram = C.get_memory_data(2);
     size_t size = C.get_memory_size(2);
     if (!ram || size < 0x400000) return;
+    static unsigned tick;
+    bool look = (tick++ % 6) == 0; /* looking through RAM costs a little: every sixth frame */
     int skip = 0;
+    uint32_t base = 0;
+    bool base_ok = false;
     for (int i = 0; i + 1 < g_ar_n; i += 2) {
-        uint32_t a = g_ar[i], b = g_ar[i + 1], top = a >> 28, off = a & 0x003FFFFFu;
+        uint32_t a = g_ar[i], b = g_ar[i + 1], top = a >> 28, off = a & 0x003FFFFFu, code = a >> 24;
         if (top == 0xD) {
-            if ((a >> 24) == 0xD0) { if (skip) skip--; }
-            else if ((a >> 24) == 0xD2) skip = 0;
+            if (code == 0xD0) { if (skip) skip--; }
+            else if (code == 0xD2) skip = 0;
             continue;
         }
-        if ((top >= 3 && top <= 6) || top == 9) {
+        if ((top >= 3 && top <= 6) || top == 9 || code == 0xFA) {
             if (skip) { skip++; continue; }
             bool ok = false;
-            if (top == 9) {
+            if (code == 0xFA) { /* find: the 32-bit value b somewhere in RAM; the lines after it work relative to it */
+                int s = -1;
+                for (int k = 0; k < g_fa_n; k++) if (g_fa[k].line == i) s = k;
+                if (s < 0 && g_fa_n < 16) { s = g_fa_n++; g_fa[s].line = i; look = true; }
+                if (s >= 0) {
+                    if (look) {
+                        g_fa[s].ok = false;
+                        for (uint32_t o = 0x100000; o < 0x300000; o += 4) {
+                            uint32_t v;
+                            memcpy(&v, ram + o, 4);
+                            if (v == b) { g_fa[s].base = o; g_fa[s].ok = true; break; }
+                        }
+                    }
+                    ok = g_fa[s].ok;
+                    if (ok) { base = g_fa[s].base; base_ok = true; }
+                }
+            } else if (top == 9) {
                 uint32_t want = ~(b >> 16) & 0x3FFu;
                 ok = (ar_pad_bits() & want) == want;
             } else {
@@ -881,6 +904,18 @@ static void ar_run(void) {
             continue;
         }
         if (skip) continue;
+        if (code >= 0xFB && code <= 0xFD) { /* relative to what the last find found */
+            uint32_t at = base + (a & 0xFFFFu);
+            if (!base_ok || at + 4 > 0x400000) continue;
+            if (code == 0xFB) { uint16_t v = (uint16_t)b; memcpy(ram + at, &v, 2); }       /* write 16 bits */
+            else if (code == 0xFC) memcpy(ram + at, &b, 4);                                  /* write 32 bits */
+            else { /* a Thumb BL here, to the address b */
+                int32_t d = (int32_t)(b & 0x3FFFFFu) - (int32_t)((at + 4) & 0x3FFFFFu);
+                uint32_t w = ((0xF800u | (((uint32_t)d >> 1) & 0x7FFu)) << 16) | (0xF000u | (((uint32_t)d >> 12) & 0x7FFu));
+                memcpy(ram + at, &w, 4);
+            }
+            continue;
+        }
         if (top == 0) { uint32_t v = b; memcpy(ram + (off & ~3u), &v, 4); }
         else if (top == 1) { uint16_t v = (uint16_t)b; memcpy(ram + (off & ~1u), &v, 2); }
         else if (top == 2) ram[off] = (uint8_t)b;
@@ -894,6 +929,7 @@ static void apply_cheats(void) {
     free(g_ar);
     g_ar = NULL;
     g_ar_n = 0;
+    g_fa_n = 0;
     for (int i = 0; i < g_cheat_count; i++) {
         if (g_cheat_ar) ar_load(g_cheats[i]);
         else C.cheat_set((unsigned)i, true, g_cheats[i]);

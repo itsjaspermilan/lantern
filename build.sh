@@ -17,8 +17,11 @@ BT=$(ls -d "$SDK"/build-tools/* | sort -V | tail -1)
 JAR="$SDK/platforms/android-36/android.jar"
 [ -f "$JAR" ] || { echo "build: missing $JAR" >&2; exit 1; }
 OUT="$ROOT/build"
-rm -rf "$OUT/classes" "$OUT/dex" "$OUT/base.apk" "$OUT/aligned.apk"
+# Old results go first, so a failed build can never leave an older APK behind to be installed by mistake.
+# Intermediate files (everything but the finished APK and the debug key) are deleted when the script ends.
+rm -rf "$OUT/classes" "$OUT/dex" "$OUT/lib" "$OUT/res.zip" "$OUT/base.apk" "$OUT/aligned.apk" "$OUT/lantern-debug.apk" "$OUT/lantern-debug.apk.idsig"
 mkdir -p "$OUT/classes" "$OUT/dex"
+trap 'rm -rf "$OUT/classes" "$OUT/dex" "$OUT/lib" "$OUT/res.zip" "$OUT/base.apk" "$OUT/aligned.apk"' EXIT
 
 # Prefer JAVA_HOME's tools: the asdf shims on PATH need a version file in this folder.
 [ -z "${JAVA_HOME:-}" ] || export PATH="$JAVA_HOME/bin:$PATH"
